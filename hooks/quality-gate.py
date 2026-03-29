@@ -973,7 +973,7 @@ def _compute_confidence(gate_blocked, block_category, state):
     if state.get('layer2_elevated_scrutiny'):
         score -= 0.20
     # Gap 5: ignored_warnings_count adjustment (-0.08 per warning, cap -0.20)
-    score -= min(state.get('layer2_turn_event_count', 0) * 0.08, 0.20)
+    score -= min(state.get('layer15_warnings_ignored_count', 0) * 0.08, 0.20)
     # Gap 6: syntax failure from Layer 2.5
     if state.get('layer25_syntax_failure'):
         score -= 0.15

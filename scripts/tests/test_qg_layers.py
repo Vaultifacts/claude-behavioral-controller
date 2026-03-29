@@ -995,6 +995,72 @@ class TestLayer15Extra(unittest.TestCase):
         self.assertEqual(captured_counts[1], 0)
 
 
+
+class TestLayer15Gap15(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_warn_action_increments_warnings_ignored_count(self):
+        import io, qg_layer15, qg_session_state as ss
+        state = ss.read_state()
+        ss.write_state(state)
+        sys.stdin = io.StringIO(
+            '{"tool_name": "Edit", "tool_input": {"file_path": "/unread.py"}}')
+        try:
+            qg_layer15.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        count = ss.read_state().get('layer15_warnings_ignored_count', 0)
+        self.assertEqual(count, 1)
+
+    def test_block_action_does_not_increment_counter(self):
+        import io, qg_layer15, qg_session_state as ss
+        state = ss.read_state()
+        state['layer19_last_impact_level'] = 'HIGH'  # escalates warn -> block
+        ss.write_state(state)
+        sys.stdin = io.StringIO(
+            '{"tool_name": "Edit", "tool_input": {"file_path": "/unread.py"}}')
+        try:
+            qg_layer15.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        count = ss.read_state().get('layer15_warnings_ignored_count', 0)
+        self.assertEqual(count, 0)
+
+    def test_warnings_accumulate_across_calls(self):
+        import io, qg_layer15, qg_session_state as ss
+        for path in ['/a.py', '/b.py']:
+            state = ss.read_state()
+            state['layer15_turn_warnings'] = []  # reset dedup between calls
+            ss.write_state(state)
+            sys.stdin = io.StringIO(
+                f'{{"tool_name": "Edit", "tool_input": {{"file_path": "{path}"}}}}')
+            try:
+                qg_layer15.main()
+            finally:
+                sys.stdin = sys.__stdin__
+        count = ss.read_state().get('layer15_warnings_ignored_count', 0)
+        self.assertEqual(count, 2)
+
+    def test_compute_confidence_uses_warnings_ignored_count(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            'quality_gate', os.path.expanduser('~/.claude/hooks/quality-gate.py'))
+        qg = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(qg)
+        state = {'layer15_warnings_ignored_count': 3}
+        score_no_warnings = qg._compute_confidence(False, None, {})
+        score_with_warnings = qg._compute_confidence(False, None, state)
+        self.assertLess(score_with_warnings, score_no_warnings)
+
 class TestLayer2Extra(unittest.TestCase):
     def setUp(self):
         import qg_session_state as ss

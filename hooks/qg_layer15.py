@@ -116,6 +116,10 @@ def main():
     impact_level = state.get('layer19_last_impact_level', 'LOW')
     if impact_level in ('HIGH', 'CRITICAL') and action == 'warn':
         action = 'block'
+    # Gap 15: track warnings issued (not blocked) for Layer 3 confidence scoring
+    if action == 'warn':
+        state['layer15_warnings_ignored_count'] = state.get('layer15_warnings_ignored_count', 0) + 1
+        ss.write_state(state)
     message = result['message']
     if action == 'info':
         print(json.dumps({'additionalContext': f'[monitor:INFO:layer1.5] {message}'}))
