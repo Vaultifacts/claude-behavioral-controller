@@ -1076,18 +1076,23 @@ def cmd_shadow(n=50, diff=False):
 
 def cmd_monitor():
     """qg monitor — unified quality gate dashboard."""
-    import json, os
+    import json, os, time
     from collections import Counter
 
     CLAUDE_DIR = os.path.expanduser('~/.claude')
     monitor_path = f'{CLAUDE_DIR}/qg-monitor.jsonl'
     history_path = f'{CLAUDE_DIR}/qg-session-history.md'
     state_path = f'{CLAUDE_DIR}/qg-session-state.json'
+    cross_session_path = f'{CLAUDE_DIR}/qg-cross-session.json'
+    calibration_path = f'{CLAUDE_DIR}/qg-calibration.jsonl'
+    suggestions_path = f'{CLAUDE_DIR}/qg-rule-suggestions.md'
 
     print('=== Quality Gate Monitor Dashboard ===')
     print()
 
+    # --- Session state ---
     session_uuid = None
+    state = {}
     try:
         with open(state_path, 'r', encoding='utf-8') as f:
             state = json.load(f)
@@ -1104,7 +1109,9 @@ def cmd_monitor():
         print("Session state: not available")
     print()
 
+    # --- Layer 3 TP/FP/FN/TN stats ---
     all_events, sess_events = [], []
+    layer5_total = 0
     try:
         with open(monitor_path, 'r', encoding='utf-8') as f:
             for line in f:
@@ -1114,6 +1121,8 @@ def cmd_monitor():
                         all_events.append(e)
                         if session_uuid and e.get('session_uuid') == session_uuid:
                             sess_events.append(e)
+                    if e.get('layer') == 'layer5':
+                        layer5_total += 1
                 except Exception:
                     pass
     except FileNotFoundError:
@@ -1130,6 +1139,75 @@ def cmd_monitor():
     _stats(all_events,  'All-time')
     print()
 
+    # --- Recovery events (Layer 3.5) ---
+    recovery = state.get('layer35_recovery_events', [])
+    if recovery:
+        resolved = sum(1 for e in recovery if e.get('status') == 'resolved')
+        partial = sum(1 for e in recovery if e.get('status') == 'partial')
+        open_ = sum(1 for e in recovery if e.get('status') == 'open')
+        print(f"Recovery: {resolved} resolved, {partial} partial, {open_} open (of {len(recovery)} total)")
+    else:
+        print("Recovery: no events this session")
+
+    # --- Subagent dispatches (Layer 5) ---
+    print(f"Subagents: {layer5_total} dispatches recorded in audit trail")
+
+    # --- Layer 9 calibration ---
+    cal_entries = []
+    try:
+        with open(calibration_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    cal_entries.append(json.loads(line.strip()))
+                except Exception:
+                    pass
+    except FileNotFoundError:
+        pass
+    if cal_entries:
+        tn_count = sum(1 for e in cal_entries if e.get('actual_outcome') == 'TN')
+        fp_count = sum(1 for e in cal_entries if e.get('actual_outcome') == 'FP')
+        rate = tn_count / max(len(cal_entries), 1)
+        print(f"L9 Calib: {len(cal_entries)} events — TN rate {rate:.0%} ({tn_count} TN, {fp_count} FP)")
+    else:
+        print("L9 Calib: no calibration data")
+    print()
+
+    # --- Pending rule suggestions ---
+    try:
+        with open(suggestions_path, 'r', encoding='utf-8') as f:
+            sug_content = f.read()
+        pending = sug_content.count('[PENDING]')
+        applied = sug_content.count('[APPLIED]')
+        rejected = sug_content.count('[REJECTED]')
+        print(f"Rules:    {pending} pending, {applied} applied, {rejected} rejected")
+    except FileNotFoundError:
+        print("Rules:    no suggestions file (run: qg rules)")
+
+    # --- Audit trail status ---
+    last_check = state.get('last_integrity_check_ts', 0)
+    if last_check:
+        age_h = (time.time() - last_check) / 3600
+        print(f"Audit:    last integrity check {age_h:.1f}h ago")
+    else:
+        print("Audit:    no integrity check run yet (run: qg integrity)")
+
+    # --- Cross-session patterns ---
+    try:
+        with open(cross_session_path, 'r', encoding='utf-8') as f:
+            cs = json.load(f)
+        patterns = cs.get('patterns', [])
+        sessions_n = cs.get('sessions_analyzed', 0)
+        if patterns:
+            print(f"Patterns: {sessions_n} sessions analyzed — {len(patterns)} recurring:")
+            for p in patterns[:5]:
+                print(f"          {p['category']}: {p['sessions_count']} sessions ({p['event_pct']*100:.0f}%)")
+        else:
+            print(f"Patterns: {sessions_n} sessions analyzed — no recurring patterns")
+    except (FileNotFoundError, json.JSONDecodeError):
+        print("Patterns: no cross-session data yet (run: qg analyze)")
+    print()
+
+    # --- Most recent session summary ---
     try:
         with open(history_path, 'r', encoding='utf-8') as f:
             history = f.read()

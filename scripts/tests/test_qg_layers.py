@@ -2790,5 +2790,77 @@ class TestDashboardRulesApplyReject(unittest.TestCase):
         self.assertTrue(any('not found' in m.lower() or 'not pending' in m.lower() for m in captured))
 
 
+class TestDashboardMonitorEnhanced(unittest.TestCase):
+    """Gap #50 — cmd_monitor displays all 7 spec-required data sections."""
+
+    def _load_qgf(self):
+        import importlib.util
+        _spec = importlib.util.spec_from_file_location('qgf', os.path.expanduser('~/.claude/scripts/qg-feedback.py'))
+        qgf = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(qgf)
+        return qgf
+
+    def test_monitor_runs_without_error(self):
+        """cmd_monitor should not raise on empty/missing data files."""
+        import tempfile, builtins
+        qgf = self._load_qgf()
+        orig_exp = qgf.os.path.expanduser
+        tmpdir = tempfile.mkdtemp()
+        qgf.os.path.expanduser = lambda p: p.replace('~/.claude', tmpdir) if p.startswith('~/.claude') else orig_exp(p)
+        captured = []
+        orig_print = builtins.print
+        builtins.print = lambda *a, **kw: captured.append(' '.join(str(x) for x in a))
+        try:
+            qgf.cmd_monitor()
+        except Exception as e:
+            self.fail(f"cmd_monitor raised: {e}")
+        finally:
+            qgf.os.path.expanduser = orig_exp
+            builtins.print = orig_print
+
+    def test_monitor_shows_recovery_section(self):
+        """cmd_monitor outputs Recovery: line."""
+        import tempfile, builtins, json
+        qgf = self._load_qgf()
+        orig_exp = qgf.os.path.expanduser
+        tmpdir = tempfile.mkdtemp()
+        state_path = os.path.join(tmpdir, 'qg-session-state.json')
+        with open(state_path, 'w') as f:
+            json.dump({'layer35_recovery_events': [{'status': 'resolved'}, {'status': 'open'}]}, f)
+        qgf.os.path.expanduser = lambda p: p.replace('~/.claude', tmpdir) if p.startswith('~/.claude') else orig_exp(p)
+        captured = []
+        orig_print = builtins.print
+        builtins.print = lambda *a, **kw: captured.append(' '.join(str(x) for x in a))
+        try:
+            qgf.cmd_monitor()
+        finally:
+            qgf.os.path.expanduser = orig_exp
+            builtins.print = orig_print
+        self.assertTrue(any('Recovery:' in m for m in captured), f"Recovery section missing. Got: {captured}")
+
+    def test_monitor_shows_cross_session_patterns(self):
+        """cmd_monitor outputs Patterns: line from qg-cross-session.json."""
+        import tempfile, builtins, json
+        qgf = self._load_qgf()
+        orig_exp = qgf.os.path.expanduser
+        tmpdir = tempfile.mkdtemp()
+        cs_path = os.path.join(tmpdir, 'qg-cross-session.json')
+        with open(cs_path, 'w') as f:
+            json.dump({'patterns': [{'category': 'LAZINESS', 'sessions_count': 4, 'event_pct': 0.25, 'total_events': 10}], 'sessions_analyzed': 20}, f)
+        qgf.os.path.expanduser = lambda p: p.replace('~/.claude', tmpdir) if p.startswith('~/.claude') else orig_exp(p)
+        captured = []
+        orig_print = builtins.print
+        builtins.print = lambda *a, **kw: captured.append(' '.join(str(x) for x in a))
+        try:
+            qgf.cmd_monitor()
+        finally:
+            qgf.os.path.expanduser = orig_exp
+            builtins.print = orig_print
+        self.assertTrue(any('Patterns:' in m for m in captured), "Patterns: header missing")
+        self.assertTrue(any('LAZINESS' in m for m in captured),
+                        f"Pattern name missing. Got: {[m for m in captured if 'Pattern' in m or 'LAZINESS' in m]}")
+
+
+
 if __name__ == '__main__':
     unittest.main()
