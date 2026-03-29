@@ -19,7 +19,7 @@ class TestSessionState(unittest.TestCase):
     def test_read_returns_empty_when_file_missing(self):
         state = ss.read_state()
         self.assertIsNone(state['session_uuid'])
-        self.assertEqual(state['schema_version'], 1)
+        self.assertEqual(state['schema_version'], 2)
         self.assertIn('notification_pending_criticals', state)
 
     def test_write_and_read_roundtrip(self):
