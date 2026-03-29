@@ -3376,6 +3376,198 @@ os.unlink(log_path); os.unlink(override_path)
 print('real_override_ok')
 SMOKE94_2EOF
 
+
+# --- qg_layer25.py ---
+echo "[95] qg_layer25.py (output validity)"
+result=$(echo '{"tool_name":"Bash","tool_input":{}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer25.py" 2>&1)
+[ $? -eq 0 ] && ok "layer25: exits 0 on non-Write tool" || fail "layer25: exits 0 on non-Write tool"
+result=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/nonexistent/smoke_l25.py"}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer25.py" 2>&1)
+[ $? -eq 0 ] && ok "layer25: exits 0 on missing file" || fail "layer25: exits 0 on missing file"
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, json, tempfile, io, builtins
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer25
+tp = tempfile.mktemp(suffix='.py')
+open(tp, 'w').write('x = 1' + chr(10))
+captured = []
+_orig = builtins.print
+builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+sys.stdin = io.StringIO(json.dumps({'tool_name':'Write','tool_input':{'file_path':tp}}))
+qg_layer25.main()
+builtins.print = _orig
+for p in [tp, ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert not captured, 'unexpected output: ' + str(captured)
+print('l25_valid_ok')
+" 2>/dev/null | grep -q "l25_valid_ok" && ok "layer25: no advisory for valid Python" || fail "layer25: no advisory for valid Python"
+
+# --- qg_layer26.py ---
+echo "[96] qg_layer26.py (consistency enforcement)"
+result=$(echo '{"tool_name":"Bash","tool_input":{}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer26.py" 2>&1)
+[ $? -eq 0 ] && ok "layer26: exits 0 on non-Write tool" || fail "layer26: exits 0 on non-Write tool"
+result=$(echo 'not json' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer26.py" 2>&1)
+[ $? -eq 0 ] && ok "layer26: exits 0 on bad JSON stdin" || fail "layer26: exits 0 on bad JSON stdin"
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, json, tempfile, io
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer26
+tp = tempfile.mktemp(suffix='.py')
+open(tp, 'w').write('def my_func():' + chr(10) + '    pass' + chr(10))
+sys.stdin = io.StringIO(json.dumps({'tool_name':'Write','tool_input':{'file_path':tp}}))
+qg_layer26.main()
+state = ss.read_state()
+baseline = state.get('layer26_convention_baseline', {})
+for p in [tp, ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert baseline.get('naming') == 'snake_case', 'expected snake_case, got: ' + str(baseline)
+print('l26_baseline_ok')
+" 2>/dev/null | grep -q "l26_baseline_ok" && ok "layer26: establishes snake_case baseline" || fail "layer26: establishes snake_case baseline"
+
+# --- qg_layer27.py ---
+echo "[97] qg_layer27.py (testing coverage)"
+result=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/tmp/foo.py"}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer27.py" 2>&1)
+[ $? -eq 0 ] && ok "layer27: exits 0 on non-Edit tool" || fail "layer27: exits 0 on non-Edit tool"
+result=$(echo '{"tool_name":"Edit","tool_input":{"file_path":"/tmp/test_foo.py"}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer27.py" 2>&1)
+[ $? -eq 0 ] && ok "layer27: exits 0 on test_ prefixed file (skip)" || fail "layer27: exits 0 on test_ prefixed file (skip)"
+result=$(echo '{"tool_name":"Edit","tool_input":{"file_path":"/tmp/smoke_unknown.txt"}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer27.py" 2>&1)
+[ $? -eq 0 ] && [ -z "$result" ] && ok "layer27: no advisory for non-code extension" || fail "layer27: no advisory for non-code extension (got: $result)"
+
+# --- qg_layer8.py ---
+echo "[98] qg_layer8.py (regression detection)"
+result=$(echo '{"tool_name":"Bash","tool_input":{"command":"echo hello"},"tool_response":"hello"}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer8.py" 2>&1)
+[ $? -eq 0 ] && ok "layer8: exits 0 on non-test command" || fail "layer8: exits 0 on non-test command"
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, json, tempfile, io
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer8
+payload = {'tool_name':'Bash','tool_input':{'command':'pytest tests/'},'tool_response':'7 passed in 1.2s'}
+sys.stdin = io.StringIO(json.dumps(payload))
+qg_layer8.main()
+state = ss.read_state()
+baseline = state.get('layer_env_test_baseline', [])
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert baseline == [[7, 0]], 'expected [[7, 0]], got: ' + str(baseline)
+print('l8_baseline_ok')
+" 2>/dev/null | grep -q "l8_baseline_ok" && ok "layer8: sets baseline on first test run" || fail "layer8: sets baseline on first test run"
+
+# --- qg_layer6.py ---
+echo "[99] qg_layer6.py (cross-session analysis)"
+result=$(echo '{}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer6.py" 2>&1)
+[ $? -eq 0 ] && ok "layer6: exits 0 on empty Stop payload" || fail "layer6: exits 0 on empty Stop payload"
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, json, tempfile, io, time
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+state = ss.read_state()
+state['layer6_last_analysis_ts'] = time.time()
+ss.write_state(state)
+import qg_layer6
+orig_ts = ss.read_state()['layer6_last_analysis_ts']
+sys.stdin = io.StringIO('{}')
+qg_layer6.main()
+state2 = ss.read_state()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert abs(state2.get('layer6_last_analysis_ts',0) - orig_ts) < 1, 'throttle failed'
+print('l6_throttle_ok')
+" 2>/dev/null | grep -q "l6_throttle_ok" && ok "layer6: throttle suppresses double-run" || fail "layer6: throttle suppresses double-run"
+
+# --- qg_layer7.py ---
+echo "[100] qg_layer7.py (rule refinement)"
+result=$(echo '{}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer7.py" 2>&1)
+[ $? -eq 0 ] && ok "layer7: exits 0 with no pending alert" || fail "layer7: exits 0 with no pending alert"
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, json, tempfile, io
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+tp_out = tempfile.mktemp(suffix='.md')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer7
+qg_layer7.SUGGESTIONS_PATH = tp_out
+sys.stdin = io.StringIO('{}')
+qg_layer7.main()
+exists = os.path.exists(tp_out)
+for p in [ts, ts+'.lock', tp_out]:
+    try: os.unlink(p)
+    except: pass
+assert not exists, 'suggestions written despite no pending alert'
+print('l7_suppress_ok')
+" 2>/dev/null | grep -q "l7_suppress_ok" && ok "layer7: no suggestions file when no alert" || fail "layer7: no suggestions file when no alert"
+
+# --- qg_layer9.py ---
+echo "[101] qg_layer9.py (confidence calibration)"
+result=$(echo '{"transcript_path":""}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer9.py" 2>&1)
+[ $? -eq 0 ] && ok "layer9: exits 0 with empty transcript path" || fail "layer9: exits 0 with empty transcript path"
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, json, tempfile, io
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+tc = tempfile.mktemp(suffix='.jsonl')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer9
+qg_layer9.CALIBRATION_PATH = tc
+sys.stdin = io.StringIO(json.dumps({'transcript_path':''}))
+qg_layer9.main()
+exists = os.path.exists(tc)
+for p in [ts, ts+'.lock', tc]:
+    try: os.unlink(p)
+    except: pass
+assert not exists, 'calibration written with no certainty signal'
+print('l9_no_signal_ok')
+" 2>/dev/null | grep -q "l9_no_signal_ok" && ok "layer9: no record when no certainty signal" || fail "layer9: no record when no certainty signal"
+
+# --- qg_layer10.py ---
+echo "[102] qg_layer10.py (audit trail integrity)"
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+from qg_layer10 import validate_jsonl
+f = tempfile.mktemp(suffix='.jsonl')
+qf = tempfile.mktemp(suffix='.jsonl')
+open(f, 'w').write('{\"event_id\":\"1\"}' + chr(10) + '{BAD}' + chr(10) + '{\"event_id\":\"3\"}' + chr(10))
+valid, corrupt = validate_jsonl(f, qf)
+for p in [f, qf]:
+    try: os.unlink(p)
+    except: pass
+assert len(valid)==2 and len(corrupt)==1, 'expected v=2 c=1 got v={} c={}'.format(len(valid),len(corrupt))
+print('l10_valid_ok')
+" 2>/dev/null | grep -q "l10_valid_ok" && ok "layer10: validate_jsonl valid=2 corrupt=1" || fail "layer10: validate_jsonl valid=2 corrupt=1"
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, glob
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+from qg_layer10 import maybe_rotate
+f = tempfile.mktemp(suffix='.jsonl')
+open(f, 'w').writelines(['{\"n\":%d}' % i + chr(10) for i in range(11)])
+rotated = maybe_rotate(f, threshold=10)
+for arc in glob.glob(f.replace('.jsonl', '-*.jsonl')):
+    try: os.unlink(arc)
+    except: pass
+if not rotated:
+    try: os.unlink(f)
+    except: pass
+assert rotated, 'expected rotation at 11 lines threshold=10'
+print('l10_rotate_ok')
+" 2>/dev/null | grep -q "l10_rotate_ok" && ok "layer10: maybe_rotate triggers at threshold" || fail "layer10: maybe_rotate triggers at threshold"
+
+
 echo "=== Results: $PASS passed, $FAIL failed, $TOTAL total ==="
 
 # Coverage summary (fast, single-pass Python analysis)
