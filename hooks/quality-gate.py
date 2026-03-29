@@ -975,19 +975,6 @@ def _compute_confidence(gate_blocked, block_category, state):
     return max(0.01, min(0.99, score))
 
 
-def _detect_fn_signals(response, state):
-    signals = []
-    if response and _LAZINESS_TEXT_RE.search(response):
-        if not _VERIFY_OUTPUT_RE.search(response):
-            signals.append('claimed completion without verification output')
-    prev_claims = state.get('layer3_last_response_claims', [])
-    for claim in prev_claims:
-        if claim and len(claim) > 10 and claim.lower() in (response or '').lower():
-            signals.append(f'repeated unverified claim: {claim[:60]}')
-            break
-    return signals
-
-
 def _extract_stated_certainty(response):
     if _STATED_HIGH_RE.search(response or ''):
         return 'high'
