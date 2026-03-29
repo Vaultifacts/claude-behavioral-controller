@@ -3568,6 +3568,823 @@ print('l10_rotate_ok')
 " 2>/dev/null | grep -q "l10_rotate_ok" && ok "layer10: maybe_rotate triggers at threshold" || fail "layer10: maybe_rotate triggers at threshold"
 
 
+
+# ----------------------------------------------------------------
+# [103] settings.json registration integrity
+# ----------------------------------------------------------------
+echo "[103] settings.json registration integrity"
+PYTHONIOENCODING=utf-8 python -c "
+import json, os, re, glob
+settings = json.load(open(os.path.expanduser('~/.claude/settings.json'), 'r', encoding='utf-8'))
+hooks_dir = os.path.expanduser('~/.claude/hooks')
+registered = set()
+for ev, ev_hooks in settings.get('hooks', {}).items():
+    for entry in ev_hooks:
+        for hook in entry.get('hooks', []):
+            for m in re.findall(r'qg_layer\w+\.py', hook.get('command', '')):
+                registered.add(m)
+missing = [s for s in registered if not os.path.exists(os.path.join(hooks_dir, s))]
+assert not missing, 'missing files: ' + str(missing)
+print('t103a_ok')
+" 2>/dev/null | grep -q 't103a_ok' && ok "[103] all registered hook files exist on disk" || fail "[103] all registered hook files exist on disk"
+
+PYTHONIOENCODING=utf-8 python -c "
+import json, os, re, glob
+settings = json.load(open(os.path.expanduser('~/.claude/settings.json'), 'r', encoding='utf-8'))
+hooks_dir = os.path.expanduser('~/.claude/hooks')
+registered = set()
+for ev, ev_hooks in settings.get('hooks', {}).items():
+    for entry in ev_hooks:
+        for hook in entry.get('hooks', []):
+            for m in re.findall(r'qg_layer\w+\.py', hook.get('command', '')):
+                registered.add(m)
+unregistered = []
+for fpath in sorted(glob.glob(os.path.join(hooks_dir, 'qg_layer*.py'))):
+    base = os.path.basename(fpath)
+    if base == 'qg_layer10.py':
+        continue
+    fdata = open(fpath).read()
+    if '__main__' in fdata and base not in registered:
+        unregistered.append(base)
+assert not unregistered, 'unregistered with main: ' + str(unregistered)
+print('t103b_ok')
+" 2>/dev/null | grep -q 't103b_ok' && ok "[103] all main() layers registered (except layer10)" || fail "[103] all main() layers registered (except layer10)"
+
+PYTHONIOENCODING=utf-8 python -c "
+import json, os, re, sys, subprocess
+settings = json.load(open(os.path.expanduser('~/.claude/settings.json'), 'r', encoding='utf-8'))
+hooks_dir = os.path.expanduser('~/.claude/hooks')
+registered = set()
+for ev, ev_hooks in settings.get('hooks', {}).items():
+    for entry in ev_hooks:
+        for hook in entry.get('hooks', []):
+            for m in re.findall(r'qg_layer\w+\.py', hook.get('command', '')):
+                registered.add(m)
+failed = []
+for script in sorted(registered):
+    if script == 'qg_layer0.py':
+        continue
+    r = subprocess.run(
+        [sys.executable, os.path.join(hooks_dir, script)],
+        input=b'{}', capture_output=True, timeout=10,
+        env=dict(list(os.environ.items()) + [('PYTHONIOENCODING', 'utf-8')])
+    )
+    if r.returncode != 0:
+        failed.append(script + ':rc=' + str(r.returncode))
+assert not failed, 'non-zero exits: ' + str(failed)
+print('t103c_ok')
+" 2>/dev/null | grep -q 't103c_ok' && ok "[103] registered hooks (excl layer0) exit 0 on empty input" || fail "[103] registered hooks (excl layer0) exit 0 on empty input"
+
+# ----------------------------------------------------------------
+# [104] qg_session_state.py
+# ----------------------------------------------------------------
+echo "[104] qg_session_state.py (session state)"
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+state = ss.read_state()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert 'schema_version' in state, 'schema_version missing'
+assert state['schema_version'] == 2, 'expected v2 got ' + str(state['schema_version'])
+print('t104a_ok')
+" 2>/dev/null | grep -q 't104a_ok' && ok "[104] read_state returns schema_version=2" || fail "[104] read_state returns schema_version=2"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+state = ss.read_state()
+state['test_roundtrip'] = 'hello'
+ss.write_state(state)
+state2 = ss.read_state()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert state2.get('test_roundtrip') == 'hello', 'roundtrip failed'
+print('t104b_ok')
+" 2>/dev/null | grep -q 't104b_ok' && ok "[104] write/read roundtrip preserves data" || fail "[104] write/read roundtrip preserves data"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+state = ss.read_state()
+state['existing_key'] = 'keep_me'
+ss.write_state(state)
+ss.update_state(new_key='added')
+state2 = ss.read_state()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert state2.get('existing_key') == 'keep_me', 'clobbered existing'
+assert state2.get('new_key') == 'added', 'new key missing'
+print('t104c_ok')
+" 2>/dev/null | grep -q 't104c_ok' && ok "[104] update_state merges without clobbering" || fail "[104] update_state merges without clobbering"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, time, json
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+stale = ss.read_state()
+stale['test_stale'] = 'stale_value'
+stale['session_start_ts'] = time.time() - 90000
+with open(ts, 'w') as f:
+    json.dump(stale, f)
+state2 = ss.read_state()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert state2.get('test_stale') is None, 'stale state not reset'
+print('t104d_ok')
+" 2>/dev/null | grep -q 't104d_ok' && ok "[104] stale state (>24h) gets reset" || fail "[104] stale state (>24h) gets reset"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, time, json
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+v1 = {'schema_version': 1, 'session_start_ts': time.time(), 'test_v1_key': 'preserved'}
+with open(ts, 'w') as f:
+    json.dump(v1, f)
+state = ss.read_state()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert state.get('schema_version') == 2, 'migration failed: ' + str(state.get('schema_version'))
+assert 'layer3_evaluation_count' in state, 'v2 field missing after migration'
+print('t104e_ok')
+" 2>/dev/null | grep -q 't104e_ok' && ok "[104] v1 state migrates to v2 with new fields" || fail "[104] v1 state migrates to v2 with new fields"
+
+# ----------------------------------------------------------------
+# [105] qg_notification_router.py
+# ----------------------------------------------------------------
+echo "[105] qg_notification_router.py (notification routing)"
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_notification_router as nr
+nr.notify('INFO', 'layer0', 'TEST', None, 'smoke test', 'async')
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+print('t105a_ok')
+" 2>/dev/null | grep -q 't105a_ok' && ok "[105] notify() does not crash on INFO" || fail "[105] notify() does not crash on INFO"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_notification_router as nr
+nr.notify('CRITICAL', 'layer2', 'LOOP', None, 'test critical', 'async')
+state = ss.read_state()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+pending = state.get('notification_pending_criticals', [])
+assert len(pending) >= 1, 'CRITICAL not queued: ' + str(pending)
+print('t105b_ok')
+" 2>/dev/null | grep -q 't105b_ok' && ok "[105] CRITICAL+async stored in notification_pending_criticals" || fail "[105] CRITICAL+async stored in notification_pending_criticals"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_notification_router as nr
+nr.notify('CRITICAL', 'layer2', 'LOOP', None, 'test flush', 'async')
+flushed = nr.flush_pending_criticals()
+state = ss.read_state()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert flushed is not None and 'test flush' in flushed, 'flush unexpected: ' + str(flushed)
+assert len(state.get('notification_pending_criticals', [])) == 0, 'not cleared after flush'
+print('t105c_ok')
+" 2>/dev/null | grep -q 't105c_ok' && ok "[105] flush_pending_criticals returns message and clears state" || fail "[105] flush_pending_criticals returns message and clears state"
+
+# ----------------------------------------------------------------
+# [106] qg_layer0.py
+# ----------------------------------------------------------------
+echo "[106] qg_layer0.py (session start injection)"
+result=$(echo '{}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer0.py" 2>&1)
+[ $? -eq 0 ] && ok "[106] exits 0 on empty stdin" || fail "[106] exits 0 on empty stdin"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+state = ss.read_state()
+state['layer2_unresolved_events'] = ['test_event']
+state['notification_pending_criticals'] = ['test_notif']
+ss.write_state(state)
+import qg_layer0
+qg_layer0.HISTORY_PATH = ts + '_none.md'
+qg_layer0.CROSS_SESSION_PATH = ts + '_none.json'
+sys.stdin = io.StringIO('{}')
+qg_layer0.main()
+state2 = ss.read_state()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert state2.get('layer2_unresolved_events') == [], 'l2 not cleared: ' + str(state2.get('layer2_unresolved_events'))
+assert state2.get('notification_pending_criticals') == [], 'notifs not cleared'
+print('t106b_ok')
+" 2>/dev/null | grep -q 't106b_ok' && ok "[106] per-session fields cleared on run" || fail "[106] per-session fields cleared on run"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+tc = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+with open(tc, 'w') as f:
+    json.dump({'patterns': [{'category': 'ERROR_IGNORED', 'sessions_count': 3, 'event_pct': 0.2, 'total_events': 10}]}, f)
+import qg_layer0
+qg_layer0.CROSS_SESSION_PATH = tc
+qg_layer0.HISTORY_PATH = ts + '_none.md'
+sys.stdin = io.StringIO('{}')
+qg_layer0.main()
+state = ss.read_state()
+for p in [ts, ts+'.lock', tc]:
+    try: os.unlink(p)
+    except: pass
+injected = state.get('layer0_injected_patterns', [])
+assert 'ERROR_IGNORED' in injected, 'not injected: ' + str(injected)
+print('t106c_ok')
+" 2>/dev/null | grep -q 't106c_ok' && ok "[106] cross-session patterns injected into state" || fail "[106] cross-session patterns injected into state"
+
+# ----------------------------------------------------------------
+# [107] qg_layer_env.py
+# ----------------------------------------------------------------
+echo "[107] qg_layer_env.py (environment validation)"
+result=$(echo '{"hook_event_name":"SessionStart"}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer_env.py" 2>&1)
+[ $? -eq 0 ] && ok "[107] exits 0 on SessionStart payload" || fail "[107] exits 0 on SessionStart payload"
+
+result=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer_env.py" 2>&1)
+[ $? -eq 0 ] && ok "[107] exits 0 on PreToolUse with no file_path" || fail "[107] exits 0 on PreToolUse with no file_path"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer_env
+sys.stdin = io.StringIO(json.dumps({'hook_event_name': 'SessionStart'}))
+qg_layer_env.main()
+state = ss.read_state()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+baseline = state.get('layer_env_baseline', {})
+assert 'working_dir' in baseline, 'missing working_dir: ' + str(baseline)
+assert 'ts' in baseline, 'missing ts: ' + str(baseline)
+print('t107c_ok')
+" 2>/dev/null | grep -q 't107c_ok' && ok "[107] SessionStart captures layer_env_baseline" || fail "[107] SessionStart captures layer_env_baseline"
+
+
+
+# ----------------------------------------------------------------
+# [108] qg_layer15.py
+# ----------------------------------------------------------------
+echo "[108] qg_layer15.py (rule validation)"
+result=$(echo '{"tool_name":"Read","tool_input":{}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer15.py" 2>&1)
+[ $? -eq 0 ] && ok "[108] exits 0 on Read tool (no violation)" || fail "[108] exits 0 on Read tool (no violation)"
+
+result=$(echo 'not json' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer15.py" 2>&1)
+[ $? -eq 0 ] && ok "[108] exits 0 on bad JSON stdin" || fail "[108] exits 0 on bad JSON stdin"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer15
+sys.stdin = io.StringIO(json.dumps({'tool_name': 'Read', 'tool_input': {'file_path': '/test/tracked.py'}}))
+qg_layer15.main()
+state = ss.read_state()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+reads = state.get('layer15_session_reads', [])
+assert '/test/tracked.py' in reads, 'not tracked: ' + str(reads)
+print('t108c_ok')
+" 2>/dev/null | grep -q 't108c_ok' && ok "[108] Read tool adds file_path to layer15_session_reads" || fail "[108] Read tool adds file_path to layer15_session_reads"
+
+# ----------------------------------------------------------------
+# [109] qg_layer2.py
+# ----------------------------------------------------------------
+echo "[109] qg_layer2.py (mid-task monitoring)"
+result=$(echo '{"tool_name":"Bash","tool_input":{"command":"ls -la"},"tool_response":""}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer2.py" 2>&1)
+[ $? -eq 0 ] && ok "[109] exits 0 on non-triggering Bash command" || fail "[109] exits 0 on non-triggering Bash command"
+
+result=$(echo 'not json' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer2.py" 2>&1)
+[ $? -eq 0 ] && ok "[109] exits 0 on bad JSON stdin" || fail "[109] exits 0 on bad JSON stdin"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+tc = tempfile.mktemp(suffix='.jsonl')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer2
+qg_layer2.MONITOR_PATH = tc
+payload = {'tool_name': 'Edit', 'tool_input': {'file_path': '/tmp/smoke_l2_test.py'}, 'tool_response': ''}
+sys.stdin = io.StringIO(json.dumps(payload))
+qg_layer2.main()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+found = False
+if os.path.exists(tc):
+    with open(tc) as f:
+        for line in f:
+            try:
+                ev = json.loads(line.strip())
+                if ev.get('category') == 'LAZINESS':
+                    found = True
+            except: pass
+    os.unlink(tc)
+assert found, 'LAZINESS event not in JSONL'
+print('t109c_ok')
+" 2>/dev/null | grep -q 't109c_ok' && ok "[109] LAZINESS event written to JSONL on edit-without-read" || fail "[109] LAZINESS event written to JSONL on edit-without-read"
+
+# ----------------------------------------------------------------
+# [110] qg_layer17.py
+# ----------------------------------------------------------------
+echo "[110] qg_layer17.py (intent verification)"
+result=$(echo '{"tool_name":"Read","tool_input":{}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer17.py" 2>&1)
+[ $? -eq 0 ] && ok "[110] exits 0 on Read tool (no task_id)" || fail "[110] exits 0 on Read tool (no task_id)"
+
+result=$(echo 'not json' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer17.py" 2>&1)
+[ $? -eq 0 ] && ok "[110] exits 0 on bad JSON stdin" || fail "[110] exits 0 on bad JSON stdin"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json, builtins
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+state = ss.read_state()
+state['active_task_id'] = 'task123'
+ss.write_state(state)
+import qg_layer17
+captured = []
+orig = builtins.print
+builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+sys.stdin = io.StringIO(json.dumps({'tool_name': 'Edit', 'tool_input': {'file_path': '/tmp/x.py'}}))
+qg_layer17.main()
+builtins.print = orig
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert not captured, 'unexpected output for non-DEEP task: ' + str(captured)
+print('t110c_ok')
+" 2>/dev/null | grep -q 't110c_ok' && ok "[110] no output for non-DEEP task (task_category=None)" || fail "[110] no output for non-DEEP task (task_category=None)"
+
+# ----------------------------------------------------------------
+# [111] qg_layer18.py
+# ----------------------------------------------------------------
+echo "[111] qg_layer18.py (hallucination detection)"
+result=$(echo '{"tool_name":"Bash","tool_input":{"command":"ls"}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer18.py" 2>&1)
+[ $? -eq 0 ] && ok "[111] exits 0 on non-Edit tool (Bash)" || fail "[111] exits 0 on non-Edit tool (Bash)"
+
+result=$(echo 'not json' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer18.py" 2>&1)
+[ $? -eq 0 ] && ok "[111] exits 0 on bad JSON stdin" || fail "[111] exits 0 on bad JSON stdin"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json, builtins
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer18
+captured = []
+orig = builtins.print
+builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+payload = {'tool_name': 'Edit', 'tool_input': {'file_path': '/nonexistent/smoke_l18_zzz.py'}}
+sys.stdin = io.StringIO(json.dumps(payload))
+qg_layer18.main()
+builtins.print = orig
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert len(captured) >= 1, 'no warning for nonexistent path'
+assert 'layer1.8' in ' '.join(captured), 'expected layer1.8 tag: ' + str(captured)
+print('t111c_ok')
+" 2>/dev/null | grep -q 't111c_ok' && ok "[111] warns on Edit with nonexistent file_path" || fail "[111] warns on Edit with nonexistent file_path"
+
+# ----------------------------------------------------------------
+# [112] qg_layer19.py
+# ----------------------------------------------------------------
+echo "[112] qg_layer19.py (change impact analysis)"
+result=$(echo '{"tool_name":"Bash","tool_input":{"command":"ls"}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer19.py" 2>&1)
+[ $? -eq 0 ] && ok "[112] exits 0 on non-Edit/Write tool" || fail "[112] exits 0 on non-Edit/Write tool"
+
+result=$(echo 'not json' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer19.py" 2>&1)
+[ $? -eq 0 ] && ok "[112] exits 0 on bad JSON stdin" || fail "[112] exits 0 on bad JSON stdin"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer19
+tp = tempfile.mktemp(suffix='_smoke_l19_unique.py')
+open(tp, 'w').write('x = 1' + chr(10))
+payload = {'tool_name': 'Edit', 'tool_input': {'file_path': tp}}
+sys.stdin = io.StringIO(json.dumps(payload))
+qg_layer19.main()
+state = ss.read_state()
+for p in [ts, ts+'.lock', tp]:
+    try: os.unlink(p)
+    except: pass
+level = state.get('layer19_last_impact_level', 'UNKNOWN')
+assert level == 'LOW', 'expected LOW got ' + level
+print('t112c_ok')
+" 2>/dev/null | grep -q 't112c_ok' && ok "[112] LOW impact for isolated temp file (no dependents)" || fail "[112] LOW impact for isolated temp file (no dependents)"
+
+
+
+# ----------------------------------------------------------------
+# [113] qg_layer45.py
+# ----------------------------------------------------------------
+echo "[113] qg_layer45.py (context preservation)"
+result=$(echo '' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer45.py" --pre 2>&1)
+[ $? -eq 0 ] && ok "[113] exits 0 with --pre" || fail "[113] exits 0 with --pre"
+
+result=$(echo '' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer45.py" --post 2>&1)
+[ $? -eq 0 ] && ok "[113] exits 0 with --post (no preserve file)" || fail "[113] exits 0 with --post (no preserve file)"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+tc = tempfile.mktemp(suffix='_preserve.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer45
+qg_layer45.PRESERVE_PATH = tc
+qg_layer45.handle_pre_compact()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert os.path.exists(tc), 'preserve file not created: ' + tc
+os.unlink(tc)
+print('t113c_ok')
+" 2>/dev/null | grep -q 't113c_ok' && ok "[113] handle_pre_compact creates preserve file" || fail "[113] handle_pre_compact creates preserve file"
+
+# ----------------------------------------------------------------
+# [114] qg_layer5.py
+# ----------------------------------------------------------------
+echo "[114] qg_layer5.py (subagent coordination)"
+result=$(echo '{"tool_name":"Read","tool_input":{}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer5.py" 2>&1)
+[ $? -eq 0 ] && ok "[114] exits 0 on non-Agent tool" || fail "[114] exits 0 on non-Agent tool"
+
+result=$(echo 'not json' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/qg_layer5.py" 2>&1)
+[ $? -eq 0 ] && ok "[114] exits 0 on bad JSON stdin" || fail "[114] exits 0 on bad JSON stdin"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+tc = tempfile.mktemp(suffix='.jsonl')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer5
+qg_layer5.MONITOR_PATH = tc
+payload = {'tool_name': 'Agent', 'tool_input': {'prompt': 'Do a task'}, 'tool_response': 'done'}
+sys.stdin = io.StringIO(json.dumps(payload))
+qg_layer5.main()
+state = ss.read_state()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+subagents = state.get('layer5_subagents', {})
+assert len(subagents) >= 1, 'layer5_subagents not updated: ' + str(subagents)
+found_event = False
+if os.path.exists(tc):
+    with open(tc) as f:
+        for line in f:
+            try:
+                ev = json.loads(line.strip())
+                if ev.get('layer') == 'layer5':
+                    found_event = True
+            except: pass
+    os.unlink(tc)
+assert found_event, 'layer5 event not in JSONL'
+print('t114c_ok')
+" 2>/dev/null | grep -q 't114c_ok' && ok "[114] Agent tool writes JSONL event and updates state" || fail "[114] Agent tool writes JSONL event and updates state"
+
+# ----------------------------------------------------------------
+# [115] qg_layer35.py
+# ----------------------------------------------------------------
+echo "[115] qg_layer35.py (recovery tracking)"
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_layer35
+print('t115a_ok')
+" 2>/dev/null | grep -q 't115a_ok' && ok "[115] qg_layer35 imports successfully" || fail "[115] qg_layer35 imports successfully"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+state = ss.read_state()
+from qg_layer35 import detect_fn_signals
+signals = detect_fn_signals('Some normal response text.', [], '', state, use_haiku=False)
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert signals == [], 'expected empty signals: ' + str(signals)
+print('t115b_ok')
+" 2>/dev/null | grep -q 't115b_ok' && ok "[115] detect_fn_signals returns empty on non-matching text" || fail "[115] detect_fn_signals returns empty on non-matching text"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+state = ss.read_state()
+from qg_layer35 import layer35_create_recovery_event
+layer35_create_recovery_event('FN', ['claimed completion'], state, ['Read'])
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+events = state.get('layer35_recovery_events', [])
+assert len(events) == 1, 'no event created: ' + str(events)
+evt = events[0]
+assert evt.get('verdict') == 'FN', 'wrong verdict: ' + str(evt)
+assert evt.get('status') == 'open', 'wrong status: ' + str(evt)
+print('t115c_ok')
+" 2>/dev/null | grep -q 't115c_ok' && ok "[115] layer35_create_recovery_event creates event with status open" || fail "[115] layer35_create_recovery_event creates event with status open"
+
+# ----------------------------------------------------------------
+# [116] Cross-layer state integration
+# ----------------------------------------------------------------
+echo "[116] Cross-layer state integration"
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+tc = tempfile.mktemp(suffix='.jsonl')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer2
+qg_layer2.MONITOR_PATH = tc
+state = ss.read_state()
+state['layer15_session_reads'] = ['/tmp/test_l116_a.py']
+ss.write_state(state)
+payload = {'tool_name': 'Edit', 'tool_input': {'file_path': '/tmp/test_l116_a.py'}, 'tool_response': ''}
+sys.stdin = io.StringIO(json.dumps(payload))
+qg_layer2.main()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+found_laziness = False
+if os.path.exists(tc):
+    with open(tc) as f:
+        for line in f:
+            try:
+                ev = json.loads(line.strip())
+                if ev.get('category') == 'LAZINESS':
+                    found_laziness = True
+            except: pass
+    os.unlink(tc)
+assert not found_laziness, 'unexpected LAZINESS event (file was pre-read)'
+print('t116a_ok')
+" 2>/dev/null | grep -q 't116a_ok' && ok "[116] L1.5 session_reads suppresses L2 LAZINESS on pre-read file" || fail "[116] L1.5 session_reads suppresses L2 LAZINESS on pre-read file"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json, builtins
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer18
+state = ss.read_state()
+state['layer17_creating_new_artifacts'] = True
+ss.write_state(state)
+captured = []
+orig = builtins.print
+builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+payload = {'tool_name': 'Edit', 'tool_input': {'file_path': '/nonexistent/smoke_l116_b_zzz.py'}}
+sys.stdin = io.StringIO(json.dumps(payload))
+qg_layer18.main()
+builtins.print = orig
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert not captured, 'layer18 warned despite creating_new_artifacts=True: ' + str(captured)
+print('t116b_ok')
+" 2>/dev/null | grep -q 't116b_ok' && ok "[116] L1.7 creating_new_artifacts suppresses L1.8 warning" || fail "[116] L1.7 creating_new_artifacts suppresses L1.8 warning"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+tc = tempfile.mktemp(suffix='.jsonl')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer2
+qg_layer2.MONITOR_PATH = tc
+state = ss.read_state()
+state['layer19_last_impact_level'] = 'HIGH'
+ss.write_state(state)
+payload = {'tool_name': 'Edit', 'tool_input': {'file_path': '/tmp/smoke_l116_c_high.py'}, 'tool_response': ''}
+sys.stdin = io.StringIO(json.dumps(payload))
+qg_layer2.main()
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+found_critical = False
+if os.path.exists(tc):
+    with open(tc) as f:
+        for line in f:
+            try:
+                ev = json.loads(line.strip())
+                if ev.get('category') == 'LAZINESS' and ev.get('severity') == 'critical':
+                    found_critical = True
+            except: pass
+    os.unlink(tc)
+assert found_critical, 'LAZINESS not promoted to critical on HIGH impact'
+print('t116c_ok')
+" 2>/dev/null | grep -q 't116c_ok' && ok "[116] L1.9 HIGH impact promotes L2 LAZINESS severity to critical" || fail "[116] L1.9 HIGH impact promotes L2 LAZINESS severity to critical"
+
+# ----------------------------------------------------------------
+# [117] Hook output format + JSONL emission
+# ----------------------------------------------------------------
+echo "[117] Hook output format + JSONL emission"
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json, builtins
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+tc = tempfile.mktemp(suffix='.jsonl')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer25
+qg_layer25.MONITOR_PATH = tc
+tp = tempfile.mktemp(suffix='_smoke_l25.py')
+open(tp, 'w').write('x = (' + chr(10))
+captured = []
+orig = builtins.print
+builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+payload = {'tool_name': 'Edit', 'tool_input': {'file_path': tp}}
+sys.stdin = io.StringIO(json.dumps(payload))
+qg_layer25.main()
+builtins.print = orig
+for p in [ts, ts+'.lock', tp]:
+    try: os.unlink(p)
+    except: pass
+assert len(captured) >= 1, 'no output from layer25: ' + str(captured)
+out = json.loads(captured[0])
+assert 'hookSpecificOutput' in out, 'missing hookSpecificOutput'
+assert out['hookSpecificOutput']['hookEventName'] == 'PostToolUse', 'wrong hookEventName'
+assert '[Layer 2.5]' in out['hookSpecificOutput']['additionalContext'], 'missing tag'
+found_event = False
+if os.path.exists(tc):
+    with open(tc) as f:
+        for line in f:
+            try:
+                ev = json.loads(line.strip())
+                if ev.get('category') == 'OUTPUT_UNVALIDATED':
+                    found_event = True
+            except: pass
+    os.unlink(tc)
+assert found_event, 'OUTPUT_UNVALIDATED event not in JSONL'
+print('t117a_ok')
+" 2>/dev/null | grep -q 't117a_ok' && ok "[117] L2.5 invalid .py triggers hookSpecificOutput + JSONL event" || fail "[117] L2.5 invalid .py triggers hookSpecificOutput + JSONL event"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+tc = tempfile.mktemp(suffix='.jsonl')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer26
+qg_layer26.MONITOR_PATH = tc
+state = ss.read_state()
+state['layer26_convention_baseline'] = {'naming': 'snake_case'}
+state['layer26_files_seen'] = 3
+ss.write_state(state)
+tp = tempfile.mktemp(suffix='_smoke_l26.py')
+open(tp, 'w').write('def doSomething():\n    pass\ndef doOther():\n    return 1\n')
+payload = {'tool_name': 'Edit', 'tool_input': {'file_path': tp}}
+sys.stdin = io.StringIO(json.dumps(payload))
+qg_layer26.main()
+for p in [ts, ts+'.lock', tp]:
+    try: os.unlink(p)
+    except: pass
+found_event = False
+if os.path.exists(tc):
+    with open(tc) as f:
+        for line in f:
+            try:
+                ev = json.loads(line.strip())
+                if ev.get('category') == 'CONSISTENCY_VIOLATION':
+                    found_event = True
+            except: pass
+    os.unlink(tc)
+assert found_event, 'CONSISTENCY_VIOLATION event not in JSONL'
+print('t117b_ok')
+" 2>/dev/null | grep -q 't117b_ok' && ok "[117] L2.6 camelCase vs snake_case baseline writes JSONL event" || fail "[117] L2.6 camelCase vs snake_case baseline writes JSONL event"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json, builtins
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ts = tempfile.mktemp(suffix='.json')
+tc = tempfile.mktemp(suffix='.jsonl')
+ss.STATE_PATH = ts; ss.LOCK_PATH = ts + '.lock'
+import qg_layer8
+qg_layer8.MONITOR_PATH = tc
+state = ss.read_state()
+state['layer_env_test_baseline'] = [[7, 0]]
+ss.write_state(state)
+captured = []
+orig = builtins.print
+builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+payload = {'tool_name': 'Bash', 'tool_input': {'command': 'pytest'}, 'tool_response': '5 passed 2 failed'}
+sys.stdin = io.StringIO(json.dumps(payload))
+qg_layer8.main()
+builtins.print = orig
+for p in [ts, ts+'.lock']:
+    try: os.unlink(p)
+    except: pass
+assert len(captured) >= 1, 'no output from layer8: ' + str(captured)
+out = json.loads(captured[0])
+assert 'hookSpecificOutput' in out, 'missing hookSpecificOutput'
+assert '[Layer 8]' in out['hookSpecificOutput']['additionalContext'], 'missing tag'
+found_event = False
+if os.path.exists(tc):
+    with open(tc) as f:
+        for line in f:
+            try:
+                ev = json.loads(line.strip())
+                if ev.get('category') == 'REGRESSION':
+                    found_event = True
+            except: pass
+    os.unlink(tc)
+assert found_event, 'REGRESSION event not in JSONL'
+print('t117c_ok')
+" 2>/dev/null | grep -q 't117c_ok' && ok "[117] L8 regression triggers hookSpecificOutput + JSONL event" || fail "[117] L8 regression triggers hookSpecificOutput + JSONL event"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, io, json, builtins
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_layer27
+tmpdir = tempfile.mkdtemp()
+os.chdir(tmpdir)
+tp = os.path.join(tmpdir, 'smoke_l27_unique_xyz.py')
+open(tp, 'w').write('x = 1\n')
+captured = []
+orig = builtins.print
+builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+payload = {'tool_name': 'Edit', 'tool_input': {'file_path': tp}}
+sys.stdin = io.StringIO(json.dumps(payload))
+qg_layer27.main()
+builtins.print = orig
+try:
+    os.unlink(tp)
+    os.rmdir(tmpdir)
+except: pass
+assert len(captured) >= 1, 'no output from layer27: ' + str(captured)
+out = json.loads(captured[0])
+assert 'hookSpecificOutput' in out, 'missing hookSpecificOutput'
+assert '[Layer 2.7]' in out['hookSpecificOutput']['additionalContext'], 'missing tag'
+print('t117d_ok')
+" 2>/dev/null | grep -q 't117d_ok' && ok "[117] L2.7 no-test-file triggers hookSpecificOutput" || fail "[117] L2.7 no-test-file triggers hookSpecificOutput"
+
+
 echo "=== Results: $PASS passed, $FAIL failed, $TOTAL total ==="
 
 # Coverage summary (fast, single-pass Python analysis)
