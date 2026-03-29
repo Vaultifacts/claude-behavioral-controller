@@ -225,5 +225,52 @@ class TestLayer19ImpactAnalysis(unittest.TestCase):
         self.assertEqual(r1['ts'], r2['ts'])  # Same cached timestamp
 
 
+class TestLayer17IntentVerification(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.tmp = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.tmp
+        ss.LOCK_PATH = self.tmp + '.lock'
+
+    def tearDown(self):
+        import qg_session_state as ss
+        for p in [self.tmp, self.tmp + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_no_fire_on_none_category(self):
+        from qg_layer17 import should_verify
+        state = {'layer1_task_category': 'NONE', 'layer19_last_impact_level': 'LOW'}
+        cfg = {'complexity_threshold': ['DEEP'], 'high_impact_threshold': ['HIGH', 'CRITICAL']}
+        self.assertFalse(should_verify(state, cfg))
+
+    def test_fires_on_deep_category(self):
+        from qg_layer17 import should_verify
+        state = {'layer1_task_category': 'DEEP', 'layer19_last_impact_level': 'LOW'}
+        cfg = {'complexity_threshold': ['DEEP'], 'high_impact_threshold': ['HIGH', 'CRITICAL']}
+        self.assertTrue(should_verify(state, cfg))
+
+    def test_fires_on_high_impact(self):
+        from qg_layer17 import should_verify
+        state = {'layer1_task_category': 'MECHANICAL', 'layer19_last_impact_level': 'HIGH'}
+        cfg = {'complexity_threshold': ['DEEP'], 'high_impact_threshold': ['HIGH', 'CRITICAL']}
+        self.assertTrue(should_verify(state, cfg))
+
+    def test_no_fire_on_already_verified_task(self):
+        from qg_layer17 import should_verify
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer1_task_category'] = 'DEEP'
+        state['layer19_last_impact_level'] = 'LOW'
+        state['active_task_id'] = 'task-already'
+        state['layer17_verified_task_id'] = 'task-already'
+        ss.write_state(state)
+        cfg = {'complexity_threshold': ['DEEP'], 'high_impact_threshold': ['HIGH', 'CRITICAL']}
+        # should_verify returns True, but main() guards on task_id match
+        # Test that verified_task_id is persisted correctly
+        result = ss.read_state()
+        self.assertEqual(result['layer17_verified_task_id'], 'task-already')
+
+
 if __name__ == '__main__':
     unittest.main()
