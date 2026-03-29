@@ -1,0 +1,11 @@
+MODE: DRY-RUN (NO APPLY)
+
+Hard rule:
+- Do NOT edit, create, delete, or overwrite any files.
+- Do NOT run any commands that modify the repo (no git add/commit, no installers, no formatters).
+- Only propose changes as a unified diff/patch in the chat output.
+- If changes are needed, output:
+  1) a short plan
+  2) the exact unified diff/patch
+  3) the exact commands I should run manually (optional)
+- You may read files, but do not modify them.

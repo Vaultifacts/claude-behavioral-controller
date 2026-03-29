@@ -1,0 +1,8 @@
+MODE: DEBUG
+Focus on root-cause analysis and minimal fixes.
+Rules:
+- Reproduce first (or explain why not possible)
+- Identify likely failure points
+- Propose smallest safe fix
+- Avoid refactors unrelated to the bug
+- Add a regression test when appropriate

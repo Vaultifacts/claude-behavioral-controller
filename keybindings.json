@@ -1,0 +1,11 @@
+{
+  "bindings": [
+    {
+      "context": "Global",
+      "bindings": {
+        "ctrl+k ctrl+t": "app:toggleTodos",
+        "ctrl+k ctrl+o": "app:toggleTranscript"
+      }
+    }
+  ]
+}

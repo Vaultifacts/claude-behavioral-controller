@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Implement OAuth backend infrastructure",
+    "status": "in_progress",
+    "activeForm": "Building OAuth routes"
+  },
+  {
+    "content": "Add OAuth database schema",
+    "status": "pending",
+    "activeForm": "Creating token storage"
+  },
+  {
+    "content": "Implement OAuth frontend UI",
+    "status": "pending",
+    "activeForm": "Building connect flows"
+  },
+  {
+    "content": "Test and commit OAuth Integration",
+    "status": "pending",
+    "activeForm": "Testing OAuth"
+  }
+]

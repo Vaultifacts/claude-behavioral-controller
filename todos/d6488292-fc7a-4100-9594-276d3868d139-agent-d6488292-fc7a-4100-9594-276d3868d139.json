@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Pull and start n8n 2.3.5",
+    "status": "in_progress",
+    "activeForm": "Pulling n8n 2.3.5 image"
+  },
+  {
+    "content": "Import stock bot workflow",
+    "status": "pending",
+    "activeForm": "Importing workflow"
+  },
+  {
+    "content": "Configure credentials and test",
+    "status": "pending",
+    "activeForm": "Configuring credentials"
+  }
+]

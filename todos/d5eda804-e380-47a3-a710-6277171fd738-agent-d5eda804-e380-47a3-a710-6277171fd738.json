@@ -1,0 +1,92 @@
+[
+  {
+    "content": "Fix Image Bank initial load error",
+    "status": "completed",
+    "activeForm": "Fixing Image Bank initial load error"
+  },
+  {
+    "content": "Fix Image Bank upload functionality",
+    "status": "completed",
+    "activeForm": "Fixing Image Bank upload functionality"
+  },
+  {
+    "content": "Fix Image Bank folder creation",
+    "status": "completed",
+    "activeForm": "Fixing Image Bank folder creation"
+  },
+  {
+    "content": "Fix Image Bank hamburger menu",
+    "status": "completed",
+    "activeForm": "Fixing Image Bank hamburger menu"
+  },
+  {
+    "content": "Fix Image Bank dark mode visibility",
+    "status": "completed",
+    "activeForm": "Fixing Image Bank dark mode visibility"
+  },
+  {
+    "content": "Add folder icon to New Folder button",
+    "status": "completed",
+    "activeForm": "Adding folder icon to New Folder button"
+  },
+  {
+    "content": "Fix Cross-List CSRF token error",
+    "status": "completed",
+    "activeForm": "Fixing Cross-List CSRF token error"
+  },
+  {
+    "content": "Fix Advanced Cross-List button",
+    "status": "completed",
+    "activeForm": "Fixing Advanced Cross-List button"
+  },
+  {
+    "content": "Add listing details dropdown on My Listings",
+    "status": "completed",
+    "activeForm": "Adding listing details dropdown on My Listings"
+  },
+  {
+    "content": "Add archive listing feature",
+    "status": "completed",
+    "activeForm": "Adding archive listing feature"
+  },
+  {
+    "content": "Add listing folders feature",
+    "status": "pending",
+    "activeForm": "Adding listing folders feature"
+  },
+  {
+    "content": "Add Columns customization dropdown",
+    "status": "pending",
+    "activeForm": "Adding Columns customization dropdown"
+  },
+  {
+    "content": "Implement Orders page tracking system",
+    "status": "pending",
+    "activeForm": "Implementing Orders page tracking system"
+  },
+  {
+    "content": "Add Orders filters and columns",
+    "status": "pending",
+    "activeForm": "Adding Orders filters and columns"
+  },
+  {
+    "content": "Add CSV export for orders",
+    "status": "pending",
+    "activeForm": "Adding CSV export for orders"
+  },
+  {
+    "content": "Implement Checklist page with recurring tasks",
+    "status": "pending",
+    "activeForm": "Implementing Checklist page with recurring tasks"
+  },
+  {
+    "content": "Add Advanced Photo Editor to Image Bank",
+    "status": "pending",
+    "activeForm": "Adding Advanced Photo Editor to Image Bank"
+  },
+  {
+    "content": "Implement Cross-List platform customization",
+    "status": "pending",
+    "activeForm": "Implementing Cross-List platform customization"
+  }
+]

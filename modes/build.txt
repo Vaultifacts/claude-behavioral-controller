@@ -1,0 +1,8 @@
+MODE: BUILD
+Focus on fast, clean feature implementation.
+Rules:
+- Still follow global guardrails
+- Prefer minimal diff
+- Keep structure intact
+- Ask clarifying questions only if truly blocking
+- Provide a concise plan before coding

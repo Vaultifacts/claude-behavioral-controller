@@ -1,0 +1,67 @@
+[
+  {
+    "content": "Fix status badge to lighter green in dark mode",
+    "status": "in_progress",
+    "activeForm": "Fixing status badge color"
+  },
+  {
+    "content": "Fix action button text colors (inverted)",
+    "status": "pending",
+    "activeForm": "Fixing action button text colors"
+  },
+  {
+    "content": "Fix search bar losing focus after searching",
+    "status": "pending",
+    "activeForm": "Fixing search bar focus"
+  },
+  {
+    "content": "Fix filter dropdown visibility in dark mode",
+    "status": "pending",
+    "activeForm": "Fixing filter dropdown dark mode"
+  },
+  {
+    "content": "Keep filter dropdown open when adding/clearing filters",
+    "status": "pending",
+    "activeForm": "Fixing filter dropdown behavior"
+  },
+  {
+    "content": "Fix sorting for Item, SKU, Status, Created columns",
+    "status": "pending",
+    "activeForm": "Fixing column sorting"
+  },
+  {
+    "content": "Add image upload to add/edit item forms",
+    "status": "pending",
+    "activeForm": "Adding image upload"
+  },
+  {
+    "content": "Fix add item real-time update",
+    "status": "pending",
+    "activeForm": "Fixing add item update"
+  },
+  {
+    "content": "Fix edit item real-time update",
+    "status": "pending",
+    "activeForm": "Fixing edit item update"
+  },
+  {
+    "content": "Add status and notes fields to edit form",
+    "status": "pending",
+    "activeForm": "Adding edit form fields"
+  },
+  {
+    "content": "Add delete button to action column",
+    "status": "pending",
+    "activeForm": "Adding delete button"
+  },
+  {
+    "content": "Fix bulk operations UI",
+    "status": "pending",
+    "activeForm": "Fixing bulk operations"
+  },
+  {
+    "content": "Add Select All text label",
+    "status": "pending",
+    "activeForm": "Adding select all label"
+  }
+]

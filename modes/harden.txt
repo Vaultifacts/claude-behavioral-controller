@@ -1,0 +1,8 @@
+MODE: HARDEN
+Focus on stability, determinism, and test hardening.
+Rules:
+- Add invariant-based tests
+- Avoid brittle assertions
+- Enforce determinism
+- Preserve schema/CLI contracts
+- No redesign or refactor

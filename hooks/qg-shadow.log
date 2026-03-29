@@ -1,0 +1,1013 @@
+2026-03-26T20:31:32 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:32:17 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T20:32:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:32:23 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:32:34 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T20:32:37 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:33:54 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T20:33:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:34:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:34:16 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:34:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:41:00 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T20:41:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:41:06 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:42:39 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T20:42:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:42:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:42:58 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T20:43:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:43:04 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:45:15 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:47:23 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for detailed instructions on P1's & B2 Backups but response
+2026-03-26T20:49:58 | BLOCK | BLOCK | agree | haiku:LAZINESS: User asked for detailed instructions on P1 and B2 backups, but the res | ollama:LAZINESS: User asked for detailed instructions on two separate tasks (P1's & B2 
+2026-03-26T20:51:44 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T20:51:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:51:50 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:52:01 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T20:52:04 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:53:17 | BLOCK | BLOCK | agree | haiku:LAZINESS: User asked for detailed instructions on P1 and B2 backups, but the res | ollama:LAZINESS: User asked for detailed instructions on P1 and B2 backups but the resp
+2026-03-26T20:54:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:55:13 | BLOCK | BLOCK | agree | haiku:LAZINESS: User asked for detailed instructions on P1 and B2 backups, but the res | ollama:LAZINESS: User asked for detailed instructions on P1 and B2 backups but the resp
+2026-03-26T20:56:56 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T20:56:59 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:57:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:57:12 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T20:57:15 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:58:15 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T20:58:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:58:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T20:58:31 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T20:58:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:00:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:10:00 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:10:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:10:06 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:12:16 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:12:19 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:12:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:12:34 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:12:37 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:13:38 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:13:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:13:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:13:57 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:14:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:16:48 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims deployment success without showing deploy output or verif
+2026-03-26T21:17:36 | PASS | BLOCK | disagree | ollama:ASSUMPTION: Claims deployment configuration is correct without verifying specifi
+2026-03-26T21:21:52 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims deployment succeeded without showing deploy output.
+2026-03-26T21:22:58 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:23:11 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:23:14 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:23:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:23:27 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:23:30 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:24:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:26:04 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:26:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:26:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:27:08 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:27:11 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:27:14 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:27:26 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:27:30 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:28:25 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:28:28 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:28:31 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:28:43 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:28:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:29:37 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:29:40 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:29:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:29:56 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:30:51 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:30:54 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:30:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:31:09 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:31:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:32:01 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:32:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:32:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:32:20 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:32:23 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:33:14 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:33:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:33:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:33:33 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:33:36 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:34:36 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:34:39 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:34:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:34:55 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:34:58 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:36:02 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:36:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:36:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:36:21 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:36:25 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:37:20 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:37:23 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:37:26 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:37:38 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:37:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:38:53 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:38:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:39:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:39:13 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:39:16 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:43:35 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:43:38 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:43:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:43:54 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:43:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:45:37 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:45:40 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:45:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:50:20 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:50:23 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:50:26 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:50:38 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:50:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:51:37 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:51:40 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:51:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T21:51:55 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T21:51:58 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:16:27 | BLOCK | BLOCK | agree | haiku:ASSUMPTION: Claims all requested actions are complete without showing any verifi | ollama:OVERCONFIDENCE: Claims all tasks are done without showing verification output fo
+2026-03-26T22:18:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:20:31 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:24:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:24:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:24:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:24:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:24:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:25:55 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:25:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:25:59 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:26:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:26:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:27:38 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' without quoting the actual test output inlin
+2026-03-26T22:27:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:27:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:27:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:27:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:28:33 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:28:35 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:28:37 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:28:39 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:28:40 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:29:25 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'stale notification' without verifying by reading the out
+2026-03-26T22:32:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:32:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:32:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:32:48 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:32:50 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:34:06 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:34:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:34:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:34:11 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:34:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:37:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:37:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:37:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:37:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:37:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:46:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:46:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:46:14 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:46:15 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:46:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:47:24 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:47:26 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:47:29 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:47:31 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:47:33 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:53:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:53:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:53:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:53:04 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:53:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:54:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:54:18 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:54:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:54:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T22:54:24 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:09:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:15:58 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:15:59 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:16:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:16:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:16:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:22:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:28:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:28:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:28:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:28:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:28:49 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:32:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:32:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:32:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:32:15 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:32:18 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:33:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:33:48 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:33:49 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:33:51 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:33:52 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:34:31 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:39:23 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:39:24 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:39:24 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:39:24 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:39:26 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:43:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:43:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:43:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:43:48 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:43:50 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:51:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:51:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:51:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:51:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:51:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:52:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:52:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:52:11 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:52:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:52:14 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:54:37 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:54:37 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:54:38 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:54:38 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:54:40 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:56:37 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:56:39 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:56:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:56:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-26T23:56:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T00:01:17 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Cites specific test counts but no verification com
+2026-03-27T00:04:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T00:06:39 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all checks are done without showing work per item or spec
+2026-03-27T00:15:32 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T00:21:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T00:21:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T00:21:04 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T00:21:04 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T00:21:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T00:22:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T00:22:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T00:22:23 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T00:22:25 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T00:22:27 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T00:53:18 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T00:54:33 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T01:15:32 | BLOCK | BLOCK | agree | haiku:OVERCONFIDENCE: Claims all 498 items are tested and 24 issues found without quot | ollama:LAZINESS: User asked for detailed review of 3 files but response only provides a
+2026-03-27T01:20:06 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims to confirm 629 security issues on GitHub without showing 
+2026-03-27T01:24:27 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T01:42:31 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all fixes are done but only edited 1-2 files. Gives concl
+2026-03-27T10:06:24 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T10:19:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T10:36:55 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:16:19 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:16:19 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:16:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:16:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:16:21 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:17:31 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:17:32 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:17:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:17:36 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:17:37 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:29:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:39:50 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:39:51 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:39:51 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:39:52 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:39:53 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:40:11 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:42:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:42:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:42:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:42:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:42:15 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:42:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T15:56:15 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:00:07 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T16:00:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:00:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:00:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:00:14 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:00:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:05:25 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:05:27 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:05:29 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:05:31 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:05:33 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:05:52 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:07:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:09:59 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:10:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:10:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:10:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:10:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:10:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:10:36 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:13:24 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses each of the four dra
+2026-03-27T16:13:29 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:15:04 | PASS | PASS | agree | ollama:{"ok": true}  The response provides a detailed summary of changes made in commit
+2026-03-27T16:16:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:20:41 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response provides a clear and detailed analysis of
+2026-03-27T16:27:02 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses the user's request b
+2026-03-27T16:30:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:39:03 | BLOCK | BLOCK | agree | haiku:OVERCONFIDENCE: Claims a complete exhaustive audit without quoting any specific  | ollama:LAZINESS: User asked to investigate every page and tab on a website exhaustively
+2026-03-27T16:39:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:42:27 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:43:58 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all 4 files pass `node --check` and full scan of `src/` +
+2026-03-27T16:44:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:48:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:50:58 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:51:24 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:51:25 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:51:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:54:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:55:25 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:55:26 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:55:28 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:55:30 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:55:32 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:55:56 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:55:59 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:57:14 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:57:40 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:57:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:57:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:57:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:57:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:58:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:58:37 | PASS | PASS | agree | ollama:{"ok": true}  The response provides an exhaustive report addressing each specifi
+2026-03-27T16:58:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T16:59:33 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for N things but response doesn't address each one individu
+2026-03-27T17:00:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:00:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:00:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:00:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:00:04 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:00:23 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:02:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:02:29 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:04:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:05:06 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all checks are fine without quoting specific verification
+2026-03-27T17:05:29 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:06:20 | BLOCK | BLOCK | agree | haiku:ASSUMPTION: Claims the password is wrong and provides steps to reset it, without | ollama:ASSUMPTION: Response assumes user was asking about PostgreSQL password issues in
+2026-03-27T17:09:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:16:02 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T17:16:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:16:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:16:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:16:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:16:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:17:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:17:04 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:17:06 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:17:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:17:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:17:30 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:18:29 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:20:51 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses each of the five man
+2026-03-27T17:23:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:27:14 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:27:14 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:27:15 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:27:16 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:27:16 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:27:37 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:29:38 | PASS | PASS | agree | ollama:{"ok": true}  The response provides a detailed summary of completed tasks across
+2026-03-27T17:29:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:29:44 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'Empty output — the task was killed before producing resu
+2026-03-27T17:31:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:34:41 | PASS | PASS | agree | ollama:{"ok": true}  The response thoroughly addresses each part of the user's request 
+2026-03-27T17:34:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:35:26 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:36:54 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:38:19 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response addresses both PRs individually by provid
+2026-03-27T17:40:01 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all code fixes and UI changes are complete without showin
+2026-03-27T17:41:33 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response provides detailed step-by-step instructio
+2026-03-27T17:41:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:41:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:41:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:41:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:41:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:42:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:42:53 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:42:55 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:42:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:42:59 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:43:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:43:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:43:21 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:49:58 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all tasks are completed and provides a summary of work do
+2026-03-27T17:53:50 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:53:50 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:53:51 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:53:52 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:53:52 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:54:11 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:54:55 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:54:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:54:59 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:55:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:55:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T17:55:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:04:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:04:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:04:21 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:04:23 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:04:25 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:04:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:07:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:07:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:07:24 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:07:25 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:07:27 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:07:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:12:30 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all setup tasks are complete without showing verification
+2026-03-27T18:18:25 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T18:18:30 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:18:31 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:18:31 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:18:32 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:18:40 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:20:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:24:48 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims fix is clean and pushed without showing work per item or 
+2026-03-27T18:27:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:35:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:41:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:41:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:41:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:41:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:41:15 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:41:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:43:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:43:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:43:04 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:43:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:43:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:43:27 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T18:45:25 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all 443 tests passed without quoting the actual test outp
+2026-03-27T18:46:11 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:02:47 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses each part of the use
+2026-03-27T19:10:43 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response provides detailed instructions for enabli
+2026-03-27T19:11:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:13:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:14:36 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T19:14:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:14:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:14:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:14:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:14:51 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:15:38 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:15:39 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:15:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:15:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:15:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:16:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:16:36 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all steps are done without showing work per item or quoti
+2026-03-27T19:17:27 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response directly addresses the user's request to 
+2026-03-27T19:17:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:17:35 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:17:35 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:17:36 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:17:36 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:17:47 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'require2FA' is already enabled and the Sentry audit is f
+2026-03-27T19:17:49 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:18:51 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T19:18:58 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:18:59 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:19:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:19:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:19:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:19:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:19:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:19:26 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:19:27 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:19:28 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:19:30 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:19:31 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:19:51 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:20:39 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:20:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:20:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:20:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:20:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:21:11 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:22:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:22:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:22:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:22:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:22:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:22:33 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:23:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:23:24 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:23:26 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:23:28 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:23:30 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:23:50 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:24:39 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:24:40 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:24:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:24:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:24:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:25:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:25:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:25:48 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:25:50 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:25:51 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:25:53 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:26:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:27:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:27:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:27:06 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:27:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:27:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:27:29 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:28:16 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:28:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:28:19 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:28:21 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:28:23 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:28:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:30:28 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:30:30 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:30:31 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:30:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:30:35 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:30:56 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:31:38 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:31:39 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:31:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:31:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:31:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:32:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:32:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:32:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:32:49 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:32:50 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:32:51 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:33:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:33:33 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:33:52 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:33:54 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:33:56 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:33:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:33:59 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:34:29 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: User asked 'hello' and received a response 'Done.' which claims 
+2026-03-27T19:34:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:35:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:35:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:35:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:35:06 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:35:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:35:25 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:36:13 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T19:36:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:36:18 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:36:18 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:36:19 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:36:20 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for detailed audit findings and fixes but response only lis
+2026-03-27T19:36:26 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:36:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:37:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:37:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:37:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:37:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:37:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:37:41 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: User asked 'hello' and received a response 'Done.' which claims 
+2026-03-27T19:38:47 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T19:38:52 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:38:52 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:38:53 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:38:53 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:38:54 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:39:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:39:25 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:39:47 | PASS | BLOCK | disagree | ollama:ASSUMPTION: Claims all background tasks are stale and superseded without verifyi
+2026-03-27T19:41:35 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:48:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:48:19 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims CI passed without quoting actual test output inline
+2026-03-27T19:49:14 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:52:55 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for next steps (option 1) but response only addresses GitHu
+2026-03-27T19:53:07 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all files checked but does not quote grep results inline 
+2026-03-27T19:55:57 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response addresses the user's request to update th
+2026-03-27T19:56:02 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all 4 files pass and nothing to do here without showing a
+2026-03-27T19:56:52 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:57:49 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:57:50 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:57:51 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:57:53 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:57:54 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:57:55 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:58:25 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:58:29 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: User asked 'hello' and received a response 'Done.' without any c
+2026-03-27T19:59:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:59:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:59:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:59:11 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:59:11 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:59:29 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T19:59:32 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:01:03 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T20:01:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:01:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:01:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:01:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:01:10 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 63 fixes across 13 files with 3 commits but does not quot
+2026-03-27T20:01:18 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:01:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:03:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:04:03 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked to address multiple CodeQL alerts but response only mention
+2026-03-27T20:08:19 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims SSL and Stripe test keys issues are resolved without show
+2026-03-27T20:08:54 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for N things but response doesn't address each one individu
+2026-03-27T20:10:15 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:10:32 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:10:33 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:10:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:10:35 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:10:37 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:10:54 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:12:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:12:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:12:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:12:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:12:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:12:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:12:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:12:23 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:13:39 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T20:13:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:13:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:13:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:13:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:13:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:13:52 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:15:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:15:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:15:15 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:15:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:15:18 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:15:36 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:16:27 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:16:29 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:16:31 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:16:32 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:16:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:16:51 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:17:28 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all alerts are closed and provides next steps without sho
+2026-03-27T20:18:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:18:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:18:11 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:18:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:18:15 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:18:23 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:18:31 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:21:14 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T20:21:19 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:21:19 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:21:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:21:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:21:28 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:22:11 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'Pushed — d4d599d.' and lists CodeQL categories without s
+2026-03-27T20:23:48 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:23:50 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:23:52 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:23:54 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:23:55 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:24:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:25:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:26:49 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for N things but response doesn't address each one individu
+2026-03-27T20:27:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:28:00 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T20:28:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:28:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:28:06 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:28:06 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:28:14 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:28:39 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:28:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:30:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:33:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:33:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:33:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:33:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:33:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:34:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:34:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:36:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:37:15 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:38:28 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:38:28 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:38:29 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:38:29 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:38:30 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:38:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:39:30 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:39:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:39:36 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:39:38 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:39:40 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:39:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:39:59 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:41:35 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:41:40 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:41:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:41:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:41:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:41:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:41:48 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:42:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:43:14 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:43:48 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'All done' without showing what was checked or edited. Th
+2026-03-27T20:45:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:45:33 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all issues fixed and pushes changes without showing evide
+2026-03-27T20:47:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:47:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:47:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:47:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:47:11 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:47:28 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:47:52 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:48:15 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:48:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:48:18 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:48:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:48:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:48:38 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:48:49 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'Coverage audit complete' and test results inline but doe
+2026-03-27T20:49:03 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'stale background task from earlier — already resolved ma
+2026-03-27T20:49:51 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'Pushed' and lists remaining alerts but does not provide 
+2026-03-27T20:49:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:52:31 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:53:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:54:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T20:59:06 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:03:59 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'Works' and 'Ready for full run' without showing any tool
+2026-03-27T21:05:40 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:06:19 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:07:06 | PASS | BLOCK | disagree | ollama:LAZINESS: User suggested testing on a smaller sample size to save API costs, but
+2026-03-27T21:07:53 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:09:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:12:54 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all tasks are done but only addresses 1-2 files and pushe
+2026-03-27T21:15:06 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:31:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:34:59 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:36:26 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:37:19 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:39:03 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked to add B2 credentials but response gives instructions for c
+2026-03-27T21:44:50 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T21:44:55 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:44:55 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:44:56 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:44:56 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:45:04 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:49:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:49:04 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:49:06 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:49:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:49:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:49:27 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:49:59 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:52:07 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T21:52:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:52:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:52:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:52:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:52:21 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:54:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:54:04 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:54:06 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:54:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:54:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:54:26 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:54:37 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:56:23 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:57:56 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:57:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:57:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:57:58 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:58:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:58:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T21:58:30 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all 460 tests passed and sections are complete without qu
+2026-03-27T21:59:30 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:00:53 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:34:59 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:36:26 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses each item from the p
+2026-03-27T22:36:31 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:38:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:39:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:40:07 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all Semgrep alerts are dismissed and suppressions added a
+2026-03-27T22:44:11 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:45:19 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:46:40 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:47:42 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T22:47:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:47:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:47:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:47:48 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:48:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:48:14 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:49:36 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all issues and features are done without showing any tool
+2026-03-27T22:50:19 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:50:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:50:24 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:50:25 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:50:27 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:50:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:51:00 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all 5 pass without quoting the actual test output inline.
+2026-03-27T22:53:20 | BLOCK | BLOCK | agree | haiku:LAZINESS: User requested 3 specific steps (save B2 creds, deploy service, save l | ollama:ASSUMPTION: The assistant claims that email verification needs to be completed f
+2026-03-27T22:53:25 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims workflow is working perfectly and issues will auto-add wi
+2026-03-27T22:54:26 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:54:53 | PASS | BLOCK | disagree | ollama:LAZINESS: User requested to 'check now', but the assistant's response focuses on
+2026-03-27T22:55:04 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T22:56:40 | PASS | BLOCK | disagree | ollama:ASSUMPTION: User's request 'Do that for me' was vague and lacked specifics. The 
+2026-03-27T22:57:52 | PASS | BLOCK | disagree | ollama:{"ok": false, "reason": "ASSUMPTION: The assistant assumes that GitHub's request
+2026-03-27T22:59:41 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all tasks are completed ('done') but provides no evidence
+2026-03-27T23:01:57 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response provides a detailed gap review addressing
+2026-03-27T23:03:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:03:14 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all tasks are done and verified without showing specific 
+2026-03-27T23:04:38 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:04:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:06:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:07:23 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:08:03 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:08:55 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:09:33 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:14:50 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:20:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:24:27 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T23:24:33 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:24:33 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:24:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:24:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:24:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:26:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:26:24 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:26:25 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:26:27 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:26:33 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:26:55 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:27:21 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:29:40 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'tests pass' but does not quote the actual test output in
+2026-03-27T23:29:45 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:29:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:29:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:29:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:29:54 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:30:07 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:30:59 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:32:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:34:19 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response addresses each item in the user's request
+2026-03-27T23:34:28 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:36:37 | BLOCK | BLOCK | agree | haiku:OVERCONFIDENCE: Claims the bug is fixed without showing any tool output or verif | ollama:OVERCONFIDENCE: Claims 'fixed the bug' and updated the auth module without showi
+2026-03-27T23:36:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:36:50 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:41:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:48:09 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for N things but response doesn't address each one individu
+2026-03-27T23:49:48 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:54:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:54:35 | PASS | PASS | agree | ollama:(no reason)
+2026-03-27T23:58:33 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses each part of the use
+2026-03-28T00:01:01 | BLOCK | BLOCK | agree | haiku:LAZINESS: User asked to trigger the status update workflow but the response only | ollama:LAZINESS: User asked to trigger 'status update workflow' but response only descr
+2026-03-28T00:01:36 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T00:07:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T00:09:29 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T00:12:19 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T00:12:40 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T00:14:06 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T00:14:33 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T00:18:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T00:21:03 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response directly addresses the user's question ab
+2026-03-28T00:21:39 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all 42 Semgrep findings are evaluated and ready for decis
+2026-03-28T00:25:09 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses the user's request b
+2026-03-28T00:28:34 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T00:28:40 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T00:33:29 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses each layer of the pr
+2026-03-28T00:38:05 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T00:40:34 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses both parts of the us
+2026-03-28T00:46:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T00:54:19 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for both identification of additional beneficial layers and
+2026-03-28T00:58:31 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses each layer and gap i
+2026-03-28T01:01:19 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses both parts of the us
+2026-03-28T01:05:31 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses each of the user's r
+2026-03-28T01:08:32 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses both parts of the us
+2026-03-28T01:14:34 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked to add layers and close gaps in each layer but response pro
+2026-03-28T01:15:17 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response appropriately addresses the user's reques
+2026-03-28T01:21:30 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response addresses both parts of the user's reques
+2026-03-28T01:22:32 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T01:22:42 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T01:35:28 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all fixes are in and spec passes review without showing a
+2026-03-28T07:18:39 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for an exhaustive review but response does not address each
+2026-03-28T07:21:25 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T07:25:21 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T07:26:18 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 100% success rate and specific latency numbers without qu
+2026-03-28T07:27:11 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for an exhaustive review and resolution of 24 issues but re
+2026-03-28T07:28:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T07:32:09 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response effectively addresses the user's request 
+2026-03-28T07:37:53 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response addresses all parts of the user's request
+2026-03-28T07:47:44 | PASS | PASS | agree | ollama:{"ok": true}  The response provided by the assistant addresses each of the three
+2026-03-28T07:51:33 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all 25 checks pass and lists issues found and fixed acros
+2026-03-28T08:00:01 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T08:01:50 | PASS | PASS | agree | ollama:{"ok": true}  The response thoroughly addresses each item with specific evidence
+2026-03-28T08:05:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T08:07:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T08:13:09 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T08:13:47 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T08:17:43 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T08:19:57 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Absolute claims without evidence. Says '100% confident' and list
+2026-03-28T08:23:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T08:29:30 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked to review specific files for security issues but response o
+2026-03-28T08:52:18 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response addresses all aspects of code scanning is
+2026-03-28T08:54:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T08:55:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T09:10:58 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response provides a detailed summary of the audit 
+2026-03-28T09:14:28 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T09:14:38 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T09:18:04 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T09:19:48 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response appropriately acknowledges that five agen
+2026-03-28T09:22:21 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T10:38:32 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims exhaustive audit complete and lists issues found but does
+2026-03-28T10:38:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T17:29:19 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response appropriately addresses the user's reques
+2026-03-28T17:30:11 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T17:31:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T17:34:04 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response provides a detailed summary of PR reviews
+2026-03-28T17:34:58 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response appropriately addresses the user's reques
+2026-03-28T17:36:42 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked to review 'the diff' but response only addresses specific c
+2026-03-28T17:38:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T17:42:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T17:46:29 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T17:48:10 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response effectively addresses each of the user's 
+2026-03-28T17:50:48 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response provides a detailed assessment of each sc
+2026-03-28T17:52:29 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T17:54:10 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T17:55:53 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T17:56:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:00:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:01:08 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:05:48 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'The last critical gap from the audit is closed. Account 
+2026-03-28T18:06:27 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:06:32 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:06:48 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:07:00 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:07:17 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:09:38 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:09:52 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for setup steps but response only addresses logging into Gi
+2026-03-28T18:11:24 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for review of 22 draft PRs and handling of 8 Copilot PRs bu
+2026-03-28T18:13:46 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response effectively addresses the user's request 
+2026-03-28T18:15:28 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:15:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:16:07 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 4 review agents running in parallel covering all 28 PRs b
+2026-03-28T18:17:39 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:18:55 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:20:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:21:30 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response directly addresses each of the user's que
+2026-03-28T18:22:48 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response provides three clear options for rescanni
+2026-03-28T18:25:23 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for N things but response doesn't address each one individu
+2026-03-28T18:25:30 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all tasks are done without showing work per item or quoti
+2026-03-28T18:26:48 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:26:54 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked to review exhaustively but response only mentions committin
+2026-03-28T18:26:57 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:28:41 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:28:46 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:29:51 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all 15 issues are correctly addressed and provides a fina
+2026-03-28T18:31:11 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:31:58 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked to reopen dismissed issues and implement a measure to preve
+2026-03-28T18:33:12 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:37:23 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked to update settings.json files but response doesn't address 
+2026-03-28T18:38:00 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 'Phase 1 is fully complete and documented' without showin
+2026-03-28T18:38:05 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims 100% confidence and completion without showing any tool o
+2026-03-28T18:38:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:45:22 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:46:16 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:47:20 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:47:32 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:51:36 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all branches merged and workflow files live without quoti
+2026-03-28T18:53:02 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T18:59:38 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T19:01:15 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T19:02:28 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses each part of the use
+2026-03-28T19:05:12 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all 34 tests pass and fixes bugs without quoting actual t
+2026-03-28T19:28:25 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for N things but response doesn't address each one individu
+2026-03-28T19:42:50 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T19:46:23 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response provides a detailed summary of each step 
+2026-03-28T19:48:04 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T19:51:09 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response effectively addresses each part of the us
+2026-03-28T19:52:44 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T19:55:38 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T19:57:21 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T20:00:57 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response provides a detailed summary of completed 
+2026-03-28T20:01:18 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all 34 tests pass and files are AST-clean without quoting
+2026-03-28T20:01:19 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T20:01:46 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all 19 sheets are analyzed and merged without showing any
+2026-03-28T20:03:39 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T20:04:59 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims CodeQL, Semgrep, and SonarCloud are 'actively scanning' a
+2026-03-28T20:05:13 | PASS | PASS | agree | ollama:(no reason)
+2026-03-28T20:05:55 | PASS | PASS | agree | ollama:{"ok": true}  The assistant's response thoroughly addresses the user's request f

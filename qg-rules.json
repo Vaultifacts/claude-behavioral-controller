@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "layer0": {
+    "injection_max_chars": 2000,
+    "pattern_retirement_sessions": 5
+  },
+  "layer1": {
+    "deep_min_length": 300,
+    "deep_scope_keywords": ["redesign", "migrate", "refactor all", "rewrite", "rebuild", "overhaul"],
+    "codebase_scan_timeout_sec": 3
+  },
+  "layer15": {
+    "repeat_violation_threshold": 3,
+    "rules": [
+      {"id": "edit-without-read", "condition": "edit_without_read", "action": "warn"},
+      {"id": "bash-instead-of-tool", "condition": "bash_grep_cat_find", "action": "info"},
+      {"id": "write-outside-scope", "condition": "write_outside_scope", "action": "warn"}
+    ]
+  },
+  "layer2": {
+    "events_per_turn_limit": 5,
+    "loop_same_tool_count": 3,
+    "loop_same_dir_count": 5
+  },
+  "layer4": {
+    "session_retention_count": 30,
+    "quality_score_weights": {"fn": 3, "l2_critical": 2, "fp": 1},
+    "category_complexity_weights": {
+      "MECHANICAL": 1.0, "ASSUMPTION": 1.0,
+      "OVERCONFIDENCE": 1.2, "PLANNING": 1.3, "DEEP": 1.5
+    }
+  },
+  "layer6": {"pattern_min_sessions": 3, "pattern_min_pct": 15, "pattern_retirement_sessions": 3},
+  "layer9": {"calibration_staleness_sessions": 30, "min_responses_before_recalibration": 5},
+  "layer10": {"rotation_threshold_lines": 10000, "integrity_check_interval_days": 7}
+}

@@ -1,0 +1,23 @@
+{
+  "skill_name": "refactor-code",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "This function has a cyclomatic complexity of 14. Break it up.",
+      "expected_output": "Claude should scope the refactor (ask what function/file, map callers), check test coverage before touching anything, plan atomic increments, and not immediately start rewriting code.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I've got trigger parsing logic duplicated in 3 different files. Centralize it into a shared helper.",
+      "expected_output": "Claude should map all 3 file locations, check what calls each duplicate, verify tests cover the behavior, then extract incrementally — not just paste into a new file.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Migrate the side panel component to a tab — same data, different layout.",
+      "expected_output": "Claude should flag that this may be a feature change (not pure refactor) if behavior changes, scope the blast radius, and establish a green baseline before restructuring.",
+      "files": []
+    }
+  ]
+}

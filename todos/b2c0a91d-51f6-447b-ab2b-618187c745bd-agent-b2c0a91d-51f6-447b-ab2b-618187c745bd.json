@@ -1,0 +1,107 @@
+[
+  {
+    "content": "Fix navigation scroll position preservation",
+    "status": "completed",
+    "activeForm": "Fixing navigation scroll position preservation"
+  },
+  {
+    "content": "Fix sidebar collapse (hide username/plan text)",
+    "status": "completed",
+    "activeForm": "Fixing sidebar collapse (hide username/plan text)"
+  },
+  {
+    "content": "Reorganize navigation structure (add Tools & Company sections)",
+    "status": "completed",
+    "activeForm": "Reorganizing navigation structure (add Tools & Company sections)"
+  },
+  {
+    "content": "Create notifications bell dropdown",
+    "status": "completed",
+    "activeForm": "Creating notifications bell dropdown"
+  },
+  {
+    "content": "Implement full notifications page with search, filters, CRUD",
+    "status": "completed",
+    "activeForm": "Implementing full notifications page with search, filters, CRUD"
+  },
+  {
+    "content": "Create database migrations (5 files)",
+    "status": "completed",
+    "activeForm": "Creating database migrations (5 files)"
+  },
+  {
+    "content": "Create backend routes (roadmap, feedback, calendar)",
+    "status": "completed",
+    "activeForm": "Creating backend routes (roadmap, feedback, calendar)"
+  },
+  {
+    "content": "Create Calendar page",
+    "status": "completed",
+    "activeForm": "Creating Calendar page"
+  },
+  {
+    "content": "Create Roadmap page",
+    "status": "completed",
+    "activeForm": "Creating Roadmap page"
+  },
+  {
+    "content": "Create Terms & Privacy pages",
+    "status": "completed",
+    "activeForm": "Creating Terms & Privacy pages"
+  },
+  {
+    "content": "Redesign Changelog page",
+    "status": "pending",
+    "activeForm": "Redesigning Changelog page"
+  },
+  {
+    "content": "Redesign Submit Feedback page",
+    "status": "pending",
+    "activeForm": "Redesigning Submit Feedback page"
+  },
+  {
+    "content": "Enhance Support Articles page",
+    "status": "pending",
+    "activeForm": "Enhancing Support Articles page"
+  },
+  {
+    "content": "Convert Add Item button to dropdown",
+    "status": "pending",
+    "activeForm": "Converting Add Item button to dropdown"
+  },
+  {
+    "content": "Add variations/sizes field to Add Item modal",
+    "status": "pending",
+    "activeForm": "Adding variations/sizes field to Add Item modal"
+  },
+  {
+    "content": "Add eBay promotion rate field",
+    "status": "pending",
+    "activeForm": "Adding eBay promotion rate field"
+  },
+  {
+    "content": "Add image upload tabs (file/URL/clipboard)",
+    "status": "pending",
+    "activeForm": "Adding image upload tabs (file/URL/clipboard)"
+  },
+  {
+    "content": "Add draft/publish options",
+    "status": "pending",
+    "activeForm": "Adding draft/publish options"
+  },
+  {
+    "content": "Implement CSV import feature",
+    "status": "pending",
+    "activeForm": "Implementing CSV import feature"
+  },
+  {
+    "content": "Fix AI Listing Generator",
+    "status": "pending",
+    "activeForm": "Fixing AI Listing Generator"
+  },
+  {
+    "content": "Verify existing features (templates, quantity, stock)",
+    "status": "pending",
+    "activeForm": "Verifying existing features (templates, quantity, stock)"
+  }
+]

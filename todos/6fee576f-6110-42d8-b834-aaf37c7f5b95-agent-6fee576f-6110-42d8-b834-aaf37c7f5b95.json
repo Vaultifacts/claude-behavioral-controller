@@ -1,0 +1,57 @@
+[
+  {
+    "content": "Create database migration 023_add_receipt_parsing.sql",
+    "status": "completed",
+    "activeForm": "Creating database migration"
+  },
+  {
+    "content": "Register migration in database.js",
+    "status": "completed",
+    "activeForm": "Registering migration"
+  },
+  {
+    "content": "Create backend route receiptParser.js",
+    "status": "completed",
+    "activeForm": "Creating backend route"
+  },
+  {
+    "content": "Register route in server.js",
+    "status": "completed",
+    "activeForm": "Registering route"
+  },
+  {
+    "content": "Add frontend state properties",
+    "status": "completed",
+    "activeForm": "Adding frontend state"
+  },
+  {
+    "content": "Implement receipt handlers",
+    "status": "in_progress",
+    "activeForm": "Implementing handlers"
+  },
+  {
+    "content": "Create Receipt Parser page UI",
+    "status": "pending",
+    "activeForm": "Creating Receipt Parser page"
+  },
+  {
+    "content": "Create Review Receipt modal",
+    "status": "pending",
+    "activeForm": "Creating review modal"
+  },
+  {
+    "content": "Add navigation link",
+    "status": "pending",
+    "activeForm": "Adding navigation"
+  },
+  {
+    "content": "Add CSS styles",
+    "status": "pending",
+    "activeForm": "Adding CSS styles"
+  },
+  {
+    "content": "Test and update documentation",
+    "status": "pending",
+    "activeForm": "Testing and documenting"
+  }
+]

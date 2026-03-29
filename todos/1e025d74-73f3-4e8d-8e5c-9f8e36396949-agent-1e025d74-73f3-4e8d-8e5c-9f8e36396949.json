@@ -1,0 +1,42 @@
+[
+  {
+    "content": "Create migration 005_add_image_bank.sql",
+    "status": "completed",
+    "activeForm": "Creating migration 005_add_image_bank.sql"
+  },
+  {
+    "content": "Create migration 006_add_chatbot.sql",
+    "status": "completed",
+    "activeForm": "Creating migration 006_add_chatbot.sql"
+  },
+  {
+    "content": "Create migration 007_add_community.sql",
+    "status": "completed",
+    "activeForm": "Creating migration 007_add_community.sql"
+  },
+  {
+    "content": "Create migration 008_add_extension_support.sql",
+    "status": "completed",
+    "activeForm": "Creating migration 008_add_extension_support.sql"
+  },
+  {
+    "content": "Create migration 009_add_support_features.sql",
+    "status": "completed",
+    "activeForm": "Creating migration 009_add_support_features.sql"
+  },
+  {
+    "content": "Update database.js migration runner",
+    "status": "in_progress",
+    "activeForm": "Updating database.js migration runner"
+  },
+  {
+    "content": "Create image storage directories",
+    "status": "pending",
+    "activeForm": "Creating image storage directories"
+  },
+  {
+    "content": "Create imageStorage.js service",
+    "status": "pending",
+    "activeForm": "Creating imageStorage.js service"
+  }
+]

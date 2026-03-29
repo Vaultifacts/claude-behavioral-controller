@@ -1,0 +1,62 @@
+[
+  {
+    "content": "Create database migration 022_add_sku_rules.sql",
+    "status": "completed",
+    "activeForm": "Creating database migration"
+  },
+  {
+    "content": "Register migration in database.js",
+    "status": "completed",
+    "activeForm": "Registering migration"
+  },
+  {
+    "content": "Create backend route skuRules.js",
+    "status": "completed",
+    "activeForm": "Creating backend route"
+  },
+  {
+    "content": "Register route in server.js",
+    "status": "completed",
+    "activeForm": "Registering route"
+  },
+  {
+    "content": "Add frontend state properties",
+    "status": "completed",
+    "activeForm": "Adding frontend state"
+  },
+  {
+    "content": "Implement SKU Rules handlers",
+    "status": "completed",
+    "activeForm": "Implementing handlers"
+  },
+  {
+    "content": "Create SKU Rules page UI",
+    "status": "in_progress",
+    "activeForm": "Creating SKU Rules page"
+  },
+  {
+    "content": "Add SKU field to inventory modals",
+    "status": "pending",
+    "activeForm": "Adding SKU field to modals"
+  },
+  {
+    "content": "Integrate auto-generation in inventory.js",
+    "status": "pending",
+    "activeForm": "Integrating auto-generation"
+  },
+  {
+    "content": "Add CSS styles",
+    "status": "pending",
+    "activeForm": "Adding CSS styles"
+  },
+  {
+    "content": "Test with curl and manual testing",
+    "status": "pending",
+    "activeForm": "Testing endpoints"
+  },
+  {
+    "content": "Update PRD.md and CLAUDE.md",
+    "status": "pending",
+    "activeForm": "Updating documentation"
+  }
+]
