@@ -595,5 +595,41 @@ class TestLayer27TestingCoverage(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class TestLayer8RegressionDetection(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.tmp = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.tmp
+        ss.LOCK_PATH = self.tmp + '.lock'
+
+    def tearDown(self):
+        import qg_session_state as ss
+        for p in [self.tmp, self.tmp + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_test_command_detected(self):
+        from qg_layer8 import TEST_CMD_RE
+        self.assertTrue(bool(TEST_CMD_RE.search('pytest tests/')))
+        self.assertTrue(bool(TEST_CMD_RE.search('npm test')))
+        self.assertFalse(bool(TEST_CMD_RE.search('ls -la')))
+
+    def test_parse_results_pass_and_fail(self):
+        from qg_layer8 import parse_results
+        passed, failed = parse_results('5 passed, 2 failed in 1.23s')
+        self.assertEqual(passed, 5)
+        self.assertEqual(failed, 2)
+
+    def test_regression_more_failures_than_baseline(self):
+        from qg_layer8 import parse_results
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer_env_test_baseline'] = [[10, 0]]
+        ss.write_state(state)
+        _, failed = parse_results('8 passed, 2 failed')
+        baseline_failed = ss.read_state()['layer_env_test_baseline'][0][1]
+        self.assertGreater(failed, baseline_failed)
+
+
 if __name__ == '__main__':
     unittest.main()
