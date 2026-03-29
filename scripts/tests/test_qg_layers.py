@@ -657,5 +657,19 @@ class TestLayer6CrossSessionAnalysis(unittest.TestCase):
         self.assertIn('LAZINESS', cats)
 
 
+class TestLayer7RuleRefinement(unittest.TestCase):
+    def test_repeat_fn_above_threshold_flagged(self):
+        from qg_layer7 import find_repeat_fns
+        records = [{'outcome': 'FN', 'category': 'ASSUMPTION'}] * 3
+        result = find_repeat_fns(records, threshold=3)
+        self.assertIn('ASSUMPTION', result)
+
+    def test_single_fn_below_threshold_not_flagged(self):
+        from qg_layer7 import find_repeat_fns
+        records = [{'outcome': 'FN', 'category': 'ASSUMPTION'}]
+        result = find_repeat_fns(records, threshold=3)
+        self.assertEqual(result, {})
+
+
 if __name__ == '__main__':
     unittest.main()
