@@ -1136,7 +1136,7 @@ def cmd_monitor():
         entries = [e for e in history.split('## Session') if e.strip()]
         if entries:
             print('--- Most Recent Session Summary ---')
-            print('## Session' + entries[0][:500].rstrip())
+            print('## Session' + entries[-1][:500].rstrip())
     except FileNotFoundError:
         print('No session history yet.')
 
