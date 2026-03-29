@@ -66,6 +66,7 @@ def _empty_state():
         'layer_env_baseline': {},
         'layer_env_test_baseline': [],
         'layer8_regression_expected': False,
+        'layer3_evaluation_count': 0,
         'last_integrity_check_ts': 0,
         'notification_delivery': [],
         'notification_pending_criticals': [],

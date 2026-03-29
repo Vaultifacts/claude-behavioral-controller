@@ -972,6 +972,14 @@ def _compute_confidence(gate_blocked, block_category, state):
     score -= min(len(criticals) * 0.15, 0.30)
     if state.get('layer2_elevated_scrutiny'):
         score -= 0.20
+    # Gap 5: ignored_warnings_count adjustment (-0.08 per warning, cap -0.20)
+    score -= min(state.get('layer2_turn_event_count', 0) * 0.08, 0.20)
+    # Gap 6: syntax failure from Layer 2.5
+    if state.get('layer25_syntax_failure'):
+        score -= 0.15
+    # Gap 7: HIGH/CRITICAL edit with no regression check
+    if state.get('layer8_regression_expected'):
+        score -= 0.10
     return max(0.01, min(0.99, score))
 
 
@@ -1037,6 +1045,7 @@ def _layer3_run(gate_blocked, block_reason, response, tool_names, user_request):
     claims = re.findall(r'\b(?:the|this|my) \w+ (?:is|are|works?|pass(?:es)?)\b', response or '')
     state['layer3_last_response_claims'] = claims[:5]
     state['layer25_syntax_failure'] = False  # Clear per-turn flag
+    state['layer8_regression_expected'] = False  # Clear after confidence uses it
 
     if verdict == 'FN':
         reason = fn_signals[0] if fn_signals else 'unverified claims'
@@ -1063,9 +1072,37 @@ def _layer3_run(gate_blocked, block_reason, response, tool_names, user_request):
     except Exception:
         warnings_text = None
 
+    state['layer3_evaluation_count'] = state.get('layer3_evaluation_count', 0) + 1
     _ss.write_state(state)
     tag = f' [monitor:{verdict}:{conf_level}]' if verdict in ('TP', 'FP') else ''
     return verdict, tag, warnings_text
+
+
+def _trigger_phase3_layers(state):
+    """Fire-and-forget Phase 3 layers after session summary."""
+    import subprocess
+    hooks_dir = os.path.dirname(os.path.abspath(__file__))
+    devnull = subprocess.DEVNULL
+    for script, stdin_data in [
+        ('qg_layer6.py', '{}'),
+        ('qg_layer7.py', '{}'),
+        ('qg_layer9.py', json.dumps({'transcript_path': ''})),
+    ]:
+        try:
+            subprocess.Popen(
+                [sys.executable, os.path.join(hooks_dir, script)],
+                stdin=subprocess.PIPE, stdout=devnull, stderr=devnull,
+                env={**os.environ, 'PYTHONIOENCODING': 'utf-8'}
+            ).communicate(input=stdin_data.encode(), timeout=10)
+        except Exception:
+            pass
+    # Layer 10: CLI-only, run directly
+    try:
+        sys.path.insert(0, hooks_dir)
+        from qg_layer10 import run_integrity_check
+        run_integrity_check()
+    except Exception:
+        pass
 
 
 def _layer4_checkpoint(state, _ss):
@@ -1139,5 +1176,6 @@ def _layer4_checkpoint(state, _ss):
 
         with open(_QG_HISTORY, 'w', encoding='utf-8') as f:
             f.write('\n'.join(entries))
+        _trigger_phase3_layers(state)
     except Exception:
         pass
