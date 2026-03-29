@@ -67,16 +67,13 @@ def run_analysis(monitor_path=None, output_path=None):
         "sessions_analyzed": len(set(e.get("session_uuid") for e in events if e.get("session_uuid"))),
     }
     out = output_path or CROSS_SESSION_PATH
-    with open(out, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2)
+    if patterns or not os.path.exists(out):
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2)
     return result
 
 
 def main():
-    try:
-        json.loads(sys.stdin.read()) if not sys.stdin.isatty() else {}
-    except Exception:
-        pass
     state = ss.read_state()
     last_ts = state.get("layer6_last_analysis_ts", 0)
     if (time.time() - last_ts) < 3600:
