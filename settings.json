@@ -236,6 +236,15 @@
             "command": "python /c/Users/Matt1/.claude/hooks/qg_layer18.py"
           }
         ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer27.py"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -306,6 +315,33 @@
             "command": "python /c/Users/Matt1/.claude/hooks/qg_layer5.py"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer25.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer26.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer8.py"
+          }
+        ]
       }
     ],
     "PostToolUseFailure": [
@@ -340,7 +376,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell.exe -WindowStyle Hidden -File C:/Users/Matt1/.claude/hooks/notify.ps1 -Title 'Claude Code — Session Failed' -Message 'Rate limit or billing error. Check your Anthropic dashboard.' -Level Error -Duration 8000 2>/dev/null || true"
+            "command": "powershell.exe -WindowStyle Hidden -File C:/Users/Matt1/.claude/hooks/notify.ps1 -Title 'Claude Code \u2014 Session Failed' -Message 'Rate limit or billing error. Check your Anthropic dashboard.' -Level Error -Duration 8000 2>/dev/null || true"
           }
         ]
       }
@@ -372,6 +408,30 @@
             "type": "command",
             "command": "python C:/Users/Matt1/.claude/hooks/quality-gate.py",
             "statusMessage": "Running quality gate..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer6.py"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer7.py"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer9.py"
           }
         ]
       }
@@ -524,7 +584,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'PLAN=$(find /c/Users/Matt1/.claude/plans/ -maxdepth 1 -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); CTX=\"Memory index: ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md. RULE: Never assume or guess — verify by reading code, or escalate to the user.\"; if [ -n \"$PLAN\" ]; then CTX=\"$CTX. Active plan: $PLAN\"; fi; jq -n --arg ctx \"$CTX\" \"{hookSpecificOutput:{hookEventName:\\\"SubagentStart\\\",additionalContext:\\$ctx}}\"'",
+            "command": "bash -c 'PLAN=$(find /c/Users/Matt1/.claude/plans/ -maxdepth 1 -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); CTX=\"Memory index: ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md. RULE: Never assume or guess \u2014 verify by reading code, or escalate to the user.\"; if [ -n \"$PLAN\" ]; then CTX=\"$CTX. Active plan: $PLAN\"; fi; jq -n --arg ctx \"$CTX\" \"{hookSpecificOutput:{hookEventName:\\\"SubagentStart\\\",additionalContext:\\$ctx}}\"'",
             "async": false
           }
         ]
@@ -558,7 +618,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'INPUT=$(cat); SUMMARY=$(echo \"$INPUT\" | jq -r \".compact_summary // empty\" 2>/dev/null); PLAN=$(find /c/Users/Matt1/.claude/plans/ -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); if [ -n \"$PLAN\" ]; then echo \"[post-compact] Active plan: $PLAN — re-read it to resume work.\"; fi; echo \"[post-compact] Memory at ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md\"; if [ -n \"$SUMMARY\" ]; then echo \"[post-compact] Summary: $SUMMARY\"; fi'"
+            "command": "bash -c 'INPUT=$(cat); SUMMARY=$(echo \"$INPUT\" | jq -r \".compact_summary // empty\" 2>/dev/null); PLAN=$(find /c/Users/Matt1/.claude/plans/ -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); if [ -n \"$PLAN\" ]; then echo \"[post-compact] Active plan: $PLAN \u2014 re-read it to resume work.\"; fi; echo \"[post-compact] Memory at ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md\"; if [ -n \"$SUMMARY\" ]; then echo \"[post-compact] Summary: $SUMMARY\"; fi'"
           }
         ]
       },

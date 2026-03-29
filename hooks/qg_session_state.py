@@ -6,7 +6,7 @@ import json, os, time
 
 STATE_PATH = os.path.expanduser('~/.claude/qg-session-state.json')
 LOCK_PATH = STATE_PATH + '.lock'
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MAX_SIZE_BYTES = 1_048_576  # 1MB
 
 
@@ -58,6 +58,9 @@ def _empty_state():
         'layer5_subagents': {},
         'layer35_recovery_events': [],
         'layer25_syntax_failure': False,
+        'layer26_convention_baseline': {},
+        'layer26_files_seen': 0,
+        'layer6_last_analysis_ts': 0,
         'layer3_pending_fn_alert': None,
         'layer3_last_response_claims': [],
         'layer_env_baseline': {},
