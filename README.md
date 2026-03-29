@@ -23,13 +23,21 @@ PreToolUse (every tool)
   └── Layer ENV    (qg_layer_env.py)    — re-validate if file path is outside working directory
   └── Layer 1.5    (qg_layer15.py)      — rule validation: edit-without-read, bash-instead-of-tool,
                                           write-outside-scope; flush queued CRITICAL notifications
+  └── Layer 1.9    (qg_layer19.py)      — change impact analysis; dependency count → impact level
+  └── Layer 1.7    (qg_layer17.py)      — user intent verification for COMPLEX/DEEP tasks
+  └── Layer 1.8    (qg_layer18.py)      — hallucination detection: file path + function ref checks
 
 PostToolUse (every tool)
   └── Layer 2      (qg_layer2.py)       — detect LAZINESS, INCORRECT_TOOL, ERROR_IGNORED,
                                           SCOPE_CREEP, LOOP_DETECTED
+  └── Layer 5      (qg_layer5.py)       — subagent coordination: track dispatch/return, merge events
+
+PreCompact / PostCompact
+  └── Layer 4.5    (qg_layer45.py)      — context preservation: save/restore session state through compaction
 
 Stop (every response)
   └── Layer 3/4    (quality-gate.py)    — classify TP/FP/FN/TN; write session history checkpoint
+  └── Layer 3.5    (qg_layer35.py)      — recovery tracking: cross-turn resolution of unresolved events
 ```
 
 ## Layer Details
@@ -40,9 +48,15 @@ Stop (every response)
 | ENV | SessionStart + PreToolUse | `qg_layer_env.py` | Environment validation |
 | 1 | UserPromptSubmit | `precheck-hook.py` | Task classification, UUID generation, scope inference |
 | 1.5 | PreToolUse | `qg_layer15.py` | Rule-based PreToolUse validation |
+| 1.7 | PreToolUse | `qg_layer17.py` | User intent verification for COMPLEX/DEEP tasks |
+| 1.8 | PreToolUse | `qg_layer18.py` | Hallucination detection: file path + function ref existence checks |
+| 1.9 | PreToolUse | `qg_layer19.py` | Change impact analysis: dependency count → impact level |
 | 2 | PostToolUse | `qg_layer2.py` | Mid-task violation detection |
 | 3 | Stop | `quality-gate.py` | TP/FP/FN/TN classification |
+| 3.5 | Stop | `qg_layer35.py` | Recovery tracking: cross-turn resolution of unresolved events |
 | 4 | Stop | `quality-gate.py` | Incremental session history checkpoint |
+| 4.5 | PreCompact + PostCompact | `qg_layer45.py` | Context preservation through compaction |
+| 5 | PostToolUse (Agent) | `qg_layer5.py` | Subagent coordination: dispatch/return tracking, event merge |
 
 **Supporting modules:**
 - `qg_session_state.py` — cross-layer session state (file-locked JSON)
@@ -95,13 +109,13 @@ qg rules       # view pending rule suggestions (Phase 3)
 ```bash
 cd ~/.claude/scripts/tests
 python -m pytest test_qg_layers.py test_qg_notification_router.py test_qg_session_state.py -v
-# 34 passed
+# 58 passed
 ```
 
 ## Implementation Phases
 
 - **Phase 1** ✅ — Layers 0, ENV, 1, 1.5, 2, 3, 4 + Session State + Notification Router + Dashboard
-- **Phase 2** — Layers 1.7 (intent verification), 1.8 (hallucination detection), 1.9 (change impact), 3.5 (recovery tracking), 4.5 (context preservation), 5 (subagent coordination)
+- **Phase 2** ✅ — Layers 1.7 (intent verification), 1.8 (hallucination detection), 1.9 (change impact), 3.5 (recovery tracking), 4.5 (context preservation), 5 (subagent coordination)
 - **Phase 3** — Layers 2.5–2.7, 6 (cross-session patterns), 7 (rule refinement), 8 (regression), 9 (confidence calibration), 10 (audit integrity)
 
 ## Platform

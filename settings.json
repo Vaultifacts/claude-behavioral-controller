@@ -209,6 +209,33 @@
             "command": "python C:/Users/Matt1/.claude/hooks/qg_layer15.py"
           }
         ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer19.py"
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer17.py"
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer18.py"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -268,6 +295,15 @@
           {
             "type": "command",
             "command": "python C:/Users/Matt1/.claude/hooks/qg_layer2.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer5.py"
           }
         ]
       }
@@ -451,6 +487,24 @@
             "async": false
           }
         ]
+      },
+      {
+        "matcher": "manual",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer45.py --pre"
+          }
+        ]
+      },
+      {
+        "matcher": "auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer45.py --pre"
+          }
+        ]
       }
     ],
     "StopFailure": [
@@ -505,6 +559,24 @@
           {
             "type": "command",
             "command": "bash -c 'INPUT=$(cat); SUMMARY=$(echo \"$INPUT\" | jq -r \".compact_summary // empty\" 2>/dev/null); PLAN=$(find /c/Users/Matt1/.claude/plans/ -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); if [ -n \"$PLAN\" ]; then echo \"[post-compact] Active plan: $PLAN — re-read it to resume work.\"; fi; echo \"[post-compact] Memory at ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md\"; if [ -n \"$SUMMARY\" ]; then echo \"[post-compact] Summary: $SUMMARY\"; fi'"
+          }
+        ]
+      },
+      {
+        "matcher": "manual",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer45.py --post"
+          }
+        ]
+      },
+      {
+        "matcher": "auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer45.py --post"
           }
         ]
       }
