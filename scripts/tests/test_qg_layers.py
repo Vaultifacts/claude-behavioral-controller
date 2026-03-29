@@ -441,5 +441,56 @@ class TestLayer45ContextPreservation(unittest.TestCase):
         self.assertEqual(result['active_task_description'], 'restore me')
 
 
+class TestLayer5SubagentCoordination(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.tmp = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.tmp
+        ss.LOCK_PATH = self.tmp + '.lock'
+        self.monitor_tmp = tempfile.mktemp(suffix='.jsonl')
+
+    def tearDown(self):
+        import qg_session_state as ss
+        for p in [self.tmp, self.tmp + '.lock', self.monitor_tmp]:
+            try: os.unlink(p)
+            except: pass
+
+    def _dispatch(self, tool_name, tool_input, tool_response):
+        import json as _json, qg_session_state as ss, qg_layer5
+        qg_layer5.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        state['session_uuid'] = 'uuid-l5'
+        state['active_task_id'] = 'task-l5'
+        ss.write_state(state)
+        payload = {'tool_name': tool_name, 'tool_input': tool_input,
+                   'tool_response': tool_response}
+        qg_layer5.process_and_record(
+            tool_name, tool_input, tool_response, ss.read_state())
+
+    def test_agent_tool_records_event(self):
+        import json as _json
+        self._dispatch('Agent', {'prompt': 'Fix the bug'}, 'Fixed successfully.')
+        with open(self.monitor_tmp) as f:
+            events = [_json.loads(l) for l in f]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]['layer'], 'layer5')
+        self.assertEqual(events[0]['status'], 'subagent_complete')
+
+    def test_non_agent_tool_produces_no_event(self):
+        import qg_session_state as ss, qg_layer5
+        qg_layer5.MONITOR_PATH = self.monitor_tmp
+        result = qg_layer5.process_and_record(
+            'Bash', {'command': 'ls'}, 'file.py', ss.read_state())
+        self.assertIsNone(result)
+        self.assertFalse(os.path.exists(self.monitor_tmp))
+
+    def test_timeout_keyword_sets_status(self):
+        import json as _json
+        self._dispatch('Agent', {'prompt': 'Long task'}, 'Task timed out.')
+        with open(self.monitor_tmp) as f:
+            events = [_json.loads(l) for l in f]
+        self.assertEqual(events[0]['status'], 'subagent_timeout')
+
+
 if __name__ == '__main__':
     unittest.main()
