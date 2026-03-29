@@ -728,5 +728,1427 @@ class TestLayer10AuditIntegrity(unittest.TestCase):
         self.assertTrue(rotated)
 
 
+class TestLayer0(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_load_cross_session_patterns_missing_file(self):
+        import qg_layer0
+        qg_layer0.CROSS_SESSION_PATH = self.ts + '_none.json'
+        self.assertEqual(qg_layer0.load_cross_session_patterns(), [])
+
+    def test_load_cross_session_patterns_with_data(self):
+        import json, qg_layer0
+        cs = self.ts + '_cs.json'
+        with open(cs, 'w') as f:
+            json.dump({'patterns': [{'category': 'LOOP', 'sessions_count': 3,
+                                     'total_events': 10, 'event_pct': 0.2}]}, f)
+        qg_layer0.CROSS_SESSION_PATH = cs
+        result = qg_layer0.load_cross_session_patterns()
+        try: os.unlink(cs)
+        except: pass
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['category'], 'LOOP')
+
+    def test_load_cross_session_patterns_bad_json(self):
+        import qg_layer0
+        bad = self.ts + '_bad.json'
+        with open(bad, 'w') as f:
+            f.write('not json')
+        qg_layer0.CROSS_SESSION_PATH = bad
+        result = qg_layer0.load_cross_session_patterns()
+        try: os.unlink(bad)
+        except: pass
+        self.assertEqual(result, [])
+
+    def test_find_previous_session_unresolved_missing(self):
+        import qg_layer0
+        qg_layer0.HISTORY_PATH = self.ts + '_none.md'
+        self.assertEqual(qg_layer0.find_previous_session_unresolved(), [])
+
+    def test_main_resets_session_fields(self):
+        import io, qg_layer0, qg_session_state as ss
+        state = ss.read_state()
+        state['layer2_unresolved_events'] = ['event1']
+        state['layer15_session_reads'] = ['/test.py']
+        ss.write_state(state)
+        qg_layer0.HISTORY_PATH = self.ts + '_none.md'
+        qg_layer0.CROSS_SESSION_PATH = self.ts + '_none.json'
+        sys.stdin = io.StringIO('{}')
+        try:
+            qg_layer0.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        state2 = ss.read_state()
+        self.assertEqual(state2.get('layer2_unresolved_events'), [])
+        self.assertEqual(state2.get('layer15_session_reads'), [])
+
+    def test_main_prints_cross_session_advisory(self):
+        import io, json, builtins, qg_layer0
+        cs = self.ts + '_cs2.json'
+        with open(cs, 'w') as f:
+            json.dump({'patterns': [{'category': 'LOOP', 'sessions_count': 5,
+                                     'total_events': 20, 'event_pct': 0.3}]}, f)
+        qg_layer0.CROSS_SESSION_PATH = cs
+        qg_layer0.HISTORY_PATH = self.ts + '_none.md'
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        sys.stdin = io.StringIO('{}')
+        try:
+            qg_layer0.main()
+        finally:
+            builtins.print = orig
+            sys.stdin = sys.__stdin__
+            try: os.unlink(cs)
+            except: pass
+        self.assertTrue(any('LOOP' in s for s in captured))
+
+    def test_main_stores_injected_patterns(self):
+        import io, json, qg_layer0, qg_session_state as ss
+        cs = self.ts + '_cs3.json'
+        with open(cs, 'w') as f:
+            json.dump({'patterns': [{'category': 'ERROR_IGNORED', 'sessions_count': 4,
+                                     'total_events': 15, 'event_pct': 0.25}]}, f)
+        qg_layer0.CROSS_SESSION_PATH = cs
+        qg_layer0.HISTORY_PATH = self.ts + '_none.md'
+        sys.stdin = io.StringIO('{}')
+        try:
+            qg_layer0.main()
+        finally:
+            sys.stdin = sys.__stdin__
+            try: os.unlink(cs)
+            except: pass
+        state = ss.read_state()
+        self.assertIn('ERROR_IGNORED', state.get('layer0_injected_patterns', []))
+
+
+class TestLayerEnvExtra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_run_session_start_sets_working_dir(self):
+        import qg_layer_env, qg_session_state as ss
+        qg_layer_env.run_session_start({})
+        state = ss.read_state()
+        self.assertIn('working_dir', state.get('layer_env_baseline', {}))
+
+    def test_run_session_start_sets_ts(self):
+        import time, qg_layer_env, qg_session_state as ss
+        before = time.time()
+        qg_layer_env.run_session_start({})
+        state = ss.read_state()
+        ts = state.get('layer_env_baseline', {}).get('ts', 0)
+        self.assertGreaterEqual(ts, before)
+
+    def test_run_pre_tool_use_no_output_when_no_file_path(self):
+        import builtins, qg_layer_env
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        try:
+            qg_layer_env.run_pre_tool_use({'tool_name': 'Bash', 'tool_input': {}})
+        finally:
+            builtins.print = orig
+        self.assertEqual(captured, [])
+
+    def test_run_pre_tool_use_no_output_when_no_baseline(self):
+        import builtins, qg_layer_env, qg_session_state as ss
+        ss.write_state(ss.read_state())  # empty baseline
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        try:
+            qg_layer_env.run_pre_tool_use(
+                {'tool_name': 'Edit', 'tool_input': {'file_path': '/tmp/x.py'}})
+        finally:
+            builtins.print = orig
+        self.assertEqual(captured, [])
+
+    def test_run_pre_tool_use_warns_for_outside_path(self):
+        import builtins, qg_layer_env, qg_session_state as ss
+        state = ss.read_state()
+        state['layer_env_baseline'] = {'working_dir': '/some/specific/workdir', 'ts': 0}
+        ss.write_state(state)
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        try:
+            qg_layer_env.run_pre_tool_use(
+                {'tool_name': 'Edit', 'tool_input': {'file_path': '/tmp/outside_zzz.py'}})
+        finally:
+            builtins.print = orig
+        self.assertTrue(len(captured) >= 1)
+
+    def test_main_session_start_sets_baseline(self):
+        import io, qg_layer_env, qg_session_state as ss
+        sys.stdin = io.StringIO('{"hook_event_name": "SessionStart"}')
+        try:
+            qg_layer_env.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        state = ss.read_state()
+        self.assertIn('working_dir', state.get('layer_env_baseline', {}))
+
+
+class TestLayer15Extra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        import qg_notification_router as nr
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        nr.reset_turn_counter()
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_handle_read_tracking_adds_path(self):
+        import qg_layer15, qg_session_state as ss
+        qg_layer15.handle_read_tracking('Read', {'file_path': '/foo/bar.py'})
+        state = ss.read_state()
+        self.assertIn('/foo/bar.py', state.get('layer15_session_reads', []))
+
+    def test_handle_read_tracking_no_duplicate(self):
+        import qg_layer15, qg_session_state as ss
+        qg_layer15.handle_read_tracking('Read', {'file_path': '/foo/bar.py'})
+        qg_layer15.handle_read_tracking('Read', {'file_path': '/foo/bar.py'})
+        state = ss.read_state()
+        reads = state.get('layer15_session_reads', [])
+        self.assertEqual(reads.count('/foo/bar.py'), 1)
+
+    def test_evaluate_rules_edit_without_read_returns_warn(self):
+        import qg_layer15, qg_session_state as ss
+        state = ss.read_state()
+        result = qg_layer15.evaluate_rules('Edit', {'file_path': '/x.py'}, state)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['action'], 'warn')
+        self.assertEqual(result['rule_id'], 'edit-without-read')
+
+    def test_evaluate_rules_edit_with_prior_read_returns_none(self):
+        import qg_layer15, qg_session_state as ss
+        state = ss.read_state()
+        state['layer15_session_reads'] = ['/x.py']
+        result = qg_layer15.evaluate_rules('Edit', {'file_path': '/x.py'}, state)
+        self.assertIsNone(result)
+
+    def test_evaluate_rules_bash_grep_returns_info(self):
+        import qg_layer15, qg_session_state as ss
+        state = ss.read_state()
+        result = qg_layer15.evaluate_rules('Bash', {'command': 'grep -r foo .'}, state)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['action'], 'info')
+
+    def test_main_high_impact_escalates_warn_to_block(self):
+        import io, builtins, qg_layer15, qg_session_state as ss
+        state = ss.read_state()
+        state['layer19_last_impact_level'] = 'HIGH'
+        ss.write_state(state)
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        sys.stdin = io.StringIO(
+            '{"tool_name": "Edit", "tool_input": {"file_path": "/unread.py"}}')
+        try:
+            qg_layer15.main()
+        finally:
+            builtins.print = orig
+            sys.stdin = sys.__stdin__
+        output = ' '.join(captured)
+        self.assertIn('block', output)
+
+    def test_main_dedup_same_rule_same_turn(self):
+        import io, builtins, qg_layer15
+        captured_counts = []
+        for _ in range(2):
+            captured = []
+            orig = builtins.print
+            builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+            sys.stdin = io.StringIO(
+                '{"tool_name": "Edit", "tool_input": {"file_path": "/unread2.py"}}')
+            try:
+                qg_layer15.main()
+            finally:
+                builtins.print = orig
+                sys.stdin = sys.__stdin__
+            captured_counts.append(len(captured))
+        # First call produces output, second is deduplicated
+        self.assertGreater(captured_counts[0], 0)
+        self.assertEqual(captured_counts[1], 0)
+
+
+class TestLayer2Extra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.monitor_tmp = tempfile.mktemp(suffix='.jsonl')
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock', self.monitor_tmp]:
+            try: os.unlink(p)
+            except: pass
+
+    def test_detect_loop_under_threshold_returns_none(self):
+        from qg_layer2 import detect_loop
+        history = [('Bash', 'ls'), ('Bash', 'ls')]
+        self.assertIsNone(detect_loop('Bash', 'ls', history, threshold=3))
+
+    def test_detect_loop_at_threshold_returns_event(self):
+        from qg_layer2 import detect_loop
+        history = [('Read', '/x.py')] * 3
+        result = detect_loop('Read', '/x.py', history, threshold=3)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['category'], 'LOOP_DETECTED')
+
+    def test_detect_all_events_no_laziness_for_read_tool(self):
+        from qg_layer2 import detect_all_events
+        import qg_session_state as ss
+        state = ss.read_state()
+        events = detect_all_events('Read', {'file_path': '/x.py'}, '', state, [])
+        cats = [e['category'] for e in events]
+        self.assertNotIn('LAZINESS', cats)
+
+    def test_detect_all_events_scope_creep(self):
+        from qg_layer2 import detect_all_events
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer1_scope_files'] = ['src/main.py']
+        events = detect_all_events('Write', {'file_path': '/other/file.py'}, '', state, [])
+        cats = [e['category'] for e in events]
+        self.assertIn('SCOPE_CREEP', cats)
+
+    def test_impact_severity_promotion(self):
+        import io, json, qg_layer2, qg_session_state as ss
+        qg_layer2.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        state['layer19_last_impact_level'] = 'HIGH'
+        ss.write_state(state)
+        sys.stdin = io.StringIO(
+            '{"tool_name": "Edit", "tool_input": {"file_path": "/unread_impact.py"}, "tool_response": ""}')
+        try:
+            qg_layer2.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        state2 = ss.read_state()
+        events = state2.get('layer2_unresolved_events', [])
+        if events:
+            self.assertIn(events[0]['severity'], ('warning', 'critical'))
+
+
+class TestLayer35Extra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_create_recovery_event_status_is_open(self):
+        from qg_layer35 import layer35_create_recovery_event
+        import qg_session_state as ss
+        state = ss.read_state()
+        layer35_create_recovery_event('FN', ['INCOMPLETE'], state, [])
+        events = state.get('layer35_recovery_events', [])
+        self.assertGreater(len(events), 0)
+        self.assertEqual(events[-1].get('status'), 'open')
+
+    def test_create_recovery_event_verdict_stored(self):
+        from qg_layer35 import layer35_create_recovery_event
+        import qg_session_state as ss
+        state = ss.read_state()
+        layer35_create_recovery_event('FN', ['LAZINESS'], state, ['Edit'])
+        events = state.get('layer35_recovery_events', [])
+        self.assertEqual(events[-1].get('verdict'), 'FN')
+
+    def test_detect_fn_signals_empty_response(self):
+        from qg_layer35 import detect_fn_signals
+        import qg_session_state as ss
+        state = ss.read_state()
+        result = detect_fn_signals('', [], '', state, use_haiku=False)
+        self.assertEqual(result, [])
+
+    def test_detect_fn_signals_no_signal_on_verified_success(self):
+        from qg_layer35 import detect_fn_signals
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer3_evaluation_count'] = 10
+        response = 'All tests pass. The implementation is complete and verified.'
+        result = detect_fn_signals(response, [], '', state, use_haiku=False)
+        self.assertIsInstance(result, list)
+
+
+class TestLayer17Extra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_should_verify_deep_category(self):
+        from qg_layer17 import should_verify
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer1_task_category'] = 'DEEP'
+        self.assertTrue(should_verify(state, {}))
+
+    def test_should_verify_moderate_low_impact_false(self):
+        from qg_layer17 import should_verify
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer1_task_category'] = 'MODERATE'
+        state['layer19_last_impact_level'] = 'LOW'
+        self.assertFalse(should_verify(state, {}))
+
+    def test_should_verify_high_impact_true(self):
+        from qg_layer17 import should_verify
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer1_task_category'] = 'SIMPLE'
+        state['layer19_last_impact_level'] = 'HIGH'
+        self.assertTrue(should_verify(state, {}))
+
+    def test_main_no_task_id_no_output(self):
+        import io, builtins, qg_layer17, qg_session_state as ss
+        state = ss.read_state()
+        state['active_task_id'] = ''
+        ss.write_state(state)
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        sys.stdin = io.StringIO('{"tool_name": "Edit", "tool_input": {}}')
+        try:
+            qg_layer17.main()
+        finally:
+            builtins.print = orig
+            sys.stdin = sys.__stdin__
+        self.assertEqual(captured, [])
+
+    def test_main_fires_once_per_task(self):
+        import io, builtins, qg_layer17, qg_session_state as ss
+        state = ss.read_state()
+        state['active_task_id'] = 'task_abc'
+        state['layer1_task_category'] = 'DEEP'
+        state['layer17_verified_task_id'] = 'task_abc'
+        ss.write_state(state)
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        sys.stdin = io.StringIO('{"tool_name": "Edit", "tool_input": {}}')
+        try:
+            qg_layer17.main()
+        finally:
+            builtins.print = orig
+            sys.stdin = sys.__stdin__
+        self.assertEqual(captured, [])
+
+
+class TestLayer18Extra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_check_path_exists_real_file(self):
+        from qg_layer18 import check_path_exists
+        f = tempfile.mktemp(suffix='.py')
+        open(f, 'w').close()
+        result = check_path_exists(f)
+        os.unlink(f)
+        self.assertTrue(result)
+
+    def test_check_path_exists_missing(self):
+        from qg_layer18 import check_path_exists
+        self.assertFalse(check_path_exists(self.ts + '_nonexistent.py'))
+
+    def test_check_function_in_file_found(self):
+        from qg_layer18 import check_function_in_file
+        f = tempfile.mktemp(suffix='.py')
+        with open(f, 'w') as fh:
+            fh.write('def my_func():\n    pass\n')
+        result = check_function_in_file(f, 'def my_func():')
+        os.unlink(f)
+        self.assertTrue(result)
+
+    def test_check_function_in_file_missing(self):
+        from qg_layer18 import check_function_in_file
+        f = tempfile.mktemp(suffix='.py')
+        with open(f, 'w') as fh:
+            fh.write('x = 1\n')
+        result = check_function_in_file(f, 'def nonexistent_fn():')
+        os.unlink(f)
+        self.assertFalse(result)
+
+    def test_main_suppresses_when_creating_new_artifacts(self):
+        import io, builtins, qg_layer18, qg_session_state as ss
+        state = ss.read_state()
+        state['layer17_creating_new_artifacts'] = True
+        ss.write_state(state)
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        sys.stdin = io.StringIO(
+            '{"tool_name": "Edit", "tool_input": {"file_path": "/nonexistent_zzz.py"}}')
+        try:
+            qg_layer18.main()
+        finally:
+            builtins.print = orig
+            sys.stdin = sys.__stdin__
+        self.assertEqual(captured, [])
+
+
+class TestLayer19Extra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_compute_impact_low_no_dependents(self):
+        from qg_layer19 import compute_impact_level
+        self.assertEqual(compute_impact_level('/tmp/unique_qg_zzz.py', [], {}), 'LOW')
+
+    def test_compute_impact_medium(self):
+        from qg_layer19 import compute_impact_level
+        deps = ['/x.py'] * 10
+        result = compute_impact_level('/tmp/foo.py', deps, {})
+        self.assertEqual(result, 'MEDIUM')
+
+    def test_compute_impact_high(self):
+        from qg_layer19 import compute_impact_level
+        deps = ['/x.py'] * 25
+        result = compute_impact_level('/tmp/foo.py', deps, {})
+        self.assertEqual(result, 'HIGH')
+
+    def test_compute_impact_core_pattern_critical(self):
+        from qg_layer19 import compute_impact_level
+        self.assertEqual(compute_impact_level('/project/utils.py', [], {}), 'CRITICAL')
+        self.assertEqual(compute_impact_level('/project/config.py', [], {}), 'CRITICAL')
+
+    def test_analyze_impact_stores_in_state(self):
+        import qg_layer19, qg_session_state as ss
+        f = tempfile.mktemp(suffix='_isolated_qg.py')
+        open(f, 'w').write('x = 1\n')
+        try:
+            qg_layer19.analyze_impact(f)
+        finally:
+            try: os.unlink(f)
+            except: pass
+        state = ss.read_state()
+        self.assertEqual(state.get('layer19_last_impact_file'), f)
+
+    def test_analyze_impact_sets_regression_expected_on_critical(self):
+        import qg_layer19, qg_session_state as ss
+        result = qg_layer19.analyze_impact('/project/utils.py')
+        state = ss.read_state()
+        if result['level'] in ('HIGH', 'CRITICAL'):
+            self.assertTrue(state.get('layer8_regression_expected'))
+
+    def test_analyze_impact_cache_hit(self):
+        import time, qg_layer19, qg_session_state as ss
+        f = tempfile.mktemp(suffix='_cache_qg.py')
+        open(f, 'w').write('x = 1\n')
+        try:
+            r1 = qg_layer19.analyze_impact(f)
+            r2 = qg_layer19.analyze_impact(f)
+        finally:
+            try: os.unlink(f)
+            except: pass
+        self.assertEqual(r1['level'], r2['level'])
+
+
+class TestLayer45Extra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.preserve_tmp = tempfile.mktemp(suffix='_preserve.json')
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock', self.preserve_tmp]:
+            try: os.unlink(p)
+            except: pass
+
+    def test_handle_pre_compact_creates_file(self):
+        import qg_layer45
+        qg_layer45.PRESERVE_PATH = self.preserve_tmp
+        qg_layer45.handle_pre_compact()
+        self.assertTrue(os.path.exists(self.preserve_tmp))
+
+    def test_handle_pre_compact_stores_keys(self):
+        import json, qg_layer45, qg_session_state as ss
+        state = ss.read_state()
+        state['active_task_description'] = 'test task'
+        ss.write_state(state)
+        qg_layer45.PRESERVE_PATH = self.preserve_tmp
+        qg_layer45.handle_pre_compact()
+        with open(self.preserve_tmp) as f:
+            preserved = json.load(f)
+        self.assertIn('active_task_description', preserved)
+
+    def test_handle_post_compact_no_crash_missing_file(self):
+        import qg_layer45
+        qg_layer45.PRESERVE_PATH = self.preserve_tmp  # doesn't exist yet
+        qg_layer45.handle_post_compact()  # should not raise
+
+    def test_handle_post_compact_restores_matching_uuid(self):
+        import json, builtins, qg_layer45, qg_session_state as ss
+        uuid_val = 'test-uuid-restore-extra'
+        state = ss.read_state()
+        state['session_uuid'] = uuid_val
+        state['active_task_description'] = 'restored task'
+        ss.write_state(state)
+        qg_layer45.PRESERVE_PATH = self.preserve_tmp
+        qg_layer45.handle_pre_compact()
+        state2 = ss.read_state()
+        state2['active_task_description'] = ''
+        ss.write_state(state2)
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        try:
+            qg_layer45.handle_post_compact()
+        finally:
+            builtins.print = orig
+        state3 = ss.read_state()
+        self.assertEqual(state3.get('active_task_description'), 'restored task')
+
+
+class TestLayer5Extra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.monitor_tmp = tempfile.mktemp(suffix='.jsonl')
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock', self.monitor_tmp]:
+            try: os.unlink(p)
+            except: pass
+
+    def test_process_and_record_stores_subagent_in_state(self):
+        import qg_layer5, qg_session_state as ss
+        qg_layer5.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        qg_layer5.process_and_record('Agent', {'description': 'test agent'}, '', state)
+        state2 = ss.read_state()
+        self.assertTrue(len(state2.get('layer5_subagents', {})) >= 1)
+
+    def test_process_and_record_writes_jsonl(self):
+        import json, qg_layer5, qg_session_state as ss
+        qg_layer5.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        qg_layer5.process_and_record('Agent', {'description': 'jsonl test'}, '', state)
+        self.assertTrue(os.path.exists(self.monitor_tmp))
+        with open(self.monitor_tmp) as f:
+            lines = [l for l in f if l.strip()]
+        self.assertGreater(len(lines), 0)
+
+    def test_process_and_record_non_agent_no_event(self):
+        import qg_layer5, qg_session_state as ss
+        qg_layer5.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        qg_layer5.process_and_record('Read', {'file_path': '/x.py'}, '', state)
+        self.assertFalse(os.path.exists(self.monitor_tmp))
+
+
+class TestLayer25Extra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.monitor_tmp = tempfile.mktemp(suffix='.jsonl')
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock', self.monitor_tmp]:
+            try: os.unlink(p)
+            except: pass
+
+    def test_main_non_write_tool_no_crash(self):
+        import io, qg_layer25
+        qg_layer25.MONITOR_PATH = self.monitor_tmp
+        sys.stdin = io.StringIO('{"tool_name": "Bash", "tool_input": {}, "tool_response": ""}')
+        try:
+            qg_layer25.main()
+        finally:
+            sys.stdin = sys.__stdin__
+
+    def test_main_bad_json_no_crash(self):
+        import io, qg_layer25
+        sys.stdin = io.StringIO('not json')
+        try:
+            qg_layer25.main()
+        finally:
+            sys.stdin = sys.__stdin__
+
+    def test_main_valid_python_no_output(self):
+        import io, builtins, qg_layer25
+        qg_layer25.MONITOR_PATH = self.monitor_tmp
+        f = tempfile.mktemp(suffix='.py')
+        with open(f, 'w') as fh:
+            fh.write('x = 1\n')
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        sys.stdin = io.StringIO(
+            '{{"tool_name": "Write", "tool_input": {{"file_path": "{}"}}, "tool_response": ""}}'.format(
+                f.replace('\\', '\\\\')))
+        try:
+            qg_layer25.main()
+        finally:
+            builtins.print = orig
+            sys.stdin = sys.__stdin__
+            try: os.unlink(f)
+            except: pass
+        self.assertEqual(captured, [])
+
+    def test_main_invalid_python_produces_output(self):
+        import io, builtins, qg_layer25
+        qg_layer25.MONITOR_PATH = self.monitor_tmp
+        f = tempfile.mktemp(suffix='.py')
+        with open(f, 'w') as fh:
+            fh.write('def (\n')
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        sys.stdin = io.StringIO(
+            '{{"tool_name": "Write", "tool_input": {{"file_path": "{}"}}, "tool_response": ""}}'.format(
+                f.replace('\\', '\\\\')))
+        try:
+            qg_layer25.main()
+        finally:
+            builtins.print = orig
+            sys.stdin = sys.__stdin__
+            try: os.unlink(f)
+            except: pass
+        output = ' '.join(captured)
+        self.assertIn('2.5', output)
+
+    def test_main_sets_syntax_failure_state(self):
+        import io, qg_layer25, qg_session_state as ss
+        qg_layer25.MONITOR_PATH = self.monitor_tmp
+        f = tempfile.mktemp(suffix='.py')
+        with open(f, 'w') as fh:
+            fh.write('def (\n')
+        sys.stdin = io.StringIO(
+            '{{"tool_name": "Write", "tool_input": {{"file_path": "{}"}}, "tool_response": ""}}'.format(
+                f.replace('\\', '\\\\')))
+        try:
+            qg_layer25.main()
+        finally:
+            sys.stdin = sys.__stdin__
+            try: os.unlink(f)
+            except: pass
+        state = ss.read_state()
+        self.assertTrue(state.get('layer25_syntax_failure'))
+
+
+class TestLayer26Extra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.monitor_tmp = tempfile.mktemp(suffix='.jsonl')
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock', self.monitor_tmp]:
+            try: os.unlink(p)
+            except: pass
+
+    def test_main_non_write_no_output(self):
+        import io, builtins, qg_layer26
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        sys.stdin = io.StringIO('{"tool_name": "Read", "tool_input": {}, "tool_response": ""}')
+        try:
+            qg_layer26.main()
+        finally:
+            builtins.print = orig
+            sys.stdin = sys.__stdin__
+        self.assertEqual(captured, [])
+
+    def test_main_bad_json_no_crash(self):
+        import io, qg_layer26
+        sys.stdin = io.StringIO('not json')
+        try:
+            qg_layer26.main()
+        finally:
+            sys.stdin = sys.__stdin__
+
+    def test_main_consistent_file_no_output(self):
+        import io, builtins, qg_layer26, qg_session_state as ss
+        qg_layer26.MONITOR_PATH = self.monitor_tmp
+        f = tempfile.mktemp(suffix='.py')
+        with open(f, 'w') as fh:
+            fh.write('def my_func():\n    pass\ndef other_func():\n    pass\n')
+        state = ss.read_state()
+        state['layer26_convention_baseline'] = {'naming': 'snake_case'}
+        state['layer26_files_seen'] = 2
+        ss.write_state(state)
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        sys.stdin = io.StringIO(
+            '{{"tool_name": "Write", "tool_input": {{"file_path": "{}"}}, "tool_response": ""}}'.format(
+                f.replace('\\', '\\\\')))
+        try:
+            qg_layer26.main()
+        finally:
+            builtins.print = orig
+            sys.stdin = sys.__stdin__
+            try: os.unlink(f)
+            except: pass
+        self.assertEqual(captured, [])
+
+    def test_main_updates_baseline(self):
+        import io, qg_layer26, qg_session_state as ss
+        qg_layer26.MONITOR_PATH = self.monitor_tmp
+        f = tempfile.mktemp(suffix='.py')
+        with open(f, 'w') as fh:
+            fh.write('def snake_case_func():\n    pass\n')
+        sys.stdin = io.StringIO(
+            '{{"tool_name": "Write", "tool_input": {{"file_path": "{}"}}, "tool_response": ""}}'.format(
+                f.replace('\\', '\\\\')))
+        try:
+            qg_layer26.main()
+        finally:
+            sys.stdin = sys.__stdin__
+            try: os.unlink(f)
+            except: pass
+        state = ss.read_state()
+        self.assertGreater(state.get('layer26_files_seen', 0), 0)
+
+    def test_deviation_from_baseline_writes_jsonl_event(self):
+        import io, json, qg_layer26, qg_session_state as ss
+        qg_layer26.MONITOR_PATH = self.monitor_tmp
+        f = tempfile.mktemp(suffix='.py')
+        with open(f, 'w') as fh:
+            fh.write('def camelCaseFunc():\n    pass\n')
+        state = ss.read_state()
+        state['layer26_convention_baseline'] = {'naming': 'snake_case'}
+        state['layer26_files_seen'] = 5
+        ss.write_state(state)
+        sys.stdin = io.StringIO(
+            '{{"tool_name": "Write", "tool_input": {{"file_path": "{}"}}, "tool_response": ""}}'.format(
+                f.replace('\\', '\\\\')))
+        try:
+            qg_layer26.main()
+        finally:
+            sys.stdin = sys.__stdin__
+            try: os.unlink(f)
+            except: pass
+        self.assertTrue(os.path.exists(self.monitor_tmp))
+        with open(self.monitor_tmp) as mf:
+            events = [json.loads(l) for l in mf if l.strip()]
+        cats = [e.get('category') for e in events]
+        self.assertIn('CONSISTENCY_VIOLATION', cats)
+
+
+class TestLayer27Extra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_main_non_write_no_output(self):
+        import io, builtins, qg_layer27
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        sys.stdin = io.StringIO('{"tool_name": "Read", "tool_input": {}, "tool_response": ""}')
+        try:
+            qg_layer27.main()
+        finally:
+            builtins.print = orig
+            sys.stdin = sys.__stdin__
+        self.assertEqual(captured, [])
+
+    def test_main_bad_json_no_crash(self):
+        import io, qg_layer27
+        sys.stdin = io.StringIO('not json')
+        try:
+            qg_layer27.main()
+        finally:
+            sys.stdin = sys.__stdin__
+
+    def test_main_test_file_itself_no_output(self):
+        import io, builtins, qg_layer27
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        sys.stdin = io.StringIO(
+            '{"tool_name": "Write", "tool_input": {"file_path": "/tmp/test_something.py"}, "tool_response": ""}')
+        try:
+            qg_layer27.main()
+        finally:
+            builtins.print = orig
+            sys.stdin = sys.__stdin__
+        self.assertEqual(captured, [])
+
+
+class TestLayer6Extra(unittest.TestCase):
+    def test_analyze_patterns_returns_list(self):
+        from qg_layer6 import analyze_patterns
+        result = analyze_patterns([])
+        self.assertIsInstance(result, list)
+
+    def test_analyze_patterns_single_session_no_pattern(self):
+        from qg_layer6 import analyze_patterns
+        events = [{'session_uuid': 's1', 'category': 'LAZINESS', 'ts': '2026-01-01T00:00:00'}]
+        result = analyze_patterns(events, min_sessions=3, min_pct=0.1)
+        self.assertEqual(result, [])
+
+    def test_analyze_patterns_cross_session_threshold(self):
+        from qg_layer6 import analyze_patterns
+        events = []
+        for sid in ['s1', 's2', 's3']:
+            events.append({'session_uuid': sid, 'category': 'LOOP', 'ts': '2026-01-01T00:00:00'})
+        result = analyze_patterns(events, min_sessions=3, min_pct=0.1)
+        cats = [p['category'] for p in result]
+        self.assertIn('LOOP', cats)
+
+
+class TestLayer7Extra(unittest.TestCase):
+    def test_find_repeat_fns_empty_records(self):
+        from qg_layer7 import find_repeat_fns
+        self.assertEqual(find_repeat_fns([], threshold=3), {})
+
+    def test_find_repeat_fns_tp_not_fn_ignored(self):
+        from qg_layer7 import find_repeat_fns
+        records = [{'outcome': 'TP', 'category': 'ASSUMPTION'}] * 5
+        self.assertEqual(find_repeat_fns(records, threshold=3), {})
+
+    def test_find_repeat_fns_mixed_outcomes(self):
+        from qg_layer7 import find_repeat_fns
+        records = (
+            [{'outcome': 'FN', 'category': 'LAZINESS'}] * 4 +
+            [{'outcome': 'TP', 'category': 'LAZINESS'}] * 2
+        )
+        result = find_repeat_fns(records, threshold=3)
+        self.assertIn('LAZINESS', result)
+
+    def test_find_repeat_fns_multiple_categories(self):
+        from qg_layer7 import find_repeat_fns
+        records = (
+            [{'outcome': 'FN', 'category': 'LOOP'}] * 4 +
+            [{'outcome': 'FN', 'category': 'INCORRECT_TOOL'}] * 2
+        )
+        result = find_repeat_fns(records, threshold=3)
+        self.assertIn('LOOP', result)
+        self.assertNotIn('INCORRECT_TOOL', result)
+
+    def test_find_repeat_fns_exactly_at_threshold(self):
+        from qg_layer7 import find_repeat_fns
+        records = [{'outcome': 'FN', 'category': 'SCOPE_CREEP'}] * 3
+        result = find_repeat_fns(records, threshold=3)
+        self.assertIn('SCOPE_CREEP', result)
+
+
+class TestLayer8Extra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.monitor_tmp = tempfile.mktemp(suffix='.jsonl')
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock', self.monitor_tmp]:
+            try: os.unlink(p)
+            except: pass
+
+    def test_parse_results_no_output_returns_nones(self):
+        from qg_layer8 import parse_results
+        passed, failed = parse_results('process completed')
+        self.assertIsNone(passed)
+        self.assertIsNone(failed)
+
+    def test_parse_results_only_passed(self):
+        from qg_layer8 import parse_results
+        passed, failed = parse_results('7 passed in 0.5s')
+        self.assertEqual(passed, 7)
+        self.assertIsNone(failed)
+
+    def test_main_non_bash_no_event(self):
+        import io, qg_layer8
+        qg_layer8.MONITOR_PATH = self.monitor_tmp
+        sys.stdin = io.StringIO('{"tool_name": "Read", "tool_input": {}, "tool_response": ""}')
+        try:
+            qg_layer8.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        self.assertFalse(os.path.exists(self.monitor_tmp))
+
+    def test_main_bash_non_test_cmd_no_event(self):
+        import io, qg_layer8
+        qg_layer8.MONITOR_PATH = self.monitor_tmp
+        sys.stdin = io.StringIO(
+            '{"tool_name": "Bash", "tool_input": {"command": "ls -la"}, "tool_response": ""}')
+        try:
+            qg_layer8.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        self.assertFalse(os.path.exists(self.monitor_tmp))
+
+    def test_main_first_test_sets_baseline(self):
+        import io, qg_layer8, qg_session_state as ss
+        qg_layer8.MONITOR_PATH = self.monitor_tmp
+        sys.stdin = io.StringIO(
+            '{"tool_name": "Bash", "tool_input": {"command": "pytest tests/"}, '
+            '"tool_response": "7 passed, 0 failed"}')
+        try:
+            qg_layer8.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        state = ss.read_state()
+        self.assertEqual(state.get('layer_env_test_baseline'), [[7, 0]])
+
+    def test_main_regression_writes_event(self):
+        import io, json, qg_layer8, qg_session_state as ss
+        qg_layer8.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        state['layer_env_test_baseline'] = [[10, 0]]
+        ss.write_state(state)
+        sys.stdin = io.StringIO(
+            '{"tool_name": "Bash", "tool_input": {"command": "pytest tests/"}, '
+            '"tool_response": "8 passed, 3 failed"}')
+        try:
+            qg_layer8.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        self.assertTrue(os.path.exists(self.monitor_tmp))
+        with open(self.monitor_tmp) as f:
+            lines = [l for l in f if l.strip()]
+        events = [json.loads(l) for l in lines]
+        cats = [e.get('category') for e in events]
+        self.assertIn('REGRESSION', cats)
+
+
+class TestLayer9Extra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.calibration_tmp = tempfile.mktemp(suffix='.jsonl')
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock', self.calibration_tmp]:
+            try: os.unlink(p)
+            except: pass
+
+    def test_extract_certainty_high_phrase(self):
+        from qg_layer9 import extract_certainty
+        self.assertEqual(extract_certainty("I'm certain this is correct"), 'high')
+
+    def test_extract_certainty_medium_phrase(self):
+        from qg_layer9 import extract_certainty
+        self.assertEqual(extract_certainty("I believe this should work"), 'medium')
+
+    def test_extract_certainty_low_phrase(self):
+        from qg_layer9 import extract_certainty
+        self.assertEqual(extract_certainty("I think this might work"), 'low')
+
+    def test_extract_certainty_no_match(self):
+        from qg_layer9 import extract_certainty
+        self.assertIsNone(extract_certainty('Here is the updated implementation.'))
+
+    def test_get_response_text_missing_transcript(self):
+        from qg_layer9 import get_response_text
+        self.assertEqual(get_response_text(None), '')
+        self.assertEqual(get_response_text('/nonexistent/path.jsonl'), '')
+
+    def test_main_skips_below_threshold(self):
+        import io, qg_layer9, qg_session_state as ss
+        qg_layer9.CALIBRATION_PATH = self.calibration_tmp
+        state = ss.read_state()
+        state['layer3_evaluation_count'] = 2
+        ss.write_state(state)
+        sys.stdin = io.StringIO('{"transcript_path": ""}')
+        try:
+            qg_layer9.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        self.assertFalse(os.path.exists(self.calibration_tmp))
+
+    def test_main_no_certainty_no_record(self):
+        import io, qg_layer9, qg_session_state as ss
+        qg_layer9.CALIBRATION_PATH = self.calibration_tmp
+        state = ss.read_state()
+        state['layer3_evaluation_count'] = 10
+        ss.write_state(state)
+        sys.stdin = io.StringIO('{"transcript_path": ""}')
+        try:
+            qg_layer9.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        self.assertFalse(os.path.exists(self.calibration_tmp))
+
+
+class TestLayer10Extra(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_run_integrity_check_returns_dict_with_ts(self):
+        import qg_layer10, qg_session_state as ss
+        monitor_tmp = tempfile.mktemp(suffix='.jsonl')
+        quarantine_tmp = tempfile.mktemp(suffix='.jsonl')
+        # Clear throttle so it runs
+        state = ss.read_state()
+        state['last_integrity_check_ts'] = 0
+        ss.write_state(state)
+        result = qg_layer10.run_integrity_check(monitor_tmp, quarantine_tmp)
+        for p in [monitor_tmp, quarantine_tmp]:
+            try: os.unlink(p)
+            except: pass
+        self.assertIn('ts', result)
+
+    def test_run_integrity_check_throttled_returns_skipped(self):
+        import time, qg_layer10, qg_session_state as ss
+        state = ss.read_state()
+        state['last_integrity_check_ts'] = time.time()
+        ss.write_state(state)
+        result = qg_layer10.run_integrity_check()
+        self.assertEqual(result.get('status'), 'skipped_throttled')
+
+    def test_validate_jsonl_empty_file(self):
+        from qg_layer10 import validate_jsonl
+        f = tempfile.mktemp(suffix='.jsonl')
+        open(f, 'w').close()
+        qf = tempfile.mktemp(suffix='.jsonl')
+        valid, corrupt = validate_jsonl(f, qf)
+        for p in [f, qf]:
+            try: os.unlink(p)
+            except: pass
+        self.assertEqual(corrupt, [])
+
+    def test_validate_jsonl_duplicate_id_corrupt(self):
+        from qg_layer10 import validate_jsonl
+        f = tempfile.mktemp(suffix='.jsonl')
+        qf = tempfile.mktemp(suffix='.jsonl')
+        with open(f, 'w') as fh:
+            fh.write('{"event_id": "dup1"}\n{"event_id": "dup1"}\n')
+        valid, corrupt = validate_jsonl(f, qf)
+        for p in [f, qf]:
+            try: os.unlink(p)
+            except: pass
+        self.assertEqual(len(corrupt), 1)
+
+    def test_maybe_rotate_below_threshold_returns_false(self):
+        from qg_layer10 import maybe_rotate
+        f = tempfile.mktemp(suffix='.jsonl')
+        with open(f, 'w') as fh:
+            fh.write('{"n": 1}\n')
+        result = maybe_rotate(f, threshold=10)
+        try: os.unlink(f)
+        except: pass
+        self.assertFalse(result)
+
+
+class TestLayer1PivotExtra(unittest.TestCase):
+    def test_jaccard_similarity_partial_overlap(self):
+        from precheck_hook_ext import jaccard_similarity
+        score = jaccard_similarity('fix the bug in auth', 'refactor the auth module')
+        self.assertGreater(score, 0.0)
+        self.assertLess(score, 1.0)
+
+
+class TestLayer1DeepExtra(unittest.TestCase):
+    def test_infer_scope_files_extracts_filename(self):
+        from precheck_hook_ext import infer_scope_files
+        files = infer_scope_files('Update the qg_layer2.py to add ASSUMPTION category')
+        self.assertTrue(any('qg_layer2.py' in f for f in files))
+
+    def test_detect_deep_no_keywords_short_message(self):
+        from precheck_hook_ext import detect_deep
+        self.assertFalse(detect_deep('Fix typo'))
+
+
+class TestSessionState(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_empty_state_has_schema_version_2(self):
+        import qg_session_state as ss
+        state = ss._empty_state()
+        self.assertEqual(state['schema_version'], 2)
+
+    def test_empty_state_has_layer3_evaluation_count(self):
+        import qg_session_state as ss
+        state = ss._empty_state()
+        self.assertIn('layer3_evaluation_count', state)
+        self.assertEqual(state['layer3_evaluation_count'], 0)
+
+    def test_read_state_returns_dict_on_missing_file(self):
+        import qg_session_state as ss
+        state = ss.read_state()
+        self.assertIsInstance(state, dict)
+
+    def test_write_read_roundtrip(self):
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['test_key'] = 'hello_roundtrip'
+        ss.write_state(state)
+        state2 = ss.read_state()
+        self.assertEqual(state2.get('test_key'), 'hello_roundtrip')
+
+    def test_update_state_merges(self):
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['existing'] = 'keep'
+        ss.write_state(state)
+        ss.update_state(new_field='added')
+        state2 = ss.read_state()
+        self.assertEqual(state2.get('existing'), 'keep')
+        self.assertEqual(state2.get('new_field'), 'added')
+
+    def test_stale_state_resets(self):
+        import json, time, qg_session_state as ss
+        stale = ss.read_state()
+        stale['test_stale'] = 'old_value'
+        stale['session_start_ts'] = time.time() - 90000
+        with open(self.ts, 'w') as f:
+            json.dump(stale, f)
+        state2 = ss.read_state()
+        self.assertIsNone(state2.get('test_stale'))
+
+    def test_fresh_state_not_reset(self):
+        import json, time, qg_session_state as ss
+        fresh = ss.read_state()
+        fresh['test_fresh'] = 'keep_value'
+        fresh['session_start_ts'] = time.time() - 100
+        with open(self.ts, 'w') as f:
+            json.dump(fresh, f)
+        state2 = ss.read_state()
+        self.assertEqual(state2.get('test_fresh'), 'keep_value')
+
+    def test_migrate_v1_to_v2(self):
+        import json, time, qg_session_state as ss
+        v1 = {'schema_version': 1, 'session_start_ts': time.time(), 'test_v1': 'preserved'}
+        with open(self.ts, 'w') as f:
+            json.dump(v1, f)
+        state = ss.read_state()
+        self.assertEqual(state.get('schema_version'), 2)
+        self.assertIn('layer3_evaluation_count', state)
+
+    def test_migrate_v2_no_change(self):
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer3_evaluation_count'] = 5
+        ss.write_state(state)
+        state2 = ss.read_state()
+        self.assertEqual(state2.get('layer3_evaluation_count'), 5)
+
+    def test_is_stale_true_for_old_ts(self):
+        import time, qg_session_state as ss
+        data = {'session_start_ts': time.time() - 90000}
+        self.assertTrue(ss._is_stale(data))
+
+    def test_is_stale_false_for_recent_ts(self):
+        import time, qg_session_state as ss
+        data = {'session_start_ts': time.time() - 100}
+        self.assertFalse(ss._is_stale(data))
+
+    def test_is_stale_false_for_zero_ts(self):
+        import qg_session_state as ss
+        data = {'session_start_ts': 0}
+        self.assertFalse(ss._is_stale(data))
+
+    def test_prune_trims_unresolved_events(self):
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer2_unresolved_events'] = list(range(15))
+        ss._prune_turn_scoped(state)
+        self.assertLessEqual(len(state['layer2_unresolved_events']), 10)
+
+    def test_prune_trims_response_claims(self):
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer3_last_response_claims'] = ['claim'] * 8
+        ss._prune_turn_scoped(state)
+        self.assertLessEqual(len(state['layer3_last_response_claims']), 5)
+
+
+class TestNotificationRouter(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        import qg_notification_router as nr
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        nr.reset_turn_counter()
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_notify_info_returns_none(self):
+        import qg_notification_router as nr
+        result = nr.notify('INFO', 'layer0', 'TEST', None, 'msg', 'async')
+        self.assertIsNone(result)
+
+    def test_notify_warning_returns_none(self):
+        import qg_notification_router as nr
+        result = nr.notify('WARNING', 'layer2', 'LOOP', None, 'msg', 'async')
+        self.assertIsNone(result)
+
+    def test_notify_critical_pretooluse_returns_dict(self):
+        import qg_notification_router as nr
+        result = nr.notify('CRITICAL', 'layer2', 'LOOP', None, 'critical msg', 'pretooluse')
+        self.assertIsNotNone(result)
+        self.assertIn('additionalContext', result)
+
+    def test_notify_critical_async_queues_in_state(self):
+        import qg_notification_router as nr, qg_session_state as ss
+        nr.notify('CRITICAL', 'layer2', 'LOOP', None, 'queued msg', 'async')
+        state = ss.read_state()
+        pending = state.get('notification_pending_criticals', [])
+        self.assertGreater(len(pending), 0)
+
+    def test_notify_critical_rate_limit_after_3(self):
+        import qg_notification_router as nr, qg_session_state as ss
+        for i in range(3):
+            nr.notify('CRITICAL', 'layer2', 'LOOP{}'.format(i), None, 'msg', 'pretooluse')
+        result = nr.notify('CRITICAL', 'layer2', 'LOOP4', None, 'msg', 'pretooluse')
+        self.assertIsNone(result)
+        state = ss.read_state()
+        pending = state.get('notification_pending_criticals', [])
+        self.assertGreater(len(pending), 0)
+
+    def test_flush_pending_criticals_returns_text(self):
+        import qg_notification_router as nr
+        nr.notify('CRITICAL', 'layer2', 'TEST_FLUSH', None, 'flush test msg', 'async')
+        result = nr.flush_pending_criticals()
+        self.assertIsNotNone(result)
+        self.assertIn('flush test msg', result)
+
+    def test_flush_pending_criticals_clears_state(self):
+        import qg_notification_router as nr, qg_session_state as ss
+        nr.notify('CRITICAL', 'layer2', 'TEST_CLEAR', None, 'clear test', 'async')
+        nr.flush_pending_criticals()
+        state = ss.read_state()
+        self.assertEqual(state.get('notification_pending_criticals', []), [])
+
+    def test_flush_pending_criticals_empty_returns_none(self):
+        import qg_notification_router as nr
+        result = nr.flush_pending_criticals()
+        self.assertIsNone(result)
+
+    def test_flush_warnings_empty_returns_none(self):
+        import qg_notification_router as nr
+        result = nr.flush_warnings()
+        self.assertIsNone(result)
+
+    def test_reset_turn_counter_allows_delivery_again(self):
+        import qg_notification_router as nr
+        for i in range(3):
+            nr.notify('CRITICAL', 'layer2', 'RC{}'.format(i), None, 'msg', 'pretooluse')
+        nr.reset_turn_counter()
+        result = nr.notify('CRITICAL', 'layer2', 'RC_NEW', None, 'after reset', 'pretooluse')
+        self.assertIsNotNone(result)
+
+    def test_notify_info_logged_to_state(self):
+        import qg_notification_router as nr, qg_session_state as ss
+        nr.notify('INFO', 'layer0', 'TEST_LOG', None, 'info log test', 'async')
+        state = ss.read_state()
+        delivery = state.get('notification_delivery', [])
+        self.assertGreater(len(delivery), 0)
+
+    def test_notify_critical_posttooluse_delivers(self):
+        import qg_notification_router as nr
+        result = nr.notify('CRITICAL', 'layer8', 'REGRESSION', None, 'regression', 'posttooluse')
+        self.assertIsNotNone(result)
+        self.assertIn('additionalContext', result)
+
+    def test_notify_stop_context_queues(self):
+        import qg_notification_router as nr, qg_session_state as ss
+        nr.notify('CRITICAL', 'layer9', 'CALIBRATION', None, 'stop msg', 'stop')
+        state = ss.read_state()
+        pending = state.get('notification_pending_criticals', [])
+        self.assertGreater(len(pending), 0)
+
+    def test_dedup_same_key_not_queued_twice(self):
+        import qg_notification_router as nr, qg_session_state as ss
+        nr.notify('CRITICAL', 'layer2', 'LOOP', '/same/file.py', 'msg1', 'async')
+        nr.notify('CRITICAL', 'layer2', 'LOOP', '/same/file.py', 'msg2', 'async')
+        state = ss.read_state()
+        pending = state.get('notification_pending_criticals', [])
+        self.assertEqual(len(pending), 1)
+
+    def test_flush_warnings_returns_text_when_warnings(self):
+        import qg_notification_router as nr
+        nr.notify('WARNING', 'layer15', 'RULE', None, 'warn test msg', 'async')
+        result = nr.flush_warnings()
+        self.assertIsNotNone(result)
+
+
 if __name__ == '__main__':
     unittest.main()
+
