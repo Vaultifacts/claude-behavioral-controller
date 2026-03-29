@@ -43,7 +43,8 @@ def detect_all_events(tool_name, tool_input, tool_response, state, prev_calls, t
     # LAZINESS: Edit without prior Read
     if tool_name == 'Edit' and fp and fp not in reads:
         events.append({'category': 'LAZINESS', 'severity': 'warning',
-                       'detection_signal': f'Edit on {fp!r} without prior Read'})
+                       'detection_signal': f'Edit on {fp!r} without prior Read',
+                       'target_file': fp})
 
     # INCORRECT_TOOL: Bash instead of dedicated tool
     if tool_name == 'Bash' and BASH_TOOL_RE.search(cmd):
@@ -67,7 +68,8 @@ def detect_all_events(tool_name, tool_input, tool_response, state, prev_calls, t
     # ASSUMPTION: Write to a file never read this session
     if tool_name == 'Write' and fp and fp not in reads:
         events.append({'category': 'ASSUMPTION', 'severity': 'info',
-                       'detection_signal': f'Write on {fp!r} without prior Read'})
+                       'detection_signal': f'Write on {fp!r} without prior Read',
+                       'target_file': fp})
 
     # INCOMPLETE_COVERAGE: editing same file repeatedly while other scope files untouched
     if tool_name in ('Edit', 'Write') and fp and len(scope) > 1 and turn_history:
@@ -147,6 +149,18 @@ def main():
     ts = time.strftime('%Y-%m-%dT%H:%M:%S')
     wd = os.getcwd()
     unresolved = state.get('layer2_unresolved_events', [])
+
+    # Resolution transitions: mark events addressed when the triggering file is read
+    current_fp = ti.get('file_path', '')
+    if tool_name == 'Read' and current_fp:
+        for evt in unresolved:
+            if (evt.get('status') == 'open' and evt.get('target_file') == current_fp
+                    and evt.get('category') in ('LAZINESS', 'ASSUMPTION')):
+                evt['status'] = 'addressed'
+    if tool_name in ('Read', 'Bash'):
+        for evt in unresolved:
+            if evt.get('status') == 'open' and evt.get('category') == 'OUTPUT_UNVALIDATED':
+                evt['status'] = 'addressed'
 
     for evt in events:
         record = {

@@ -1180,6 +1180,79 @@ class TestLayer2Extra(unittest.TestCase):
             sys.stdin = sys.__stdin__
         self.assertFalse(ss.read_state().get('layer2_elevated_scrutiny', False))
 
+    def test_resolution_laziness_addressed_by_read_same_file(self):
+        import io, json, qg_layer2, qg_session_state as ss
+        qg_layer2.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        state['layer2_unresolved_events'] = [
+            {'event_id': 'e1', 'status': 'open', 'category': 'LAZINESS', 'target_file': '/x.py'}
+        ]
+        ss.write_state(state)
+        sys.stdin = io.StringIO(json.dumps(
+            {'tool_name': 'Read', 'tool_input': {'file_path': '/x.py'}, 'tool_response': ''}))
+        try:
+            qg_layer2.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        unresolved = ss.read_state().get('layer2_unresolved_events', [])
+        e1 = next(e for e in unresolved if e.get('event_id') == 'e1')
+        self.assertEqual(e1['status'], 'addressed')
+
+    def test_resolution_laziness_not_addressed_by_read_different_file(self):
+        import io, json, qg_layer2, qg_session_state as ss
+        qg_layer2.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        state['layer2_unresolved_events'] = [
+            {'event_id': 'e2', 'status': 'open', 'category': 'LAZINESS', 'target_file': '/x.py'}
+        ]
+        ss.write_state(state)
+        sys.stdin = io.StringIO(json.dumps(
+            {'tool_name': 'Read', 'tool_input': {'file_path': '/y.py'}, 'tool_response': ''}))
+        try:
+            qg_layer2.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        unresolved = ss.read_state().get('layer2_unresolved_events', [])
+        e2 = next(e for e in unresolved if e.get('event_id') == 'e2')
+        self.assertEqual(e2['status'], 'open')
+
+    def test_resolution_assumption_addressed_by_read(self):
+        import io, json, qg_layer2, qg_session_state as ss
+        qg_layer2.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        state['layer2_unresolved_events'] = [
+            {'event_id': 'e3', 'status': 'open', 'category': 'ASSUMPTION', 'target_file': '/a.py'}
+        ]
+        ss.write_state(state)
+        sys.stdin = io.StringIO(json.dumps(
+            {'tool_name': 'Read', 'tool_input': {'file_path': '/a.py'}, 'tool_response': ''}))
+        try:
+            qg_layer2.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        unresolved = ss.read_state().get('layer2_unresolved_events', [])
+        e3 = next(e for e in unresolved if e.get('event_id') == 'e3')
+        self.assertEqual(e3['status'], 'addressed')
+
+    def test_resolution_output_unvalidated_addressed_by_bash(self):
+        import io, json, qg_layer2, qg_session_state as ss
+        qg_layer2.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        state['layer2_unresolved_events'] = [
+            {'event_id': 'e4', 'status': 'open', 'category': 'OUTPUT_UNVALIDATED'}
+        ]
+        ss.write_state(state)
+        sys.stdin = io.StringIO(json.dumps(
+            {'tool_name': 'Bash', 'tool_input': {'command': 'ls'}, 'tool_response': ''}))
+        try:
+            qg_layer2.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        unresolved = ss.read_state().get('layer2_unresolved_events', [])
+        e4 = next(e for e in unresolved if e.get('event_id') == 'e4')
+        self.assertEqual(e4['status'], 'addressed')
+
+
 
 class TestLayer35Extra(unittest.TestCase):
     def setUp(self):
