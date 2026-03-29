@@ -191,5 +191,39 @@ class TestLayer1Deep(unittest.TestCase):
         self.assertFalse(detect_deep(msg))
 
 
+class TestLayer19ImpactAnalysis(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.tmp = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.tmp
+        ss.LOCK_PATH = self.tmp + '.lock'
+
+    def tearDown(self):
+        import qg_session_state as ss
+        for p in [self.tmp, self.tmp + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_low_impact_isolated_file(self):
+        from qg_layer19 import compute_impact_level
+        self.assertEqual(compute_impact_level('foo.py', [], {}), 'LOW')
+
+    def test_critical_for_core_file(self):
+        from qg_layer19 import compute_impact_level
+        self.assertEqual(compute_impact_level('utils.py', [], {}), 'CRITICAL')
+
+    def test_high_impact_above_threshold(self):
+        from qg_layer19 import compute_impact_level
+        deps = ['a.py'] * 25
+        level = compute_impact_level('auth.py', deps, {'low_threshold': 5, 'medium_threshold': 20})
+        self.assertEqual(level, 'HIGH')
+
+    def test_cache_returns_same_result(self):
+        from qg_layer19 import analyze_impact
+        r1 = analyze_impact('/nonexistent/cache_test.py')
+        r2 = analyze_impact('/nonexistent/cache_test.py')
+        self.assertEqual(r1['ts'], r2['ts'])  # Same cached timestamp
+
+
 if __name__ == '__main__':
     unittest.main()
