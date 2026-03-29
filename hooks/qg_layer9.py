@@ -61,6 +61,15 @@ def main():
         return
 
     state = ss.read_state()
+    # Threshold gate: require >=N responses before calibrating
+    try:
+        with open(os.path.expanduser('~/.claude/qg-rules.json'), 'r', encoding='utf-8') as f:
+            threshold = json.load(f).get('layer9', {}).get('min_responses_before_recalibration', 5)
+    except Exception:
+        threshold = 5
+    eval_count = state.get('layer3_evaluation_count', 0)
+    if eval_count < threshold:
+        return
     actual_outcome = 'FN' if state.get('layer3_pending_fn_alert') else 'TN'
     record = {
         'event_id': str(uuid.uuid4()),
