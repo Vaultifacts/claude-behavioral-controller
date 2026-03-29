@@ -3,11 +3,15 @@
 Fires once per task for DEEP tasks or HIGH/CRITICAL impact edits.
 Injects task intent summary via additionalContext.
 """
-import json, os, sys, time
+import json, os, re, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import qg_session_state as ss
 
 RULES_PATH = os.path.expanduser('~/.claude/qg-rules.json')
+
+_CREATE_RE = re.compile(
+    r'\b(create|write new|add a? new|make a? new|scaffold|generate|init(?:ialize)?)\b',
+    re.IGNORECASE)
 
 
 def _load_config():
@@ -64,6 +68,7 @@ def main():
     state['layer17_verified_task_id'] = task_id
     state['layer17_intent_text'] = task_desc[:200]
     state['layer17_intent_verified_ts'] = time.time()
+    state['layer17_creating_new_artifacts'] = bool(_CREATE_RE.search(task_desc))
     ss.write_state(state)
 
     print(json.dumps({'additionalContext': intent_msg}))

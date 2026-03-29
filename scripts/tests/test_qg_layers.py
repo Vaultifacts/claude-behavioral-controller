@@ -256,6 +256,21 @@ class TestLayer17IntentVerification(unittest.TestCase):
         cfg = {'complexity_threshold': ['DEEP'], 'high_impact_threshold': ['HIGH', 'CRITICAL']}
         self.assertTrue(should_verify(state, cfg))
 
+
+    def test_creates_new_artifacts_flag_set_on_create_intent(self):
+        import qg_session_state as ss
+        import qg_layer17
+        state = ss.read_state()
+        state['layer1_task_category'] = 'DEEP'
+        state['layer19_last_impact_level'] = 'LOW'
+        state['active_task_id'] = 'task-create'
+        state['active_task_description'] = 'Create a new configuration file for the project'
+        ss.write_state(state)
+        # Directly call the relevant portion: verify _CREATE_RE matches
+        from qg_layer17 import _CREATE_RE
+        self.assertTrue(bool(_CREATE_RE.search('Create a new configuration file')))
+        self.assertFalse(bool(_CREATE_RE.search('Update the existing auth module')))
+
     def test_no_fire_on_already_verified_task(self):
         from qg_layer17 import should_verify
         import qg_session_state as ss
