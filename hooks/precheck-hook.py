@@ -63,6 +63,7 @@ def _run_layer1(message, category, state):
 
     if pivot:
         state['active_task_id'] = str(uuid.uuid4())[:8]
+        state['layer1_scope_files'] = []  # clear stale scope on pivot; re-derived below
         state['layer2_unresolved_events'] = [
             e for e in state.get('layer2_unresolved_events', [])
             if e.get('category') != 'SCOPE_CREEP'
@@ -77,8 +78,20 @@ def _run_layer1(message, category, state):
     if scope:
         state['layer1_scope_files'] = scope
 
-    # Success criteria stub (behavior 3)
-    state['task_success_criteria'] = [f'Task classified as {category}. Criteria TBD (Phase 2).']
+    # Success criteria (behavior 3) — category-specific measurable criteria
+    _criteria_map = {
+        'OVERCONFIDENCE': ['Verify specific counts/outputs cited are backed by tool output quoted inline.',
+                           'Verify no unverified numbers or filenames are stated as fact.'],
+        'ASSUMPTION':     ['Verify all code-behavior claims are backed by Read or Grep output.',
+                           'Verify no file contents or function signatures are assumed without reading.'],
+        'MECHANICAL':     ['Verify the requested file change is implemented exactly.',
+                           'Verify no regressions in adjacent code.',
+                           'Verify tests pass if applicable.'],
+        'PLANNING':       ['Verify each suggested next step is not already implemented (Grep check).',
+                           'Verify plan covers the full stated scope.'],
+        'NONE':           ['Verify the response addresses the user request directly.'],
+    }
+    state['task_success_criteria'] = _criteria_map.get(category, ['Verify the task is completed as requested.'])
 
     # Reset per-turn counters on new user turn
     state['layer2_turn_event_count'] = 0

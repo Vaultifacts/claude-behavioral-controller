@@ -2862,5 +2862,75 @@ class TestDashboardMonitorEnhanced(unittest.TestCase):
 
 
 
+class TestPrecheckHookGaps2526(unittest.TestCase):
+    """Gaps #25-26 — precheck-hook: category-specific criteria and pivot scope clear."""
+
+    def _load_ph(self):
+        import importlib.util
+        _spec = importlib.util.spec_from_file_location('precheck_hook',
+                    os.path.expanduser('~/.claude/hooks/precheck-hook.py'))
+        ph = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(ph)
+        return ph
+
+    def test_criteria_not_stub(self):
+        """Success criteria must not contain 'TBD' after classification."""
+        import tempfile
+        import qg_session_state as ss
+        ph = self._load_ph()
+        tmp = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = tmp
+        ss.LOCK_PATH = tmp + '.lock'
+        state = ss.read_state()
+        state['active_task_description'] = ''
+        ss.write_state(state)
+        _, new_state = ph._run_layer1('edit the config file', 'MECHANICAL', state)
+        criteria = new_state.get('task_success_criteria', [])
+        self.assertTrue(len(criteria) > 0, "Criteria must not be empty")
+        for c in criteria:
+            self.assertNotIn('TBD', c, f"Criteria must not be a stub: {c}")
+
+    def test_criteria_are_category_specific(self):
+        """Each category generates distinct criteria."""
+        import tempfile
+        import qg_session_state as ss
+        ph = self._load_ph()
+        tmp = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = tmp
+        ss.LOCK_PATH = tmp + '.lock'
+        state = ss.read_state()
+        state['active_task_description'] = ''
+        ss.write_state(state)
+        # _run_layer1 mutates state in-place; capture criteria before second call
+        ph._run_layer1('edit foo.py', 'MECHANICAL', state)
+        c1 = list(state.get('task_success_criteria', []))
+        import copy
+        state2 = copy.deepcopy(state)
+        state2['active_task_description'] = ''
+        ph._run_layer1('what are the next steps', 'PLANNING', state2)
+        c2 = state2.get('task_success_criteria', [])
+        self.assertNotEqual(c1, c2,
+                            "Different categories must produce different criteria")
+
+    def test_pivot_clears_scope(self):
+        """On pivot, layer1_scope_files is cleared before re-deriving."""
+        import tempfile
+        import qg_session_state as ss
+        ph = self._load_ph()
+        tmp = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = tmp
+        ss.LOCK_PATH = tmp + '.lock'
+        state = ss.read_state()
+        state['active_task_description'] = 'edit foo.py to add logging'
+        state['layer1_scope_files'] = ['foo.py', 'bar.py']
+        ss.write_state(state)
+        # Pivot: very different message with no file scope
+        _, new_state = ph._run_layer1('what time is it today', 'NONE', state)
+        # After pivot (jaccard < 0.3), scope should be cleared
+        scope = new_state.get('layer1_scope_files', ['KEEP'])
+        self.assertEqual(scope, [], f"Scope should be cleared on pivot, got {scope}")
+
+
+
 if __name__ == '__main__':
     unittest.main()
