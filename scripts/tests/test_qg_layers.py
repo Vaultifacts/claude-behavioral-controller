@@ -1085,6 +1085,19 @@ class TestLayer2Extra(unittest.TestCase):
         cats = [e['category'] for e in events]
         self.assertIn('INCOMPLETE_COVERAGE', cats)
 
+    def test_incomplete_coverage_suppressed_for_single_scope_file(self):
+        from qg_layer2 import detect_all_events
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer1_scope_files'] = ['/scope/a.py']  # only 1 file — len(scope) > 1 guard
+        turn_history = [
+            {'tool': 'Edit', 'target': '/scope/a.py', 'resp': ''},
+            {'tool': 'Edit', 'target': '/scope/a.py', 'resp': ''},
+        ]
+        events = detect_all_events('Edit', {'file_path': '/scope/a.py'}, '', state, [], turn_history=turn_history)
+        cats = [e['category'] for e in events]
+        self.assertNotIn('INCOMPLETE_COVERAGE', cats)
+
     def test_output_unvalidated_consecutive_edits(self):
         from qg_layer2 import detect_all_events
         import qg_session_state as ss
