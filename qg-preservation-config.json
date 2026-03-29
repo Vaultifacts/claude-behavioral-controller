@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "_comment": "Layer 4.5 config. Lists what to preserve through context compaction.",
+  "always_preserve": [
+    "session_uuid", "active_task_description", "layer1_scope_files",
+    "layer2_unresolved_events", "layer35_recovery_events",
+    "layer17_intent_text", "layer17_verified_task_id"
+  ],
+  "skip_preserve": [
+    "layer19_impact_cache", "layer2_turn_history", "notification_delivery"
+  ]
+}

@@ -391,5 +391,55 @@ class TestLayer35RecoveryTracking(unittest.TestCase):
         self.assertTrue(len(signals) > 0)
 
 
+class TestLayer45ContextPreservation(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.tmp = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.tmp
+        ss.LOCK_PATH = self.tmp + '.lock'
+        self.preserve_tmp = tempfile.mktemp(suffix='.json')
+
+    def tearDown(self):
+        import qg_session_state as ss
+        for p in [self.tmp, self.tmp + '.lock', self.preserve_tmp]:
+            try: os.unlink(p)
+            except: pass
+
+    def test_pre_compact_saves_state(self):
+        import json as _json, qg_session_state as ss
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+        import qg_layer45
+        qg_layer45.PRESERVE_PATH = self.preserve_tmp
+        state = ss.read_state()
+        state['session_uuid'] = 'uuid-45-test'
+        state['active_task_description'] = 'test task 45'
+        ss.write_state(state)
+        qg_layer45.handle_pre_compact()
+        with open(self.preserve_tmp) as f:
+            preserved = _json.load(f)
+        self.assertEqual(preserved['session_uuid'], 'uuid-45-test')
+        self.assertIn('pre_compact_hash', preserved)
+
+    def test_post_compact_restores_cleared_state(self):
+        import json as _json, time as _time, qg_session_state as ss
+        import qg_layer45
+        qg_layer45.PRESERVE_PATH = self.preserve_tmp
+        preserved = {
+            'session_uuid': 'uuid-45-restore',
+            'active_task_description': 'restore me',
+            'pre_compact_hash': 'test',
+            'preserved_at': _time.time(),
+        }
+        with open(self.preserve_tmp, 'w') as f:
+            _json.dump(preserved, f)
+        state = ss.read_state()
+        state['session_uuid'] = 'uuid-45-restore'
+        state['active_task_description'] = ''  # Cleared by compaction
+        ss.write_state(state)
+        qg_layer45.handle_post_compact()
+        result = ss.read_state()
+        self.assertEqual(result['active_task_description'], 'restore me')
+
+
 if __name__ == '__main__':
     unittest.main()
