@@ -3,13 +3,14 @@
 Priority: CRITICAL > WARNING > INFO
 hook_context: 'pretooluse', 'posttooluse', 'stop', 'sessionstart', 'async'
 """
-import time, sys, os
+import json, time, sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import qg_session_state as ss
 
 MAX_CRITICALS_PER_TURN = 3
 DEDUP_WINDOW_SEC = 60
 _turn_critical_count = 0
+MONITOR_PATH = os.path.expanduser('~/.claude/qg-monitor.jsonl')
 
 
 def _dedup_key(layer, category, file_path):
@@ -33,6 +34,14 @@ def _record(state, layer, category, file_path, message, status):
     })
 
 
+def _write_jsonl(event):
+    try:
+        with open(MONITOR_PATH, 'a', encoding='utf-8') as f:
+            print(json.dumps(event, ensure_ascii=False), file=f)
+    except Exception:
+        pass
+
+
 def notify(priority, layer, category, file_path, message, hook_context):
     """Route notification. Returns {'additionalContext': ...} for immediate CRITICAL, else None."""
     global _turn_critical_count
@@ -40,6 +49,8 @@ def notify(priority, layer, category, file_path, message, hook_context):
     state = ss.read_state()
 
     if priority == 'INFO':
+        _write_jsonl({'priority': 'INFO', 'layer': layer, 'category': category,
+                     'file': file_path, 'message': message[:200], 'ts': time.time()})
         _record(state, layer, category, file_path, message, 'logged')
         ss.write_state(state)
         return None
