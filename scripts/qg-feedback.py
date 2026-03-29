@@ -1177,6 +1177,26 @@ def cmd_integrity():
         print('Corrupt entries quarantined to ~/.claude/qg-quarantine.jsonl')
 
 
+def cmd_rules_apply_reject(action, suggestion_id):
+    """Apply or reject a numbered rule suggestion by updating its status in qg-rule-suggestions.md."""
+    import re
+    path = os.path.expanduser('~/.claude/qg-rule-suggestions.md')
+    if not os.path.exists(path):
+        print('No rule suggestions file found. Run: qg rules')
+        return
+    with open(path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    pattern = '[PENDING] #{}:'.format(suggestion_id)
+    if pattern not in content:
+        print('Suggestion #{} not found or not pending.'.format(suggestion_id))
+        return
+    new_status = 'APPLIED' if action == 'apply' else 'REJECTED'
+    content = content.replace(pattern, '[{}] #{}:'.format(new_status, suggestion_id))
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    print('Suggestion #{} marked as {}.'.format(suggestion_id, new_status.lower()))
+
+
 def cmd_rules():
     """qg rules — view pending rule suggestions (Layer 7 preview)."""
     import os
@@ -1309,7 +1329,11 @@ def main():
         cmd_integrity()
     elif cmd == 'rules':
         if len(sys.argv) >= 3 and sys.argv[2] in ('apply', 'reject'):
-            print('Rule apply/reject (Layer 7) is a Phase 3 feature.')
+            sid = int(sys.argv[3]) if len(sys.argv) >= 4 and sys.argv[3].isdigit() else None
+            if sid is None:
+                print('Usage: qg rules apply|reject <N>')
+            else:
+                cmd_rules_apply_reject(sys.argv[2], sid)
         else:
             cmd_rules()
     else:

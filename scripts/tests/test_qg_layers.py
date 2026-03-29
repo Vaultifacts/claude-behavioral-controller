@@ -2718,6 +2718,77 @@ class TestNotificationRouter(unittest.TestCase):
         self.assertIsNotNone(result)
 
 
+
+
+
+class TestDashboardRulesApplyReject(unittest.TestCase):
+    def _write_suggestions_file(self, path):
+        content = '# QG Rule Suggestions\n## [PENDING] #1: LAZINESS\n- Reason: Repeated FN\n\n## [PENDING] #2: LOOP\n- Reason: Cross-session\n\n'
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+    def test_apply_updates_status_in_file(self):
+        import tempfile, sys, os, importlib.util
+        _spec = importlib.util.spec_from_file_location('qgf', os.path.expanduser('~/.claude/scripts/qg-feedback.py'))
+        qgf = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(qgf)
+        tmp = tempfile.mktemp(suffix='_rules.md')
+        self._write_suggestions_file(tmp)
+        orig = qgf.os.path.expanduser
+        qgf.os.path.expanduser = lambda p: tmp if 'rule-suggestions' in p else orig(p)
+        try:
+            qgf.cmd_rules_apply_reject('apply', 1)
+            with open(tmp) as f:
+                out = f.read()
+            self.assertIn('[APPLIED] #1:', out)
+            self.assertIn('[PENDING] #2:', out)
+        finally:
+            qgf.os.path.expanduser = orig
+            try: os.unlink(tmp)
+            except: pass
+
+    def test_reject_updates_status_in_file(self):
+        import tempfile, sys, os, importlib.util
+        _spec = importlib.util.spec_from_file_location('qgf', os.path.expanduser('~/.claude/scripts/qg-feedback.py'))
+        qgf = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(qgf)
+        tmp = tempfile.mktemp(suffix='_rules2.md')
+        self._write_suggestions_file(tmp)
+        orig = qgf.os.path.expanduser
+        qgf.os.path.expanduser = lambda p: tmp if 'rule-suggestions' in p else orig(p)
+        try:
+            qgf.cmd_rules_apply_reject('reject', 2)
+            with open(tmp) as f:
+                out = f.read()
+            self.assertIn('[REJECTED] #2:', out)
+            self.assertIn('[PENDING] #1:', out)
+        finally:
+            qgf.os.path.expanduser = orig
+            try: os.unlink(tmp)
+            except: pass
+
+    def test_missing_id_prints_not_found(self):
+        import tempfile, sys, os, importlib.util
+        _spec = importlib.util.spec_from_file_location('qgf', os.path.expanduser('~/.claude/scripts/qg-feedback.py'))
+        qgf = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(qgf)
+        import builtins
+        tmp = tempfile.mktemp(suffix='_rules3.md')
+        self._write_suggestions_file(tmp)
+        orig = qgf.os.path.expanduser
+        qgf.os.path.expanduser = lambda p: tmp if 'rule-suggestions' in p else orig(p)
+        captured = []
+        orig_print = builtins.print
+        builtins.print = lambda *a, **kw: captured.append(' '.join(str(x) for x in a))
+        try:
+            qgf.cmd_rules_apply_reject('apply', 99)
+        finally:
+            qgf.os.path.expanduser = orig
+            builtins.print = orig_print
+            try: os.unlink(tmp)
+            except: pass
+        self.assertTrue(any('not found' in m.lower() or 'not pending' in m.lower() for m in captured))
+
+
 if __name__ == '__main__':
     unittest.main()
-
