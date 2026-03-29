@@ -97,6 +97,13 @@ def main():
 
     events = detect_all_events(tool_name, tool_input, tool_response, state, prev_calls)
 
+    # Impact severity adjustment: promote severity on HIGH/CRITICAL edits
+    impact_level = state.get("layer19_last_impact_level", "LOW")
+    if impact_level in ("HIGH", "CRITICAL"):
+        severity_promotion = {"info": "warning", "warning": "critical"}
+        for evt in events:
+            evt["severity"] = severity_promotion.get(evt.get("severity", ""), evt.get("severity", ""))
+
     # Loop detection
     history_tuples = [(e['tool'], e['target']) for e in turn_history]
     loop_evt = detect_loop(tool_name, target_key, history_tuples, threshold=loop_threshold)
