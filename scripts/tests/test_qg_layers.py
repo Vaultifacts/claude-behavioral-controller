@@ -1535,6 +1535,88 @@ class TestLayer18Extra(unittest.TestCase):
         self.assertEqual(captured, [])
 
 
+class TestLayer18Gap17(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.tmpfile = tempfile.mktemp(suffix='.py')
+        with open(self.tmpfile, 'w') as f:
+            f.write('def real_func():\n    pass\n')
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock', self.tmpfile]:
+            try: os.unlink(p)
+            except: pass
+
+    def test_missing_func_warns_first_time_not_second(self):
+        import io, json, builtins, qg_layer18, qg_session_state as ss
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(a)
+        payload = json.dumps({'tool_name': 'Edit', 'tool_input': {
+            'file_path': self.tmpfile, 'old_string': 'def ghost_func():'}})
+        try:
+            sys.stdin = io.StringIO(payload)
+            qg_layer18.main()
+            sys.stdin = io.StringIO(payload)
+            qg_layer18.main()
+        finally:
+            builtins.print = orig
+            sys.stdin = sys.__stdin__
+        # First call warns, second is deduplicated
+        self.assertEqual(len(captured), 1)
+
+    def test_existing_func_cached_no_warning_on_repeat(self):
+        import io, json, builtins, qg_layer18, qg_session_state as ss
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(a)
+        payload = json.dumps({'tool_name': 'Edit', 'tool_input': {
+            'file_path': self.tmpfile, 'old_string': 'def real_func():'}})
+        try:
+            sys.stdin = io.StringIO(payload)
+            qg_layer18.main()
+            sys.stdin = io.StringIO(payload)
+            qg_layer18.main()
+        finally:
+            builtins.print = orig
+            sys.stdin = sys.__stdin__
+        # real_func exists — no warning either call
+        self.assertEqual(len(captured), 0)
+        # And it was cached
+        checked = ss.read_state().get('layer18_session_checked', {})
+        key = f'{self.tmpfile}::real_func'
+        self.assertIn(key, checked)
+        self.assertTrue(checked[key])
+
+    def test_dedup_keyed_per_file_not_just_func(self):
+        import io, json, builtins, qg_layer18, qg_session_state as ss
+        tmpfile2 = tempfile.mktemp(suffix='.py')
+        with open(tmpfile2, 'w') as f:
+            f.write('# no functions here\n')
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(a)
+        try:
+            # ghost_func missing from tmpfile (self.tmpfile has real_func only)
+            sys.stdin = io.StringIO(json.dumps({'tool_name': 'Edit', 'tool_input': {
+                'file_path': self.tmpfile, 'old_string': 'def ghost_func():'}}))
+            qg_layer18.main()
+            # Same func name, different file — must check independently
+            sys.stdin = io.StringIO(json.dumps({'tool_name': 'Edit', 'tool_input': {
+                'file_path': tmpfile2, 'old_string': 'def ghost_func():'}}))
+            qg_layer18.main()
+        finally:
+            builtins.print = orig
+            sys.stdin = sys.__stdin__
+            try: os.unlink(tmpfile2)
+            except: pass
+        # Both files lack ghost_func — two separate warnings expected
+        self.assertEqual(len(captured), 2)
+
+
 class TestLayer19Extra(unittest.TestCase):
     def setUp(self):
         import qg_session_state as ss

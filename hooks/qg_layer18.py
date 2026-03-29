@@ -73,7 +73,37 @@ def main():
         return
 
     old_string = tool_input.get('old_string', '')
-    if old_string and not check_function_in_file(file_path, old_string):
+    if not old_string:
+        return
+
+    # Per-session dedup: skip function refs already checked this session
+    names_found = re.findall(r'(?:^|\s)def\s+(\w+)|(?:^|\s)class\s+(\w+)', old_string)
+    names = [d or c for d, c in names_found if d or c]
+    if not names:
+        return
+
+    checked = state.get('layer18_session_checked', {})
+    unchecked = [n for n in names if f'{file_path}::{n}' not in checked]
+    if not unchecked:
+        return  # all refs already verified this session
+
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read()
+    except Exception:
+        return
+
+    missing = []
+    for name in unchecked:
+        exists = name in content
+        checked[f'{file_path}::{name}'] = exists
+        if not exists:
+            missing.append(name)
+
+    state['layer18_session_checked'] = checked
+    ss.write_state(state)
+
+    if missing:
         print(json.dumps({
             'additionalContext': (
                 f'[monitor:WARN:layer1.8] Referenced function/class in old_string '

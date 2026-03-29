@@ -41,6 +41,7 @@ def _empty_state():
         'layer1_task_category': None,
         'layer1_scope_files': [],
         'layer1_subtask_count': 0,
+        'layer18_session_checked': {},
         'layer2_unresolved_events': [],
         'layer2_elevated_scrutiny': False,
         'layer2_turn_event_count': 0,
