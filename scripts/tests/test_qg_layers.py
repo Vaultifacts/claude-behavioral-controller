@@ -1658,6 +1658,58 @@ class TestLayer6Extra(unittest.TestCase):
         self.assertIn('LOOP', cats)
 
 
+    def test_run_analysis_preserves_existing_when_no_patterns(self):
+        import tempfile, json
+        from qg_layer6 import run_analysis
+        out = tempfile.mktemp(suffix='_cs.json')
+        existing = {'patterns': [{'category': 'LAZINESS', 'sessions_count': 5}], 'ts': '2026-01-01T00:00:00'}
+        with open(out, 'w') as f:
+            json.dump(existing, f)
+        empty_monitor = tempfile.mktemp(suffix='_mon.jsonl')
+        try:
+            run_analysis(monitor_path=empty_monitor, output_path=out)
+            with open(out) as f:
+                data = json.load(f)
+            self.assertEqual(data['patterns'], existing['patterns'])
+        finally:
+            for p in [out, empty_monitor]:
+                try: os.unlink(p)
+                except: pass
+
+    def test_run_analysis_creates_file_when_not_exists(self):
+        import tempfile, json
+        from qg_layer6 import run_analysis
+        out = tempfile.mktemp(suffix='_cs_new.json')
+        empty_monitor = tempfile.mktemp(suffix='_mon2.jsonl')
+        try:
+            run_analysis(monitor_path=empty_monitor, output_path=out)
+            self.assertTrue(os.path.exists(out))
+        finally:
+            for p in [out, empty_monitor]:
+                try: os.unlink(p)
+                except: pass
+
+    def test_run_analysis_writes_when_patterns_found(self):
+        import tempfile, json
+        from qg_layer6 import run_analysis
+        out = tempfile.mktemp(suffix='_cs_pat.json')
+        monitor = tempfile.mktemp(suffix='_mon3.jsonl')
+        try:
+            events = [json.dumps({'session_uuid': sid, 'category': 'LOOP', 'ts': '2026-01-01T00:00:00'})
+                      for sid in ['s1', 's2', 's3']]
+            with open(monitor, 'w') as f:
+                f.write(chr(10).join(events) + chr(10))
+            run_analysis(monitor_path=monitor, output_path=out)
+            with open(out) as f:
+                data = json.load(f)
+            cats = [p['category'] for p in data['patterns']]
+            self.assertIn('LOOP', cats)
+        finally:
+            for p in [out, monitor]:
+                try: os.unlink(p)
+                except: pass
+
+
 class TestLayer7Extra(unittest.TestCase):
     def test_find_repeat_fns_empty_records(self):
         from qg_layer7 import find_repeat_fns
