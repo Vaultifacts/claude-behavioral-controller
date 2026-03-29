@@ -51,6 +51,7 @@ def main():
 
     if not baseline:
         state['layer_env_test_baseline'] = [[passed or 0, failed or 0]]
+        state['layer8_regression_expected'] = False
         ss.write_state(state)
         return
 
@@ -76,13 +77,14 @@ def main():
         unresolved = state.get('layer2_unresolved_events', [])
         unresolved.append(event)
         state['layer2_unresolved_events'] = unresolved[-50:]
-        state['layer8_regression_expected'] = True
+        state['layer8_regression_expected'] = False
         ss.write_state(state)
 
         out = {'hookSpecificOutput': {'hookEventName': 'PostToolUse',
             'additionalContext': '[Layer 8] REGRESSION: {} new failure(s) vs baseline.'.format(regression_count)}}
         print(json.dumps(out))
     else:
+        state["layer8_regression_expected"] = False
         ss.write_state(state)
 
 

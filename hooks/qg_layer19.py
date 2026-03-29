@@ -87,6 +87,8 @@ def analyze_impact(file_path):
     state['layer19_impact_cache'] = cache
     state['layer19_last_impact_level'] = level
     state['layer19_last_impact_file'] = file_path
+    if level in ('HIGH', 'CRITICAL'):
+        state['layer8_regression_expected'] = True
     ss.write_state(state)
     return result
 
