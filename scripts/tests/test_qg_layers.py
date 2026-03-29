@@ -507,5 +507,36 @@ class TestLayer5SubagentCoordination(unittest.TestCase):
         self.assertEqual(events[0]['status'], 'subagent_timeout')
 
 
+class TestLayer25OutputValidity(unittest.TestCase):
+    def test_valid_python_returns_none(self):
+        from qg_layer25 import validate_file
+        f = tempfile.mktemp(suffix='.py')
+        open(f, 'w').write('x = 1\n')
+        result = validate_file(f)
+        os.unlink(f)
+        self.assertIsNone(result)
+
+    def test_invalid_json_returns_error_string(self):
+        from qg_layer25 import validate_file
+        f = tempfile.mktemp(suffix='.json')
+        open(f, 'w').write('{not valid json}')
+        result = validate_file(f)
+        os.unlink(f)
+        self.assertIsNotNone(result)
+        self.assertIsInstance(result, str)
+
+    def test_unknown_extension_returns_none(self):
+        from qg_layer25 import validate_file
+        self.assertIsNone(validate_file('/nonexistent/file.txt'))
+
+    def test_large_file_returns_none(self):
+        from qg_layer25 import validate_file, SIZE_LIMIT
+        f = tempfile.mktemp(suffix='.py')
+        open(f, 'w').write('x = 1\n' * (SIZE_LIMIT // 5 + 1))
+        result = validate_file(f)
+        os.unlink(f)
+        self.assertIsNone(result)
+
+
 if __name__ == '__main__':
     unittest.main()
