@@ -1124,6 +1124,62 @@ class TestLayer2Extra(unittest.TestCase):
         cats = [e['category'] for e in events]
         self.assertNotIn('OUTPUT_UNVALIDATED', cats)
 
+    def test_elevated_scrutiny_fires_before_rate_limit_trim(self):
+        # Bug fix: scrutiny must use full event list, not rate-limited list
+        import io, json, qg_layer2, qg_session_state as ss
+        qg_layer2.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        state['layer19_last_impact_level'] = 'HIGH'   # promotes warning->critical
+        state['layer1_scope_files'] = ['/other.py']   # /unread.py outside scope -> SCOPE_CREEP
+        state['layer2_turn_event_count'] = 4          # limit=5, only 1 more allowed after trim
+        state['layer2_turn_history'] = [
+            {'tool': 'Bash', 'target': 'ls', 'resp': 'Error: permission denied'},
+        ]
+        ss.write_state(state)
+        sys.stdin = io.StringIO(json.dumps(
+            {'tool_name': 'Edit', 'tool_input': {'file_path': '/unread.py'}, 'tool_response': ''}))
+        try:
+            qg_layer2.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        self.assertTrue(ss.read_state().get('layer2_elevated_scrutiny', False))
+
+    def test_elevated_scrutiny_fires_with_three_criticals(self):
+        import io, json, qg_layer2, qg_session_state as ss
+        qg_layer2.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        state['layer19_last_impact_level'] = 'HIGH'
+        state['layer1_scope_files'] = ['/other.py']
+        state['layer2_turn_history'] = [
+            {'tool': 'Bash', 'target': 'ls', 'resp': 'Error: permission denied'},
+        ]
+        ss.write_state(state)
+        sys.stdin = io.StringIO(json.dumps(
+            {'tool_name': 'Edit', 'tool_input': {'file_path': '/unread.py'}, 'tool_response': ''}))
+        try:
+            qg_layer2.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        self.assertTrue(ss.read_state().get('layer2_elevated_scrutiny', False))
+
+    def test_elevated_scrutiny_not_set_with_two_criticals(self):
+        import io, json, qg_layer2, qg_session_state as ss
+        qg_layer2.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        state['layer19_last_impact_level'] = 'HIGH'
+        state['layer1_scope_files'] = ['/unread.py']  # in-scope -> no SCOPE_CREEP, only 2 criticals
+        state['layer2_turn_history'] = [
+            {'tool': 'Bash', 'target': 'ls', 'resp': 'Error: permission denied'},
+        ]
+        ss.write_state(state)
+        sys.stdin = io.StringIO(json.dumps(
+            {'tool_name': 'Edit', 'tool_input': {'file_path': '/unread.py'}, 'tool_response': ''}))
+        try:
+            qg_layer2.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        self.assertFalse(ss.read_state().get('layer2_elevated_scrutiny', False))
+
 
 class TestLayer35Extra(unittest.TestCase):
     def setUp(self):

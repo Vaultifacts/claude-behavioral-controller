@@ -131,13 +131,13 @@ def main():
     if loop_evt:
         events.append(loop_evt)
 
+    # Elevated scrutiny (check before rate limiting to count all critical events)
+    if sum(1 for e in events if e.get('severity') == 'critical') >= 3:
+        state['layer2_elevated_scrutiny'] = True
+
     # Rate limiting
     turn_count = state.get('layer2_turn_event_count', 0)
     events = events[:max(0, events_limit - turn_count)]
-
-    # Elevated scrutiny
-    if sum(1 for e in events if e.get('severity') == 'critical') >= 3:
-        state['layer2_elevated_scrutiny'] = True
 
     state['layer2_turn_event_count'] = turn_count + len(events)
     turn_history.append({'tool': tool_name, 'target': target_key,
