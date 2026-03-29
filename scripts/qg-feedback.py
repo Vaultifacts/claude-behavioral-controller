@@ -1145,10 +1145,20 @@ def cmd_monitor():
 
 
 def cmd_analyze():
-    """qg analyze — trigger cross-session analysis (Phase 3 feature)."""
-    print('Layer 6 cross-session analysis: Phase 3 feature. Not yet available.')
-    print('Layer 9 confidence calibration: Phase 3 feature. Not yet available.')
-    print('Use qg monitor to view current session stats.')
+    """qg analyze -- trigger cross-session analysis."""
+    import sys as _sys
+    _sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+    from qg_layer6 import run_analysis
+    result = run_analysis()
+    print('Cross-session analysis complete.')
+    print('Sessions analyzed: {}'.format(result['sessions_analyzed']))
+    if result['patterns']:
+        print('Recurring patterns:')
+        for p in result['patterns']:
+            print('  {} -- {} sessions, {:.0f}% of events'.format(
+                p['category'], p['sessions_count'], p['event_pct'] * 100))
+    else:
+        print('No recurring patterns found.')
 
 
 def cmd_integrity():

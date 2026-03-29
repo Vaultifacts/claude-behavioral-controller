@@ -631,5 +631,31 @@ class TestLayer8RegressionDetection(unittest.TestCase):
         self.assertGreater(failed, baseline_failed)
 
 
+class TestLayer6CrossSessionAnalysis(unittest.TestCase):
+    def test_empty_events_returns_empty(self):
+        from qg_layer6 import analyze_patterns
+        self.assertEqual(analyze_patterns([]), [])
+
+    def test_pattern_below_threshold_not_flagged(self):
+        from qg_layer6 import analyze_patterns
+        events = [
+            {'session_uuid': 's1', 'category': 'LAZINESS', 'ts': '2026-01-01T00:00:00'},
+            {'session_uuid': 's2', 'category': 'LAZINESS', 'ts': '2026-01-02T00:00:00'},
+        ]
+        result = analyze_patterns(events, min_sessions=3, min_pct=0.1)
+        self.assertEqual(result, [])
+
+    def test_pattern_above_threshold_flagged(self):
+        from qg_layer6 import analyze_patterns
+        events = []
+        for i in range(1, 5):
+            for _ in range(3):
+                events.append({'session_uuid': 's{}'.format(i), 'category': 'LAZINESS',
+                               'ts': '2026-01-0{}T00:00:00'.format(i)})
+        result = analyze_patterns(events, min_sessions=3, min_pct=0.1)
+        cats = [p['category'] for p in result]
+        self.assertIn('LAZINESS', cats)
+
+
 if __name__ == '__main__':
     unittest.main()
