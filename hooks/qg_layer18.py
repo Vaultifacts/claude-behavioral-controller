@@ -20,6 +20,8 @@ def check_function_in_file(file_path, old_string):
     """Return True if referenced def/class from old_string exists in file."""
     if not old_string or not file_path:
         return True
+    # (?:^|\s) instead of : avoids potential heredoc byte-corruption on some write paths.
+    # Known gap: misses def/class preceded by punctuation e.g. '(class Foo' — acceptable for this monitor layer.
     names = re.findall(r'(?:^|\s)def\s+(\w+)|(?:^|\s)class\s+(\w+)', old_string)
     if not names:
         return True
@@ -45,7 +47,7 @@ def main():
     tool_input = payload.get('tool_input', {}) or {}
 
     # Write always creates/overwrites — no existence check needed
-    if tool_name in ('Write',):
+    if tool_name == 'Write':
         return
 
     if tool_name != 'Edit':

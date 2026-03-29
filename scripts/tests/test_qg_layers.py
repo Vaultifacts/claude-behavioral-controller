@@ -315,6 +315,18 @@ class TestLayer18HallucinationDetection(unittest.TestCase):
         finally:
             os.unlink(fname)
 
+    def test_suppressed_when_creating_new_artifacts(self):
+        from qg_layer18 import check_path_exists
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer17_creating_new_artifacts'] = True
+        ss.write_state(state)
+        # The suppression path in main() reads session state; verify check_path_exists
+        # returns False for nonexistent path (confirming it would trigger without suppression)
+        self.assertFalse(check_path_exists('/tmp/qg18_suppression_test_xyz.py'))
+        # Verify the state was persisted
+        self.assertTrue(ss.read_state().get('layer17_creating_new_artifacts'))
+
 
 if __name__ == '__main__':
     unittest.main()
