@@ -574,5 +574,26 @@ class TestLayer26ConsistencyEnforcement(unittest.TestCase):
         self.assertEqual(devs, [])
 
 
+class TestLayer27TestingCoverage(unittest.TestCase):
+    def test_test_file_found_returns_path(self):
+        import shutil
+        from qg_layer27 import find_test_file
+        d = tempfile.mkdtemp()
+        open(os.path.join(d, 'test_utils.py'), 'w').close()
+        old = os.getcwd(); os.chdir(d)
+        result = find_test_file('utils.py')
+        os.chdir(old); shutil.rmtree(d)
+        self.assertIsNotNone(result)
+
+    def test_no_test_file_returns_none(self):
+        import shutil
+        from qg_layer27 import find_test_file
+        d = tempfile.mkdtemp()
+        old = os.getcwd(); os.chdir(d)
+        result = find_test_file('auth.py')
+        os.chdir(old); shutil.rmtree(d)
+        self.assertIsNone(result)
+
+
 if __name__ == '__main__':
     unittest.main()
