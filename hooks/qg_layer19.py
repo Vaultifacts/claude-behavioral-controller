@@ -40,6 +40,8 @@ def count_dependents(file_path, working_dir):
                 fp = line.strip()
                 if fp and os.path.normpath(fp) != os.path.normpath(file_path):
                     dependents.add(fp)
+        except subprocess.TimeoutExpired:
+            break  # Stop scanning on timeout; result is partial
         except Exception:
             pass
     return list(dependents)
@@ -112,7 +114,7 @@ def main():
         n = result['dependent_count']
         msg = (f'[monitor:INFO:layer1.9] Impact: {level} — '
                f'{os.path.basename(file_path)!r} has {n} dependent(s). '
-               f'Layer 1.5 warns escalated to blocks for this file.')
+               f'Consider verifying downstream effects before proceeding.')
         print(json.dumps({'additionalContext': msg}))
 
 
