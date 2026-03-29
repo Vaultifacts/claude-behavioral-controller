@@ -11,6 +11,8 @@ import qg_session_state as ss
 HISTORY_PATH = os.path.expanduser('~/.claude/qg-session-history.md')
 SESSION_UUID_RE = re.compile(r'^session_uuid:\s*(\S+)', re.MULTILINE)
 UNRESOLVED_RE = re.compile(r'^- UNRESOLVED:\s*(.+)', re.MULTILINE)
+CROSS_SESSION_PATH = os.path.expanduser('~/.claude/qg-cross-session.json')
+RULES_PATH = os.path.expanduser('~/.claude/qg-rules.json')
 
 
 def find_previous_session_unresolved():
@@ -36,19 +38,52 @@ def find_previous_session_unresolved():
     return []
 
 
+def load_cross_session_patterns():
+    """Read cross-session patterns from Layer 6 output."""
+    if not os.path.exists(CROSS_SESSION_PATH):
+        return []
+    try:
+        with open(CROSS_SESSION_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data.get('patterns', [])
+    except Exception:
+        return []
+
+
 def main():
     try:
         payload = json.load(sys.stdin)
     except Exception:
         return
 
-    # Phase 1: items 1-6 (qg-cross-session.json) are no-ops
+    # Items 1-6: inject cross-session patterns from qg-cross-session.json
+    patterns = load_cross_session_patterns()
+    if patterns:
+        try:
+            with open(RULES_PATH, 'r', encoding='utf-8') as f:
+                max_chars = json.load(f).get('layer0', {}).get('injection_max_chars', 2000)
+        except Exception:
+            max_chars = 2000
+        lines_out = ['[monitor:Layer0] Cross-session patterns detected:']
+        char_count = len(lines_out[0])
+        for p in patterns[:10]:
+            desc = "{} ({} sessions, {} events)".format(
+                p.get('category', '?'), p.get('sessions_count', 0), p.get('total_events', 0))
+            line = '  - ' + desc
+            if char_count + len(line) > max_chars:
+                break
+            lines_out.append(line)
+            char_count += len(line)
+        if len(lines_out) > 1:
+            print('\n'.join(lines_out))
+        ss.update_state(layer0_injected_patterns=[p.get('category', '')[:100] for p in patterns[:10]])
+
     # Item 7: inject unresolved events from previous session
     unresolved = find_previous_session_unresolved()
     if unresolved:
         lines = ['[monitor:Layer0] Unresolved issues from previous session (highest priority):']
         for item in unresolved[:5]:
-            lines.append(f'  - {item}')
+            lines.append('  - ' + item)
         print('\n'.join(lines))
 
     # Reset per-session monitoring fields for the new session.
