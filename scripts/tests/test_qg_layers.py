@@ -96,6 +96,13 @@ class TestLayer2Detection(unittest.TestCase):
         self.assertIsNotNone(evt)
         self.assertEqual(evt['category'], 'LOOP_DETECTED')
 
+    def test_loop_empty_target_skipped(self):
+        # Bug 6 regression: Grep/Glob with no file_path or pattern must not trigger LOOP_DETECTED
+        from qg_layer2 import detect_loop
+        history = [('Grep', '')] * 3
+        evt = detect_loop('Grep', '', history, threshold=3)
+        self.assertIsNone(evt)
+
     def test_scope_creep(self):
         from qg_layer2 import detect_all_events
         state = self._state(layer1_scope_files=['auth.py'])

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "_comment": "Layer ENV config. All keys optional — omit any section to skip that check.",
+  "skip_git": false,
+  "git_branch": null,
+  "git_branch_severity": "warning",
+  "required_tools": ["python", "git", "jq"],
+  "required_env_vars": [],
+  "working_dir": null
+}
