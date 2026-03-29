@@ -538,5 +538,41 @@ class TestLayer25OutputValidity(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class TestLayer26ConsistencyEnforcement(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.tmp = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.tmp
+        ss.LOCK_PATH = self.tmp + '.lock'
+
+    def tearDown(self):
+        import qg_session_state as ss
+        for p in [self.tmp, self.tmp + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_detect_snake_case(self):
+        from qg_layer26 import detect_convention
+        content = 'def my_function():\n    pass\n'
+        conv = detect_convention(content)
+        self.assertEqual(conv.get('naming'), 'snake_case')
+
+    def test_detect_camel_case(self):
+        from qg_layer26 import detect_convention
+        content = 'def myFunction():\n    pass\n'
+        conv = detect_convention(content)
+        self.assertEqual(conv.get('naming'), 'camelCase')
+
+    def test_deviation_detected(self):
+        from qg_layer26 import check_deviation
+        devs = check_deviation({'naming': 'camelCase'}, {'naming': 'snake_case'})
+        self.assertTrue(len(devs) > 0)
+
+    def test_no_deviation_same_convention(self):
+        from qg_layer26 import check_deviation
+        devs = check_deviation({'naming': 'snake_case'}, {'naming': 'snake_case'})
+        self.assertEqual(devs, [])
+
+
 if __name__ == '__main__':
     unittest.main()
