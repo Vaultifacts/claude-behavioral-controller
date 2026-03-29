@@ -1740,6 +1740,81 @@ class TestLayer45Extra(unittest.TestCase):
         self.assertEqual(state3.get('active_task_description'), 'restored task')
 
 
+class TestLayer45Gaps1820(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.preserve_tmp = tempfile.mktemp(suffix='_preserve.json')
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock', self.preserve_tmp]:
+            try: os.unlink(p)
+            except: pass
+
+    def test_layer15_session_reads_in_preserve_keys(self):
+        import qg_layer45
+        self.assertIn('layer15_session_reads', qg_layer45.PRESERVE_KEYS)
+
+    def test_layer15_session_reads_preserved_and_restored(self):
+        import json, qg_layer45, qg_session_state as ss
+        state = ss.read_state()
+        state['session_uuid'] = 'uuid-gap18'
+        state['layer15_session_reads'] = ['file_a.py', 'file_b.py']
+        ss.write_state(state)
+        qg_layer45.PRESERVE_PATH = self.preserve_tmp
+        qg_layer45.handle_pre_compact()
+        state2 = ss.read_state()
+        state2['layer15_session_reads'] = []
+        ss.write_state(state2)
+        qg_layer45.handle_post_compact()
+        state3 = ss.read_state()
+        self.assertEqual(state3.get('layer15_session_reads'), ['file_a.py', 'file_b.py'])
+
+    def test_hash_mismatch_prints_warning(self):
+        import json, builtins, qg_layer45, qg_session_state as ss
+        state = ss.read_state()
+        state['session_uuid'] = 'uuid-gap19'
+        ss.write_state(state)
+        qg_layer45.PRESERVE_PATH = self.preserve_tmp
+        qg_layer45.handle_pre_compact()
+        with open(self.preserve_tmp, 'r') as f:
+            preserved = json.load(f)
+        preserved['pre_compact_hash'] = 'badhash1'
+        with open(self.preserve_tmp, 'w') as f:
+            json.dump(preserved, f)
+        captured = []
+        orig = builtins.print
+        builtins.print = lambda *a, **k: captured.append(' '.join(str(x) for x in a))
+        try:
+            qg_layer45.handle_post_compact()
+        finally:
+            builtins.print = orig
+        self.assertTrue(any('hash mismatch' in m for m in captured))
+
+    def test_uuid_mismatch_reinjects_critical_fields(self):
+        import json, qg_layer45, qg_session_state as ss
+        events = [{'category': 'LAZINESS', 'status': 'open', 'ts': 1.0}]
+        preserved = {
+            'session_uuid': 'old-uuid',
+            'pre_compact_hash': '',
+            'layer2_unresolved_events': events,
+            'layer35_recovery_events': [],
+            'active_task_description': 'critical task',
+        }
+        with open(self.preserve_tmp, 'w') as f:
+            json.dump(preserved, f)
+        state = ss.read_state()
+        state['session_uuid'] = 'new-uuid'
+        ss.write_state(state)
+        qg_layer45.PRESERVE_PATH = self.preserve_tmp
+        qg_layer45.handle_post_compact()
+        state2 = ss.read_state()
+        self.assertEqual(state2.get('layer2_unresolved_events'), events)
+        self.assertEqual(state2.get('active_task_description'), 'critical task')
+
+
 class TestLayer5Extra(unittest.TestCase):
     def setUp(self):
         import qg_session_state as ss

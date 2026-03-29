@@ -17,6 +17,7 @@ PRESERVE_KEYS = [
     'task_success_criteria', 'layer2_unresolved_events', 'layer35_recovery_events',
     'layer_env_baseline', 'layer17_verified_task_id', 'layer17_intent_text',
     'layer19_last_impact_level', 'layer19_last_impact_file',
+    'layer15_session_reads',
 ]
 
 
@@ -50,10 +51,19 @@ def handle_post_compact():
 
     state = ss.read_state()
     preserved_uuid = preserved.get('session_uuid')
+    stored_hash = preserved.get('pre_compact_hash', '')
+    if stored_hash and _state_hash(preserved) != stored_hash:
+        print('[monitor:WARN:layer4.5] Pre-compact hash mismatch — preserved state may be corrupted.')
     if not preserved_uuid:
         return
     if state.get('session_uuid') != preserved_uuid:
-        return  # Different session — don't restore
+        critical_keys = ['layer2_unresolved_events', 'layer35_recovery_events', 'active_task_description']
+        for k in critical_keys:
+            if preserved.get(k):
+                state[k] = preserved[k]
+        ss.write_state(state)
+        print('[monitor:layer4.5] UUID mismatch: re-injected critical fields from previous session.')
+        return
 
     restored = []
     for k in PRESERVE_KEYS:
