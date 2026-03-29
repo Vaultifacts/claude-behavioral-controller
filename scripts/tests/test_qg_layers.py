@@ -328,5 +328,68 @@ class TestLayer18HallucinationDetection(unittest.TestCase):
         self.assertTrue(ss.read_state().get('layer17_creating_new_artifacts'))
 
 
+class TestLayer35RecoveryTracking(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.tmp = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.tmp
+        ss.LOCK_PATH = self.tmp + '.lock'
+
+    def tearDown(self):
+        import qg_session_state as ss
+        for p in [self.tmp, self.tmp + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_fn_creates_recovery_event(self):
+        from qg_layer35 import layer35_create_recovery_event
+        import qg_session_state as ss
+        state = ss.read_state()
+        layer35_create_recovery_event('FN', ['claimed completion'], state, ['Edit'])
+        self.assertEqual(len(state['layer35_recovery_events']), 1)
+        self.assertEqual(state['layer35_recovery_events'][0]['status'], 'open')
+
+    def test_tp_creates_recovery_event(self):
+        from qg_layer35 import layer35_create_recovery_event
+        import qg_session_state as ss
+        state = ss.read_state()
+        layer35_create_recovery_event('TP', [], state, ['Bash'])
+        self.assertEqual(state['layer35_recovery_events'][0]['verdict'], 'TP')
+
+    def test_recovery_resolved_with_verify_tool(self):
+        from qg_layer35 import layer35_check_resolutions
+        import time, qg_session_state as ss
+        state = ss.read_state()
+        state['layer35_recovery_events'] = [{
+            'event_id': 'e1', 'verdict': 'FN', 'status': 'open',
+            'ts': time.time(), 'turn': 0, 'category': 'unverified',
+        }]
+        state['layer2_turn_history'] = [{}]  # 1 turn elapsed
+        layer35_check_resolutions(['Bash'], state)
+        self.assertEqual(state['layer35_recovery_events'][0]['status'], 'resolved')
+
+    def test_recovery_timed_out(self):
+        from qg_layer35 import layer35_check_resolutions
+        import time, qg_session_state as ss
+        state = ss.read_state()
+        state['layer35_recovery_events'] = [{
+            'event_id': 'e2', 'verdict': 'FN', 'status': 'open',
+            'ts': time.time() - 2000,  # 33+ minutes ago
+            'turn': 0, 'category': 'unverified',
+        }]
+        state['layer2_turn_history'] = []
+        layer35_check_resolutions(['Read'], state)
+        self.assertEqual(state['layer35_recovery_events'][0]['status'], 'timed_out')
+
+    def test_haiku_fn_falls_back_to_rules_on_no_api_key(self):
+        from qg_layer35 import detect_fn_signals
+        import qg_session_state as ss
+        state = ss.read_state()
+        # Rule-based: claims completion without verification output
+        response = 'All tests pass and everything is done and completed.'
+        signals = detect_fn_signals(response, [], '', state, use_haiku=False)
+        self.assertTrue(len(signals) > 0)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -923,6 +923,18 @@ if __name__ == "__main__":
 # available (json, os, re, datetime, _response_hash, LOG_PATH, etc.)
 import uuid as _uuid_mod, time as _time_mod
 
+try:
+    from qg_layer35 import (layer35_create_recovery_event as _l35_create,
+                             layer35_check_resolutions as _l35_check,
+                             detect_fn_signals as _detect_fn_signals,
+                             layer35_unresolved_lines as _l35_unresolved)
+except ImportError:
+    def _l35_create(*a, **kw): pass
+    def _l35_check(*a, **kw): pass
+    def _detect_fn_signals(response, tool_names, user_request, state, **kw):
+        return []
+    def _l35_unresolved(state): return []
+
 _QG_MONITOR = os.path.join(os.path.expanduser('~/.claude'), 'qg-monitor.jsonl')
 _QG_HISTORY = os.path.join(os.path.expanduser('~/.claude'), 'qg-session-history.md')
 _QG_ARCHIVE = os.path.join(os.path.expanduser('~/.claude'), 'qg-session-archive.md')
@@ -1000,6 +1012,7 @@ def _layer3_run(gate_blocked, block_reason, response, tool_names, user_request):
     if _ss is None:
         return 'UNKNOWN', '', None
 
+    _l35_check(list(tool_names or []), state)
     block_cat = (block_reason or '').split(':')[0].strip() if block_reason else ''
     confidence = _compute_confidence(gate_blocked, block_cat, state)
     stated_certainty = _extract_stated_certainty(response)
@@ -1007,9 +1020,11 @@ def _layer3_run(gate_blocked, block_reason, response, tool_names, user_request):
     if gate_blocked:
         verdict = 'TP' if confidence >= 0.60 else 'FP'
         fn_signals = []
+        _l35_create(verdict, [], state, list(tool_names or []))
     else:
-        fn_signals = _detect_fn_signals(response, state)
+        fn_signals = _detect_fn_signals(response, list(tool_names or []), user_request, state)
         verdict = 'FN' if fn_signals else 'TN'
+        _l35_create(verdict, fn_signals, state, list(tool_names or []))
 
     conf_level = 'certain' if confidence >= 0.85 else ('probable' if confidence >= 0.60 else 'uncertain')
 
@@ -1099,6 +1114,11 @@ def _layer4_checkpoint(state, _ss):
               'PLANNING': 1.3, 'DEEP': 1.5}.get(cat, 1.0)
         score = round((fn * 3 + l2_criticals * 2 + fp) / (total * cw), 3) if total > 0 else 0.0
 
+        _recovery = state.get('layer35_recovery_events', [])
+        r_open = sum(1 for e in _recovery if e.get('status') == 'open')
+        r_resolved = sum(1 for e in _recovery if e.get('status') == 'resolved')
+        r_timed_out = sum(1 for e in _recovery if e.get('status') == 'timed_out')
+
         entry = (
             f'## Session {ts}\n'
             f'session_uuid: {session_uuid}\n'
@@ -1106,7 +1126,9 @@ def _layer4_checkpoint(state, _ss):
             f'TP: {tp}  FP: {fp}  FN: {fn}  TN: {tn}  total: {total}\n'
             f'L2_criticals: {l2_criticals}\n'
             f'category: {cat}\n'
-            f'recovery_rate: N/A (Phase 2)\n\n'
+            f'recovery_rate: {r_resolved}/{r_resolved + r_timed_out + r_open} '
+            f'(resolved={r_resolved} timed_out={r_timed_out} open={r_open})\n'
+            + (chr(10).join(_l35_unresolved(state)) + chr(10) + chr(10) if _l35_unresolved(state) else chr(10))
         )
 
         history = ''
