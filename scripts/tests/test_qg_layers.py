@@ -272,5 +272,49 @@ class TestLayer17IntentVerification(unittest.TestCase):
         self.assertEqual(result['layer17_verified_task_id'], 'task-already')
 
 
+class TestLayer18HallucinationDetection(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.tmp = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.tmp
+        ss.LOCK_PATH = self.tmp + '.lock'
+
+    def tearDown(self):
+        import qg_session_state as ss
+        for p in [self.tmp, self.tmp + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_nonexistent_path_returns_false(self):
+        from qg_layer18 import check_path_exists
+        self.assertFalse(check_path_exists('/tmp/qg18_definitely_not_here_xyz.py'))
+
+    def test_existing_path_returns_true(self):
+        from qg_layer18 import check_path_exists
+        self.assertTrue(check_path_exists(__file__))
+
+    def test_missing_function_in_file_returns_false(self):
+        from qg_layer18 import check_function_in_file
+        import tempfile as _tf
+        with _tf.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+            f.write('def foo():\n    pass\n')
+            fname = f.name
+        try:
+            self.assertFalse(check_function_in_file(fname, 'def bar():'))
+        finally:
+            os.unlink(fname)
+
+    def test_present_function_in_file_returns_true(self):
+        from qg_layer18 import check_function_in_file
+        import tempfile as _tf
+        with _tf.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+            f.write('def foo():\n    pass\n')
+            fname = f.name
+        try:
+            self.assertTrue(check_function_in_file(fname, 'def foo():'))
+        finally:
+            os.unlink(fname)
+
+
 if __name__ == '__main__':
     unittest.main()
