@@ -32,7 +32,7 @@ def detect_loop(tool_name, target, history, threshold=3):
     return None
 
 
-def detect_all_events(tool_name, tool_input, tool_response, state, prev_calls):
+def detect_all_events(tool_name, tool_input, tool_response, state, prev_calls, turn_history=None):
     """Return list of violation event dicts for this tool call."""
     events = []
     reads = state.get('layer15_session_reads', [])
@@ -63,6 +63,27 @@ def detect_all_events(tool_name, tool_input, tool_response, state, prev_calls):
         if not any(fp.endswith(s) or s in fp for s in scope):
             events.append({'category': 'SCOPE_CREEP', 'severity': 'warning',
                            'detection_signal': f'{fp!r} outside task scope'})
+
+    # ASSUMPTION: Write to a file never read this session
+    if tool_name == 'Write' and fp and fp not in reads:
+        events.append({'category': 'ASSUMPTION', 'severity': 'info',
+                       'detection_signal': f'Write on {fp!r} without prior Read'})
+
+    # INCOMPLETE_COVERAGE: editing same file repeatedly while other scope files untouched
+    if tool_name in ('Edit', 'Write') and fp and len(scope) > 1 and turn_history:
+        recent_targets = [e.get('target', '') for e in turn_history[-5:]]
+        if recent_targets.count(fp) >= 2:
+            scope_touched = set(t for t in recent_targets if any(t.endswith(s) or s in t for s in scope))
+            if len(scope_touched) < len(scope):
+                events.append({'category': 'INCOMPLETE_COVERAGE', 'severity': 'info',
+                               'detection_signal': f'Repeated edits to {fp!r}, {len(scope)-len(scope_touched)} scope file(s) untouched'})
+
+    # OUTPUT_UNVALIDATED: consecutive Edit/Write with no Read/Bash between
+    if tool_name in ('Edit', 'Write') and fp:
+        recent_tools = [e.get('tool', '') for e in prev_calls[-3:]]
+        if len(recent_tools) >= 2 and all(t in ('Edit', 'Write') for t in recent_tools[-2:]):
+            events.append({'category': 'OUTPUT_UNVALIDATED', 'severity': 'info',
+                           'detection_signal': 'Consecutive edits with no Read/Bash validation'})
 
     return events
 
@@ -95,7 +116,7 @@ def main():
                   str(ti.get('command', ''))[:60])
     prev_calls = [{'tool': e['tool'], 'response': e.get('resp', '')} for e in turn_history[-3:]]
 
-    events = detect_all_events(tool_name, tool_input, tool_response, state, prev_calls)
+    events = detect_all_events(tool_name, tool_input, tool_response, state, prev_calls, turn_history)
 
     # Impact severity adjustment: promote severity on HIGH/CRITICAL edits
     impact_level = state.get("layer19_last_impact_level", "LOW")

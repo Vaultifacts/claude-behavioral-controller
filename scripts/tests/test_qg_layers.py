@@ -1054,6 +1054,63 @@ class TestLayer2Extra(unittest.TestCase):
         if events:
             self.assertIn(events[0]['severity'], ('warning', 'critical'))
 
+    def test_assumption_write_without_prior_read(self):
+        from qg_layer2 import detect_all_events
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer15_session_reads'] = []
+        events = detect_all_events('Write', {'file_path': '/new_file.py'}, '', state, [])
+        cats = [e['category'] for e in events]
+        self.assertIn('ASSUMPTION', cats)
+
+    def test_assumption_suppressed_when_file_already_read(self):
+        from qg_layer2 import detect_all_events
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer15_session_reads'] = ['/already_read.py']
+        events = detect_all_events('Write', {'file_path': '/already_read.py'}, '', state, [])
+        cats = [e['category'] for e in events]
+        self.assertNotIn('ASSUMPTION', cats)
+
+    def test_incomplete_coverage_repeated_edits_untouched_scope(self):
+        from qg_layer2 import detect_all_events
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer1_scope_files'] = ['/scope/a.py', '/scope/b.py']
+        turn_history = [
+            {'tool': 'Edit', 'target': '/scope/a.py', 'resp': ''},
+            {'tool': 'Edit', 'target': '/scope/a.py', 'resp': ''},
+        ]
+        events = detect_all_events('Edit', {'file_path': '/scope/a.py'}, '', state, [], turn_history=turn_history)
+        cats = [e['category'] for e in events]
+        self.assertIn('INCOMPLETE_COVERAGE', cats)
+
+    def test_output_unvalidated_consecutive_edits(self):
+        from qg_layer2 import detect_all_events
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer15_session_reads'] = ['/file.py']
+        prev_calls = [
+            {'tool': 'Edit', 'response': ''},
+            {'tool': 'Edit', 'response': ''},
+        ]
+        events = detect_all_events('Edit', {'file_path': '/file.py'}, '', state, prev_calls)
+        cats = [e['category'] for e in events]
+        self.assertIn('OUTPUT_UNVALIDATED', cats)
+
+    def test_output_unvalidated_suppressed_after_bash(self):
+        from qg_layer2 import detect_all_events
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer15_session_reads'] = ['/file.py']
+        prev_calls = [
+            {'tool': 'Edit', 'response': ''},
+            {'tool': 'Bash', 'response': ''},
+        ]
+        events = detect_all_events('Edit', {'file_path': '/file.py'}, '', state, prev_calls)
+        cats = [e['category'] for e in events]
+        self.assertNotIn('OUTPUT_UNVALIDATED', cats)
+
 
 class TestLayer35Extra(unittest.TestCase):
     def setUp(self):
