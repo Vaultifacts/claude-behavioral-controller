@@ -32,5 +32,18 @@
   },
   "layer6": {"pattern_min_sessions": 3, "pattern_min_pct": 15, "pattern_retirement_sessions": 3},
   "layer9": {"calibration_staleness_sessions": 30, "min_responses_before_recalibration": 5},
-  "layer10": {"rotation_threshold_lines": 10000, "integrity_check_interval_days": 7}
+  "layer10": {"rotation_threshold_lines": 10000, "integrity_check_interval_days": 7},
+  "layer17": {
+    "complexity_threshold": ["DEEP"],
+    "high_impact_threshold": ["HIGH", "CRITICAL"]
+  },
+  "layer18": {
+    "check_function_existence": true,
+    "suppress_on_creating_artifacts": true
+  },
+  "layer19": {
+    "low_threshold": 5,
+    "medium_threshold": 20,
+    "dynamic_import_warning": true
+  }
 }

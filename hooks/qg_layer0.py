@@ -76,6 +76,14 @@ def main():
         layer15_override_pending=None,
         notification_delivery=[],
         notification_pending_criticals=[],
+        layer17_verified_task_id=None,
+        layer17_intent_text='',
+        layer17_intent_verified_ts=0,
+        layer17_creating_new_artifacts=False,
+        layer19_last_impact_level='LOW',
+        layer19_last_impact_file='',
+        layer19_impact_cache={},
+        layer5_subagents={},
     )
 
 if __name__ == '__main__':
