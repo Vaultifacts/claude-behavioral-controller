@@ -26,11 +26,11 @@ def _is_duplicate(state, layer, category, file_path):
     return False
 
 
-def _record(state, layer, category, file_path, message, status):
+def _record(state, layer, category, file_path, message, status, priority=None):
     state.setdefault('notification_delivery', []).append({
         'dedup_key': _dedup_key(layer, category, file_path),
         'layer': layer, 'category': category, 'file': file_path,
-        'message': message[:200], 'status': status, 'ts': time.time(),
+        'message': message[:200], 'status': status, 'priority': priority, 'ts': time.time(),
     })
 
 
@@ -51,17 +51,17 @@ def notify(priority, layer, category, file_path, message, hook_context):
     if priority == 'INFO':
         _write_jsonl({'priority': 'INFO', 'layer': layer, 'category': category,
                      'file': file_path, 'message': message[:200], 'ts': time.time()})
-        _record(state, layer, category, file_path, message, 'logged')
+        _record(state, layer, category, file_path, message, 'delivered', 'INFO')
         ss.write_state(state)
         return None
 
     if _is_duplicate(state, layer, category, file_path):
-        _record(state, layer, category, file_path, message, 'dropped')
+        _record(state, layer, category, file_path, message, 'dropped', priority)
         ss.write_state(state)
         return None
 
     if priority == 'WARNING':
-        _record(state, layer, category, file_path, message, 'queued_warning')
+        _record(state, layer, category, file_path, message, 'queued', 'WARNING')
         ss.write_state(state)
         return None
 
@@ -72,11 +72,11 @@ def notify(priority, layer, category, file_path, message, hook_context):
                 'layer': layer, 'category': category, 'file': file_path,
                 'message': message, 'ts': time.time(), 'status': 'queued',
             })
-            _record(state, layer, category, file_path, message, 'queued')
+            _record(state, layer, category, file_path, message, 'queued', 'CRITICAL')
             ss.write_state(state)
             return None
         _turn_critical_count += 1
-        _record(state, layer, category, file_path, message, 'delivered')
+        _record(state, layer, category, file_path, message, 'delivered', 'CRITICAL')
         ss.write_state(state)
         return {'additionalContext': f'[monitor:CRITICAL:{layer}:{category}] {message}'}
     else:
@@ -85,7 +85,7 @@ def notify(priority, layer, category, file_path, message, hook_context):
             'layer': layer, 'category': category, 'file': file_path,
             'message': message, 'ts': time.time(), 'status': 'queued',
         })
-        _record(state, layer, category, file_path, message, 'queued')
+        _record(state, layer, category, file_path, message, 'queued', 'CRITICAL')
         ss.write_state(state)
         return None
 
@@ -109,7 +109,7 @@ def flush_warnings():
     """Collect queued WARNINGs for Stop-time batch delivery. Returns text or None."""
     state = ss.read_state()
     warnings = [d for d in state.get('notification_delivery', [])
-                if d.get('status') == 'queued_warning']
+                if d.get('status') == 'queued' and d.get('priority') == 'WARNING']
     if not warnings:
         return None
     for d in warnings:
