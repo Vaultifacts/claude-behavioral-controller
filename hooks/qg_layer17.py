@@ -28,6 +28,9 @@ def should_verify(state, cfg):
     threshold = cfg.get('complexity_threshold', ['DEEP'])
     if category in threshold:
         return True
+    # PLANNING tasks with >=2 subtasks also trigger verification
+    if category == 'PLANNING' and state.get('layer1_subtask_count', 0) >= 2:
+        return True
     high_impact = cfg.get('high_impact_threshold', ['HIGH', 'CRITICAL'])
     impact = state.get('layer19_last_impact_level', 'LOW')
     return impact in high_impact

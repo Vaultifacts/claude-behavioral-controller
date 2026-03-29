@@ -1436,6 +1436,45 @@ class TestLayer17Extra(unittest.TestCase):
         self.assertEqual(captured, [])
 
 
+class TestLayer17Gap16(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_planning_with_two_subtasks_triggers_verify(self):
+        from qg_layer17 import should_verify
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer1_task_category'] = 'PLANNING'
+        state['layer1_subtask_count'] = 2
+        self.assertTrue(should_verify(state, {}))
+
+    def test_planning_with_one_subtask_does_not_trigger(self):
+        from qg_layer17 import should_verify
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer1_task_category'] = 'PLANNING'
+        state['layer1_subtask_count'] = 1
+        state['layer19_last_impact_level'] = 'LOW'
+        self.assertFalse(should_verify(state, {}))
+
+    def test_planning_with_no_subtask_count_does_not_trigger(self):
+        from qg_layer17 import should_verify
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer1_task_category'] = 'PLANNING'
+        # layer1_subtask_count defaults to 0
+        state['layer19_last_impact_level'] = 'LOW'
+        self.assertFalse(should_verify(state, {}))
+
+
 class TestLayer18Extra(unittest.TestCase):
     def setUp(self):
         import qg_session_state as ss
