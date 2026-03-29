@@ -942,7 +942,7 @@ _QG_ARCHIVE = os.path.join(os.path.expanduser('~/.claude'), 'qg-session-archive.
 _LAZINESS_TEXT_RE = re.compile(
     r'\b(done|completed?|fixed|all (?:tests?|checks?) pass|verified|confirmed|finished)\b',
     re.IGNORECASE)
-_STATED_HIGH_RE = re.compile(r"\b(I'?m certain|definitely|I know|this will work|confirmed)\b", re.IGNORECASE)
+_STATED_HIGH_RE = re.compile(r"\b(I'?m certain|definitely|I know|this will work|confirmed|guaranteed|100%)\b", re.IGNORECASE)
 _STATED_MED_RE = re.compile(r"\b(I believe|should|likely|expect)\b", re.IGNORECASE)
 _STATED_LOW_RE = re.compile(r"\b(might|possibly|I think|probably)\b", re.IGNORECASE)
 _VERIFY_OUTPUT_RE = re.compile(r'(===|---|\d+ passed|\d+ failed|exit code \d|>>|\$\s)')

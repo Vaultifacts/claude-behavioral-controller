@@ -8,7 +8,7 @@ import qg_session_state as ss
 
 CALIBRATION_PATH = os.path.expanduser('~/.claude/qg-calibration.jsonl')
 HIGH_RE = re.compile(
-    r"\b(I'?m certain|definitely|I know for|this will work|guaranteed|100%)\b",
+    r"\b(I'?m certain|definitely|I know|this will work|guaranteed|100%|confirmed)\b",
     re.IGNORECASE)
 MED_RE = re.compile(
     r'\b(I believe|should work|likely|I expect|I think this will)\b',
