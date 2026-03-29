@@ -686,5 +686,47 @@ class TestLayer9ConfidenceCalibration(unittest.TestCase):
         self.assertIsNone(extract_certainty('Here is the updated implementation.'))
 
 
+class TestLayer10AuditIntegrity(unittest.TestCase):
+    def test_valid_jsonl_no_corrupt(self):
+        from qg_layer10 import validate_jsonl
+        f = tempfile.mktemp(suffix='.jsonl')
+        qf = tempfile.mktemp(suffix='.jsonl')
+        open(f, 'w').write('{"event_id": "1"}\n{"event_id": "2"}\n')
+        valid, corrupt = validate_jsonl(f, qf)
+        for p in [f, qf]:
+            try: os.unlink(p)
+            except: pass
+        self.assertEqual(len(corrupt), 0)
+        self.assertEqual(len(valid), 2)
+
+    def test_corrupt_line_quarantined(self):
+        from qg_layer10 import validate_jsonl
+        f = tempfile.mktemp(suffix='.jsonl')
+        qf = tempfile.mktemp(suffix='.jsonl')
+        open(f, 'w').write('{"event_id": "1"}\n{NOT JSON}\n{"event_id": "3"}\n')
+        valid, corrupt = validate_jsonl(f, qf)
+        for p in [f, qf]:
+            try: os.unlink(p)
+            except: pass
+        self.assertEqual(len(corrupt), 1)
+        self.assertEqual(len(valid), 2)
+
+    def test_rotation_triggers_at_threshold(self):
+        import glob
+        from qg_layer10 import maybe_rotate
+        f = tempfile.mktemp(suffix='.jsonl')
+        with open(f, 'w') as fh:
+            for i in range(11):
+                fh.write('{{"n": {}}}\n'.format(i))
+        rotated = maybe_rotate(f, threshold=10)
+        for archived in glob.glob(f.replace('.jsonl', '-*.jsonl')):
+            try: os.unlink(archived)
+            except: pass
+        if not rotated:
+            try: os.unlink(f)
+            except: pass
+        self.assertTrue(rotated)
+
+
 if __name__ == '__main__':
     unittest.main()

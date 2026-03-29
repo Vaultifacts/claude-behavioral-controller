@@ -1163,28 +1163,18 @@ def cmd_analyze():
 
 def cmd_integrity():
     """qg integrity — audit trail integrity check."""
-    import json, os
-    path = os.path.expanduser('~/.claude/qg-monitor.jsonl')
-    if not os.path.exists(path):
-        print('qg-monitor.jsonl not found — no events logged yet.')
-        return
-    total = bad = 0
-    seen_ids = set()
-    with open(path, 'r', encoding='utf-8') as f:
-        for i, line in enumerate(f, 1):
-            total += 1
-            try:
-                e = json.loads(line)
-                eid = e.get('event_id', '')
-                if eid in seen_ids:
-                    print(f'  Line {i}: duplicate event_id {eid!r}')
-                    bad += 1
-                seen_ids.add(eid)
-            except json.JSONDecodeError:
-                print(f'  Line {i}: invalid JSON')
-                bad += 1
-    print(f'Audit trail: {total} lines, {bad} issue(s).')
-    print('Integrity: OK' if bad == 0 else 'Integrity: ISSUES FOUND')
+    import sys as _sys
+    _sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+    from qg_layer10 import run_integrity_check
+    result = run_integrity_check()
+    print('Audit trail integrity check:')
+    print('  Valid lines:   {}'.format(result['valid_lines']))
+    print('  Corrupt lines: {}'.format(result['corrupt_lines']))
+    print('  Status:        {}'.format(result['status']))
+    if result['rotated']:
+        print('  Rotated to monthly archive.')
+    if result['corrupt_lines'] > 0:
+        print('Corrupt entries quarantined to ~/.claude/qg-quarantine.jsonl')
 
 
 def cmd_rules():
