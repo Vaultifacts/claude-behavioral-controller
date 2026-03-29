@@ -2,7 +2,10 @@
 """Layer 10 -- Audit Trail Integrity.
 Validates JSONL files, quarantines corrupt lines, rotates at 10,000 lines.
 """
-import json, os, time
+import json, os, sys, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import qg_session_state as ss
+import qg_notification_router as nr
 
 MONITOR_PATH = os.path.expanduser('~/.claude/qg-monitor.jsonl')
 QUARANTINE_PATH = os.path.expanduser('~/.claude/qg-quarantine.jsonl')
@@ -55,10 +58,20 @@ def maybe_rotate(path, threshold=ROTATION_THRESHOLD):
 
 
 def run_integrity_check(monitor_path=None, quarantine_path=None):
+    # 7-day trigger guard
+    try:
+        with open(os.path.expanduser('~/.claude/qg-rules.json'), 'r', encoding='utf-8') as f:
+            interval_days = json.load(f).get('layer10', {}).get('integrity_check_interval_days', 7)
+    except Exception:
+        interval_days = 7
+    state = ss.read_state()
+    last_ts = state.get('last_integrity_check_ts', 0)
+    if time.time() - last_ts < interval_days * 86400:
+        return {'ts': time.strftime('%Y-%m-%dT%H:%M:%S'), 'status': 'skipped_throttled'}
     path = monitor_path or MONITOR_PATH
     valid, corrupt = validate_jsonl(path, quarantine_path)
     rotated = maybe_rotate(path)
-    return {
+    result = {
         'ts': time.strftime('%Y-%m-%dT%H:%M:%S'),
         'path': path,
         'valid_lines': len(valid),
@@ -66,6 +79,12 @@ def run_integrity_check(monitor_path=None, quarantine_path=None):
         'rotated': rotated,
         'status': 'ok' if not corrupt else 'issues_found',
     }
+    state['last_integrity_check_ts'] = time.time()
+    if len(corrupt) > 0:
+        nr.notify('CRITICAL', 'layer10', 'INTEGRITY', None,
+                  '{} corrupt lines in audit trail'.format(len(corrupt)), 'async')
+    ss.write_state(state)
+    return result
 
 
 if __name__ == '__main__':
