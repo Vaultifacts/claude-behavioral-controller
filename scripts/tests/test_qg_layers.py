@@ -671,5 +671,20 @@ class TestLayer7RuleRefinement(unittest.TestCase):
         self.assertEqual(result, {})
 
 
+class TestLayer9ConfidenceCalibration(unittest.TestCase):
+    def test_high_certainty_extracted(self):
+        from qg_layer9 import extract_certainty
+        self.assertEqual(extract_certainty("I'm certain this will work"), 'high')
+        self.assertEqual(extract_certainty('definitely the right approach'), 'high')
+
+    def test_medium_certainty_extracted(self):
+        from qg_layer9 import extract_certainty
+        self.assertEqual(extract_certainty('I believe this should work'), 'medium')
+
+    def test_no_certainty_signal_returns_none(self):
+        from qg_layer9 import extract_certainty
+        self.assertIsNone(extract_certainty('Here is the updated implementation.'))
+
+
 if __name__ == '__main__':
     unittest.main()
