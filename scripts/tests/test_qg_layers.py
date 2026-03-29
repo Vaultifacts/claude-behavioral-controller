@@ -1366,6 +1366,43 @@ class TestLayer35Extra(unittest.TestCase):
         self.assertIsInstance(result, list)
 
 
+    def test_partial_status_same_turn_verify(self):
+        import time
+        from qg_layer35 import layer35_check_resolutions
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer2_turn_history'] = ['t1', 't2']
+        state['layer35_recovery_events'] = [{
+            'status': 'open', 'ts': time.time(), 'turn': 2,
+            'event_id': 'e1', 'verdict': 'FN', 'category': 'LAZINESS',
+            'task_id': 'task1', 'session_uuid': 'uuid1', 'tools_at_flag': [],
+        }]
+        layer35_check_resolutions(['Bash'], state)
+        evt = state['layer35_recovery_events'][0]
+        self.assertEqual(evt['status'], 'partial')
+
+    def test_introduces_new_problem_flag_set(self):
+        import time
+        from qg_layer35 import layer35_check_resolutions
+        import qg_session_state as ss
+        now = time.time()
+        state = ss.read_state()
+        state['layer2_turn_history'] = ['t1', 't2', 't3', 't4']
+        state['layer35_recovery_events'] = [
+            {'status': 'open', 'ts': now - 100, 'turn': 3,
+             'event_id': 'e1', 'verdict': 'FN', 'category': 'LAZINESS',
+             'task_id': 'task1', 'session_uuid': 'uuid1', 'tools_at_flag': []},
+            {'status': 'open', 'ts': now - 50, 'turn': 3,
+             'event_id': 'e2', 'verdict': 'FN', 'category': 'LOOP',
+             'task_id': 'task1', 'session_uuid': 'uuid1', 'tools_at_flag': []},
+        ]
+        layer35_check_resolutions(['Read'], state)
+        events = state['layer35_recovery_events']
+        e1 = next(e for e in events if e['event_id'] == 'e1')
+        self.assertEqual(e1['status'], 'resolved')
+        self.assertTrue(e1.get('introduces_new_problem'))
+
+
 class TestLayer17Extra(unittest.TestCase):
     def setUp(self):
         import qg_session_state as ss

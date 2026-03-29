@@ -54,6 +54,13 @@ def layer35_check_resolutions(tool_names, state):
             continue
         if has_verify and turns_elapsed > 0:
             evt['status'] = 'resolved'
+            event_ts = evt.get('ts', 0)
+            newer_open = any(e for e in events
+                             if e.get('status') == 'open' and e.get('ts', 0) > event_ts)
+            if newer_open:
+                evt['introduces_new_problem'] = True
+        elif has_verify and turns_elapsed == 0:
+            evt['status'] = 'partial'
 
     state['layer35_recovery_events'] = events
 

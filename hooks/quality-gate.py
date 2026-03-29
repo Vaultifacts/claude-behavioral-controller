@@ -1176,6 +1176,11 @@ def _layer4_checkpoint(state, _ss):
 
         with open(_QG_HISTORY, 'w', encoding='utf-8') as f:
             f.write('\n'.join(entries))
+        if fn >= 2:
+            import qg_notification_router as _nr
+            _nr.notify('WARNING', 'layer4', 'FN_PATTERN', None,
+                       f'Session ended with {fn} FN events -- Layer 7 rule refinement recommended',
+                       'stop')
         _trigger_phase3_layers(state)
     except Exception:
         pass
