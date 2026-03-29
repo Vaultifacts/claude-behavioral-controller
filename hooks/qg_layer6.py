@@ -27,7 +27,9 @@ def load_monitor_events(monitor_path=None):
     return events
 
 
-def analyze_patterns(events, min_sessions=3, min_pct=0.15, window=10):
+def analyze_patterns(events, min_sessions=3, min_pct=0.15, window=10, project_dir=None):
+    if project_dir:
+        events = [e for e in events if e.get("working_dir", project_dir) == project_dir]
     if not events:
         return []
     sessions = {}
@@ -58,9 +60,9 @@ def analyze_patterns(events, min_sessions=3, min_pct=0.15, window=10):
     return sorted(patterns, key=lambda x: -x["sessions_count"])
 
 
-def run_analysis(monitor_path=None, output_path=None):
+def run_analysis(monitor_path=None, output_path=None, project_dir=None):
     events = load_monitor_events(monitor_path)
-    patterns = analyze_patterns(events)
+    patterns = analyze_patterns(events, project_dir=project_dir)
     result = {
         "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "patterns": patterns,
@@ -79,7 +81,7 @@ def main():
     if (time.time() - last_ts) < 3600:
         return
     try:
-        run_analysis()
+        run_analysis(project_dir=os.getcwd())
         state["layer6_last_analysis_ts"] = time.time()
         ss.write_state(state)
     except Exception:

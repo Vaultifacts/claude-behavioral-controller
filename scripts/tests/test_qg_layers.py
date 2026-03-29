@@ -2171,6 +2171,25 @@ class TestLayer6Extra(unittest.TestCase):
                 except: pass
 
 
+    def test_project_dir_filter_isolates_events(self):
+        from qg_layer6 import analyze_patterns
+        events = []
+        for i in range(1, 5):
+            events.append({'session_uuid': 's{}'.format(i), 'category': 'LAZINESS',
+                           'working_dir': '/proj/a', 'ts': '2026-01-01T00:00:00'})
+        for i in range(5, 9):
+            events.append({'session_uuid': 's{}'.format(i), 'category': 'LOOP',
+                           'working_dir': '/proj/b', 'ts': '2026-01-01T00:00:00'})
+        result_a = analyze_patterns(events, min_sessions=3, min_pct=0.1, project_dir='/proj/a')
+        result_b = analyze_patterns(events, min_sessions=3, min_pct=0.1, project_dir='/proj/b')
+        cats_a = [p['category'] for p in result_a]
+        cats_b = [p['category'] for p in result_b]
+        self.assertIn('LAZINESS', cats_a)
+        self.assertNotIn('LOOP', cats_a)
+        self.assertIn('LOOP', cats_b)
+        self.assertNotIn('LAZINESS', cats_b)
+
+
 class TestLayer7Extra(unittest.TestCase):
     def test_find_repeat_fns_empty_records(self):
         from qg_layer7 import find_repeat_fns
