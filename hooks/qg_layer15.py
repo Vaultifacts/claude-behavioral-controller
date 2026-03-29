@@ -113,6 +113,9 @@ def main():
                       f'Rule {rule_id!r} violated {counts[rule_id]}x this session.', 'pretooluse')
 
     action = result['action']
+    impact_level = state.get('layer19_last_impact_level', 'LOW')
+    if impact_level in ('HIGH', 'CRITICAL') and action == 'warn':
+        action = 'block'
     message = result['message']
     if action == 'info':
         print(json.dumps({'additionalContext': f'[monitor:INFO:layer1.5] {message}'}))
