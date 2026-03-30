@@ -987,6 +987,10 @@ def _compute_confidence(gate_blocked, block_category, state):
         score -= 0.15
     elif _unc == 'MEDIUM':
         score -= 0.08
+    # Gap #33: repeated scope mismatches down-weight confidence
+    _mismatches = state.get('layer17_mismatch_count', 0)
+    if _mismatches:
+        score -= min(_mismatches * 0.05, 0.15)
     return max(0.01, min(0.99, score))
 
 

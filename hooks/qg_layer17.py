@@ -92,6 +92,8 @@ def main():
             if scope_files and file_path:
                 basename = os.path.basename(file_path)
                 if not any(s in file_path or s in basename for s in scope_files):
+                    state['layer17_mismatch_count'] = state.get('layer17_mismatch_count', 0) + 1
+                    ss.write_state(state)
                     _write_mismatch_event(state, file_path, scope_files)
         return
 
