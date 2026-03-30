@@ -542,6 +542,30 @@ def mechanical_checks(tool_names, edited_paths, bash_commands, failed_commands, 
                 return None  # numbered-selection: single digit selects from prior list, Layer 2 handles
             return "OVERCONFIDENCE: Cites specific test counts but no verification command ran this response. Re-run and quote the output inline."  # SMOKE:7
 
+    # Check: No verification ran but response asserts verifiable outcomes without inline evidence
+    if not has_verification and response:
+        _vclaim_re = re.compile(
+            r'\b(?:'
+            r'all\s+(?:tests?\s+pass(?:ed)?|checks?\s+pass(?:ed)?|gaps?\s+(?:done|complete(?:d)?)|tasks?\s+(?:done|complete(?:d)?))|'
+            r'(?:\d+\s+)?(?:unit|smoke)\s+tests?\s+pass(?:ed)?|'
+            r'tests?\s+pass(?:ed)?\s*[.,]|'
+            r'fully\s+(?:complete(?:d)?|verified|tested)|'
+            r'all\s+(?:\w+\s+){0,4}(?:verified|confirmed|complete(?:d)?|pass(?:ed)?)'
+            r')',
+            re.IGNORECASE
+        )
+        _vevid_re = re.compile(
+            r'(?:===.*===|`[^`\n]{5,}`|\d+\s+passed,?\s*\d+\s+failed|\d+\s+passed\b|'
+            r'\bexit\s*(?:code\s*)?\d+\b|Results?:\s*\d+|\d+\s+total)',
+            re.IGNORECASE
+        )
+        if _vclaim_re.search(response) and not _vevid_re.search(response):
+            if not _check_count_grace(response):
+                if not (user_request and _CONFIDENCE_CHALLENGE_RE.search(user_request)):
+                    if not (user_request and '<task-notification>' in user_request):
+                        if not (user_request and user_request.strip() in {'1','2','3','4','5','6','7','8','9'}):
+                            return "OVERCONFIDENCE: Claims verifiable outcome with no tools run and no output quoted inline. Run verification and paste key output."  # SMOKE:new
+
     # Check: User listed N items but far fewer files were edited
     if has_code_edit and user_request:
         item_count = _count_user_items(user_request)
