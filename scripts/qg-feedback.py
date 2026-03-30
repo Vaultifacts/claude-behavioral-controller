@@ -1,6 +1,6 @@
 """
 qg-feedback.py — Quality gate feedback CLI.
-Usage via alias: qg fp | tp | miss | report | failures | failures add | trend | precision | scan
+Usage via alias: qg fp | tp | miss | report | failures | milestone | trend | precision | scan | weekly | coverage | auto-detect | cross-check | shadow | monitor | analyze | integrity | rules
 
   qg fp                  — Mark the most recent override as a confirmed false positive
   qg tp                  — Mark the most recent override as a confirmed true positive
@@ -14,7 +14,7 @@ Usage via alias: qg fp | tp | miss | report | failures | failures add | trend | 
   qg precision           — Estimate precision per category using override records as FP signal
   qg scan                — Scan recent PASS entries for structural false-negative signals
   qg weekly              — Compare this week's quality gate metrics against last week
-  qg coverage            — Show which quality-gate.py branches have smoke test coverage
+  qg coverage [--diff]   — Show which quality-gate.py branches have smoke test coverage
   qg auto-detect         — Auto-detect potential false positives from recent session block rate
   qg cross-check         — Cross-check quality-gate.py vs quality-gate-analyst.py for consistency
   qg shadow [N]          — Show Ollama shadow vs Haiku agreement (last N); --diff, --clear, --trend
@@ -1440,7 +1440,7 @@ def main():
             cmd_rules()
     else:
         print(f'Unknown command: {cmd}')
-        print('Usage: qg fp | tp | miss | report | failures | failures add "desc" | failures close N "reason" | milestone "desc" | auto-detect | cross-check | trend [N] | precision | scan | weekly | coverage [--diff] | shadow [N] [--diff] [--clear] [--trend]')
+        print('Usage: qg fp | tp | miss | report | failures | milestone | auto-detect | cross-check | trend [N] | precision | scan | weekly | coverage [--diff] | shadow [N] [--diff] [--clear] [--trend] | monitor | analyze | integrity | rules [apply|reject N]')
         sys.exit(1)
 
 
