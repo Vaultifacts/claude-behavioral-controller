@@ -4,7 +4,7 @@ SessionStart: validates environment, captures baseline.
 PreToolUse: re-validates if file path is outside working directory.
 Dispatches on payload['hook_event_name'].
 """
-import json, os, shutil, subprocess, sys, time
+import json, os, re, shutil, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import qg_session_state as ss
 
@@ -75,6 +75,21 @@ def run_session_start(payload):
         if config.get('working_dir'):
             baseline['working_dir'] = config['working_dir']
 
+    # Item 5: test baseline capture
+    test_cmd = config.get('test_command') if config else None
+    if test_cmd and not ss.read_state().get('layer_env_test_baseline'):
+        try:
+            timeout = int(config.get('test_timeout_sec', 30))
+            r = subprocess.run(test_cmd, shell=True, capture_output=True,
+                               text=True, timeout=timeout)
+            out = r.stdout + r.stderr
+            m = re.search(r'(\d+) passed', out)
+            m2 = re.search(r'(\d+) failed', out)
+            passed_n = int(m.group(1)) if m else 0
+            failed_n = int(m2.group(1)) if m2 else 0
+            ss.update_state(layer_env_test_baseline=[[passed_n, failed_n]])
+        except Exception:
+            pass
     ss.update_state(layer_env_baseline=baseline)
     if messages:
         print('\n'.join(messages))
