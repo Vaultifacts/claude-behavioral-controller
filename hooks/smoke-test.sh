@@ -4385,6 +4385,135 @@ print('t117d_ok')
 " 2>/dev/null | grep -q 't117d_ok' && ok "[117] L2.7 no-test-file triggers hookSpecificOutput" || fail "[117] L2.7 no-test-file triggers hookSpecificOutput"
 
 
+
+# [118] Smoke tests for gap implementations: #29 (DEEP gate), #34 (import check), #35 (URL warn), #39 (timeout escalation)
+echo ""
+echo "[118] Gap implementations: #29/#34/#35/#39"
+
+# [118a] gap#29: DEEP gate fires when no session reads
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, importlib.util
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ss.STATE_PATH = tempfile.mktemp(suffix='.json')
+state = ss.read_state()
+state['session_uuid'] = 'test-118a'
+state['active_task_id'] = 'task-118a'
+state['active_task_description'] = 'refactor the entire codebase'
+state['layer1_task_category'] = 'DEEP'
+state['layer15_session_reads'] = []
+ss.write_state(state)
+spec = importlib.util.spec_from_file_location('pch', os.path.expanduser('~/.claude/hooks/precheck-hook.py'))
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+extra_lines, _ = mod._run_layer1('refactor the entire codebase', 'DEEP', state)
+found = any('DEEP task' in l for l in extra_lines)
+print('t118a_ok' if found else 't118a_FAIL:' + str(extra_lines))
+" 2>/dev/null | grep -q "t118a_ok" && ok "[118] gap#29: DEEP gate fires when no session reads" || fail "[118] gap#29: DEEP gate fires when no session reads"
+
+# [118b] gap#29: DEEP gate silent when session reads exist
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, importlib.util
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ss.STATE_PATH = tempfile.mktemp(suffix='.json')
+state = ss.read_state()
+state['session_uuid'] = 'test-118b'
+state['active_task_id'] = 'task-118b'
+state['active_task_description'] = 'refactor the entire codebase'
+state['layer1_task_category'] = 'DEEP'
+state['layer15_session_reads'] = ['/some/file.py']
+ss.write_state(state)
+spec = importlib.util.spec_from_file_location('pch', os.path.expanduser('~/.claude/hooks/precheck-hook.py'))
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+extra_lines, _ = mod._run_layer1('refactor the entire codebase', 'DEEP', state)
+found = any('DEEP task' in l for l in extra_lines)
+print('t118b_ok' if not found else 't118b_FAIL')
+" 2>/dev/null | grep -q "t118b_ok" && ok "[118] gap#29: DEEP gate silent when session reads exist" || fail "[118] gap#29: DEEP gate silent when session reads exist"
+
+# [118c] gap#34: check_imports_in_file returns False when import absent
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_layer18
+tf = tempfile.NamedTemporaryFile(suffix='.py', delete=False, mode='w')
+tf.write('def foo(): pass')
+tf.close()
+old_str = 'import requests'
+result = qg_layer18.check_imports_in_file(tf.name, old_str)
+os.unlink(tf.name)
+print('t118c_ok' if result == False else 't118c_FAIL:' + str(result))
+" 2>/dev/null | grep -q "t118c_ok" && ok "[118] gap#34: check_imports_in_file False when import absent" || fail "[118] gap#34: check_imports_in_file False when import absent"
+
+# [118d] gap#34: check_imports_in_file returns True when import present
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_layer18
+tf = tempfile.NamedTemporaryFile(suffix='.py', delete=False, mode='w')
+tf.write('import requests')
+tf.close()
+old_str = 'import requests'
+result = qg_layer18.check_imports_in_file(tf.name, old_str)
+os.unlink(tf.name)
+print('t118d_ok' if result == True else 't118d_FAIL:' + str(result))
+" 2>/dev/null | grep -q "t118d_ok" && ok "[118] gap#34: check_imports_in_file True when import present" || fail "[118] gap#34: check_imports_in_file True when import present"
+
+# [118e] gap#35: find_remote_refs finds URL in text
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_layer18
+urls = qg_layer18.find_remote_refs('def foo(): pass  # https://example.com/docs')
+ok = len(urls) == 1 and 'https://example.com' in urls[0]
+print('t118e_ok' if ok else 't118e_FAIL:' + str(urls))
+" 2>/dev/null | grep -q "t118e_ok" && ok "[118] gap#35: find_remote_refs finds URL in text" || fail "[118] gap#35: find_remote_refs finds URL in text"
+
+# [118f] gap#35: find_remote_refs returns [] when no URLs
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_layer18
+urls = qg_layer18.find_remote_refs('def foo(): return 42')
+print('t118f_ok' if urls == [] else 't118f_FAIL:' + str(urls))
+" 2>/dev/null | grep -q "t118f_ok" && ok "[118] gap#35: find_remote_refs returns [] when no URLs" || fail "[118] gap#35: find_remote_refs returns [] when no URLs"
+
+# [118g] gap#39: timed-out event gets severity=critical
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile, time
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss, qg_layer35
+ss.STATE_PATH = tempfile.mktemp(suffix='.json')
+state = ss.read_state()
+state['session_uuid'] = 'test-118g'
+old_ts = time.time() - 7200
+state['layer35_recovery_events'] = [{'event_id': 'evt-118g', 'ts': old_ts,
+    'status': 'open', 'severity': 'warning', 'category': 'ASSUMPTION',
+    'task_id': 'task-118g', 'turn_number': 1}]
+state['layer3_evaluation_count'] = 5
+ss.write_state(state)
+qg_layer35.layer35_check_resolutions([], state)
+evt = state['layer35_recovery_events'][0]
+ok = evt.get('status') == 'timed_out' and evt.get('severity') == 'critical'
+print('t118g_ok' if ok else 't118g_FAIL:status=' + str(evt.get('status')))
+" 2>/dev/null | grep -q "t118g_ok" && ok "[118] gap#39: timed-out event severity=critical" || fail "[118] gap#39: timed-out event severity=critical"
+
+# [118h] gap#39: layer35_unresolved_lines emits TIMED_OUT [CRITICAL] line
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss, qg_layer35
+ss.STATE_PATH = tempfile.mktemp(suffix='.json')
+state = ss.read_state()
+state['layer35_recovery_events'] = [{'event_id': 'evt-118h', 'ts': 0,
+    'status': 'timed_out', 'severity': 'critical', 'category': 'LAZINESS',
+    'task_id': 'task-118h', 'turn_number': 1}]
+lines = qg_layer35.layer35_unresolved_lines(state)
+ok = len(lines) == 1 and 'TIMED_OUT [CRITICAL]' in lines[0] and 'LAZINESS' in lines[0]
+print('t118h_ok' if ok else 't118h_FAIL:' + str(lines))
+" 2>/dev/null | grep -q "t118h_ok" && ok "[118] gap#39: layer35_unresolved_lines emits TIMED_OUT [CRITICAL]" || fail "[118] gap#39: layer35_unresolved_lines emits TIMED_OUT [CRITICAL]"
+
 echo "=== Results: $PASS passed, $FAIL failed, $TOTAL total ==="
 
 # Coverage summary (fast, single-pass Python analysis)
