@@ -245,6 +245,15 @@
             "command": "python /c/Users/Matt1/.claude/hooks/qg_layer27.py"
           }
         ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer5.py"
+          }
+        ]
       }
     ],
     "PostToolUse": [

@@ -1883,6 +1883,43 @@ class TestLayer5Extra(unittest.TestCase):
             lines = [l for l in f if l.strip()]
         self.assertGreater(len(lines), 0)
 
+    def test_process_predispatch_writes_dispatch_event(self):
+        """Gap #21 — PreToolUse dispatch phase records subagent_dispatch event."""
+        import json, qg_layer5, qg_session_state as ss
+        qg_layer5.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        evt = qg_layer5.process_predispatch('Agent', {'description': 'pre-dispatch test'}, state)
+        self.assertIsNotNone(evt, "process_predispatch should return an event")
+        self.assertEqual(evt['type'], 'subagent_dispatch')
+        self.assertEqual(evt['status'], 'in_flight')
+        # Event written to JSONL
+        with open(self.monitor_tmp) as f:
+            lines = [l.strip() for l in f if l.strip()]
+        self.assertGreater(len(lines), 0)
+        e = json.loads(lines[0])
+        self.assertEqual(e['type'], 'subagent_dispatch')
+
+    def test_process_predispatch_stores_in_flight_in_state(self):
+        """PreToolUse dispatch stores in_flight status in layer5_subagents state."""
+        import qg_layer5, qg_session_state as ss
+        qg_layer5.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        qg_layer5.process_predispatch('Agent', {'prompt': 'hello subagent'}, state)
+        state2 = ss.read_state()
+        subagents = state2.get('layer5_subagents', {})
+        self.assertTrue(len(subagents) >= 1)
+        self.assertTrue(any(v.get('status') == 'in_flight' for v in subagents.values()))
+
+    def test_process_predispatch_non_agent_returns_none(self):
+        """PreToolUse dispatch ignores non-Agent tools."""
+        import qg_layer5, qg_session_state as ss
+        qg_layer5.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        result = qg_layer5.process_predispatch('Bash', {'command': 'ls'}, state)
+        self.assertIsNone(result)
+        self.assertFalse(os.path.exists(self.monitor_tmp))
+
+
     def test_process_and_record_non_agent_no_event(self):
         import qg_layer5, qg_session_state as ss
         qg_layer5.MONITOR_PATH = self.monitor_tmp
