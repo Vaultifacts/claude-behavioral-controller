@@ -3,7 +3,7 @@
 Checks: (1) file path exists before Edit; (2) referenced function exists in file.
 Write tool is exempt (creates new files by design).
 """
-import json, os, re, sys
+import importlib.util, json, os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import qg_session_state as ss
 
@@ -67,6 +67,23 @@ def check_imports_in_file(file_path, old_string):
         return True
 
 
+def check_packages_importable(old_string):
+    """Return list of top-level import names from old_string not found by find_spec."""
+    if not old_string:
+        return []
+    names = re.findall(r'^\s*import\s+([\w.]+)', old_string, re.MULTILINE)
+    names += re.findall(r'^\s*from\s+([\w.]+)\s+import', old_string, re.MULTILINE)
+    top_names = list({n.split('.')[0] for n in names if n})
+    missing = []
+    for name in top_names:
+        try:
+            if importlib.util.find_spec(name) is None:
+                missing.append(name)
+        except (ModuleNotFoundError, ValueError):
+            missing.append(name)
+    return missing
+
+
 def main():
     try:
         payload = json.load(sys.stdin)
@@ -128,6 +145,19 @@ def main():
                 'Read the file first to confirm exact imports.'
             )
         }))
+
+    # Gap #34 (pkg): warn if imports in old_string are not installed
+    _check_pkgs = _cfg.get('check_package_installable', True)
+    if _check_pkgs:
+        _unimportable = check_packages_importable(old_string)
+        if _unimportable:
+            _warned = True
+            print(json.dumps({
+                'additionalContext': (
+                    f'[monitor:WARN:layer1.8] Import(s) not found in current Python '
+                    f'environment: {_unimportable!r}. Verify package names are correct.'
+                )
+            }))
 
     # Gap #35: warn on URL/remote references in old_string (may be hallucinated)
     _check_remote = _cfg.get('check_remote_refs', True)
