@@ -2987,5 +2987,169 @@ class TestPrecheckHookGaps2526(unittest.TestCase):
 
 
 
+
+class TestDetectSubtasks(unittest.TestCase):
+    """Gap #28 - detect_subtasks() unit tests."""
+
+    def _load_ph(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            'precheck_hook', os.path.expanduser('~/.claude/hooks/precheck-hook.py'))
+        ph = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ph)
+        return ph
+
+    def test_numbered_list_two_items_returns_subtasks(self):
+        ph = self._load_ph()
+        msg = "Please do the following:\n1. Edit foo.py to add logging\n2. Update bar.py to handle errors"
+        result = ph.detect_subtasks(msg)
+        self.assertEqual(len(result), 2)
+        self.assertIn('Edit foo.py to add logging', result)
+
+    def test_numbered_list_single_item_returns_empty(self):
+        ph = self._load_ph()
+        msg = "1. Edit foo.py to add logging"
+        result = ph.detect_subtasks(msg)
+        self.assertEqual(result, [])
+
+    def test_conjunction_and_also_returns_subtasks(self):
+        ph = self._load_ph()
+        msg = "Add logging to the config module and also update the test suite to cover new code"
+        result = ph.detect_subtasks(msg)
+        self.assertGreaterEqual(len(result), 2)
+
+    def test_no_multi_task_single_sentence_returns_empty(self):
+        ph = self._load_ph()
+        msg = "Edit the config file to fix the timeout value"
+        result = ph.detect_subtasks(msg)
+        self.assertEqual(result, [])
+
+    def test_conjunction_too_short_parts_returns_empty(self):
+        """Parts shorter than 15 chars are ignored."""
+        ph = self._load_ph()
+        msg = "Do A and also B"
+        result = ph.detect_subtasks(msg)
+        self.assertEqual(result, [])
+
+
+class TestPrecheckHookGap28Integration(unittest.TestCase):
+    """Gap #28 - _run_layer1 sets layer1_subtask_count and active_subtask_id."""
+
+    def _load_ph(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            'precheck_hook', os.path.expanduser('~/.claude/hooks/precheck-hook.py'))
+        ph = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ph)
+        return ph
+
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_multi_task_sets_layer1_subtask_count(self):
+        import qg_session_state as ss
+        ph = self._load_ph()
+        state = ss.read_state()
+        state['active_task_description'] = ''
+        ss.write_state(state)
+        msg = "1. Edit foo.py to add logging\n2. Update bar.py to handle errors"
+        _, new_state = ph._run_layer1(msg, 'MECHANICAL', state)
+        self.assertEqual(new_state.get('layer1_subtask_count'), 2)
+        self.assertIsNotNone(new_state.get('active_subtask_id'))
+
+    def test_single_task_sets_subtask_count_zero(self):
+        import qg_session_state as ss
+        ph = self._load_ph()
+        state = ss.read_state()
+        state['active_task_description'] = ''
+        ss.write_state(state)
+        msg = "Edit the config file to fix the timeout value"
+        _, new_state = ph._run_layer1(msg, 'MECHANICAL', state)
+        self.assertEqual(new_state.get('layer1_subtask_count'), 0)
+        self.assertIsNone(new_state.get('active_subtask_id'))
+
+
+class TestLayer5HandoffFiles(unittest.TestCase):
+    """Gap #37 - Layer 5 handoff file creation and merge behaviors."""
+
+    def setUp(self):
+        import qg_layer5, qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.monitor_tmp = tempfile.mktemp(suffix='.jsonl')
+        self.handoff_dir = tempfile.mkdtemp()
+        qg_layer5.HANDOFF_DIR = self.handoff_dir
+        qg_layer5.MONITOR_PATH = self.monitor_tmp
+
+    def tearDown(self):
+        import shutil, qg_layer5
+        for p in [self.ts, self.ts + '.lock', self.monitor_tmp]:
+            try: os.unlink(p)
+            except: pass
+        shutil.rmtree(self.handoff_dir, ignore_errors=True)
+        qg_layer5.HANDOFF_DIR = os.path.expanduser('~/.claude')
+
+    def test_predispatch_creates_handoff_file(self):
+        """process_predispatch writes qg-subagent-<id>.json to HANDOFF_DIR."""
+        import glob, qg_layer5, qg_session_state as ss
+        state = ss.read_state()
+        qg_layer5.process_predispatch('Agent', {'description': 'test handoff'}, state)
+        files = glob.glob(os.path.join(self.handoff_dir, 'qg-subagent-*.json'))
+        self.assertEqual(len(files), 1, "Expected 1 handoff file")
+
+    def test_predispatch_handoff_contains_state_fields(self):
+        """Handoff file contains session_uuid and task_success_criteria."""
+        import glob, json, qg_layer5, qg_session_state as ss
+        state = ss.read_state()
+        state['task_success_criteria'] = ['Verify X', 'Verify Y']
+        ss.write_state(state)
+        qg_layer5.process_predispatch('Agent', {'description': 'test'}, state)
+        files = glob.glob(os.path.join(self.handoff_dir, 'qg-subagent-*.json'))
+        with open(files[0], 'r') as f:
+            data = json.load(f)
+        self.assertIn('subagent_id', data)
+        self.assertIn('task_success_criteria', data)
+        self.assertEqual(data['handoff_type'], 'dispatch')
+
+    def test_merge_absent_handoff_sets_timeout_marker(self):
+        """If handoff file is absent on PostToolUse, subagent gets timeout_marker=True."""
+        import qg_layer5, qg_session_state as ss
+        state = ss.read_state()
+        fake_id = 'abc12345'
+        state['layer5_subagents'] = {fake_id: {'status': 'in_flight'}}
+        ss.write_state(state)
+        qg_layer5._merge_subagent_events(fake_id, 'parent-task-1', state)
+        subagents = state.get('layer5_subagents', {})
+        self.assertTrue(subagents.get(fake_id, {}).get('timeout_marker'),
+                        "Absent handoff file must set timeout_marker=True")
+
+    def test_merge_reads_events_and_deletes_file(self):
+        """_merge_subagent_events reads subagent_events from file and deletes it."""
+        import json, qg_layer5, qg_session_state as ss
+        subagent_id = 'test9999'
+        handoff_path = os.path.join(self.handoff_dir, 'qg-subagent-' + subagent_id + '.json')
+        handoff_data = {
+            'subagent_id': subagent_id,
+            'subagent_events': [{'type': 'test_event', 'data': 'x'}],
+        }
+        with open(handoff_path, 'w') as f:
+            json.dump(handoff_data, f)
+        state = ss.read_state()
+        state['layer5_subagents'] = {subagent_id: {'status': 'in_flight'}}
+        ss.write_state(state)
+        qg_layer5._merge_subagent_events(subagent_id, 'parent-task-1', state)
+        self.assertFalse(os.path.exists(handoff_path), "Handoff file must be deleted after merge")
+        self.assertEqual(state['layer5_subagents'][subagent_id].get('merged_events'), 1)
+
+
 if __name__ == '__main__':
     unittest.main()
