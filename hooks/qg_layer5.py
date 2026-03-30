@@ -9,6 +9,19 @@ import qg_session_state as ss
 MONITOR_PATH = os.path.expanduser("~/.claude/qg-monitor.jsonl")
 
 
+def _find_inflight_id(subagents, parent_task_id):
+    """Return the in-flight subagent_id for parent_task_id, or a new UUID."""
+    candidates = [
+        (sid, data) for sid, data in subagents.items()
+        if data.get("parent_task_id") == parent_task_id
+        and data.get("status") == "in_flight"
+    ]
+    if not candidates:
+        return str(uuid.uuid4())[:8]
+    candidates.sort(key=lambda x: x[1].get("ts", ""), reverse=True)
+    return candidates[0][0]
+
+
 def process_predispatch(tool_name, tool_input, state):
     """Record dispatch event at PreToolUse time. Exported for testing."""
     if tool_name != "Agent":
@@ -72,14 +85,18 @@ def process_and_record(tool_name, tool_input, tool_response, state):
         tool_input.get("description", "") or ""
     )[:200]
 
+    subagents = state.get("layer5_subagents", {})
+    parent_task_id = state.get("active_task_id", "")
+    subagent_id = _find_inflight_id(subagents, parent_task_id)
+
     event = {
         "event_id": str(uuid.uuid4()),
         "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "layer": "layer5",
         "type": "subagent_return",
         "session_uuid": state.get("session_uuid", ""),
-        "parent_task_id": state.get("active_task_id", ""),
-        "subagent_id": str(uuid.uuid4())[:8],
+        "parent_task_id": parent_task_id,
+        "subagent_id": subagent_id,
         "task_description": task_desc,
         "status": status,
         "working_dir": os.getcwd(),
@@ -91,9 +108,8 @@ def process_and_record(tool_name, tool_input, tool_response, state):
     except Exception:
         pass
 
-    subagents = state.get("layer5_subagents", {})
-    subagents[event["subagent_id"]] = {
-        "parent_task_id": event["parent_task_id"],
+    subagents[subagent_id] = {
+        "parent_task_id": parent_task_id,
         "status": status,
         "ts": event["ts"],
         "task": task_desc,
