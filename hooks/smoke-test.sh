@@ -4621,6 +4621,83 @@ ok = (loaded.get('layer1_subtask_count') == 2
 print('t119d_ok' if ok else 't119d_FAIL:count=' + str(loaded.get('layer1_subtask_count')))
 " 2>/dev/null | grep -q "t119d_ok" && ok "[119] gap#28: state gets subtask_count + active_subtask_id + per-subtask criteria" || fail "[119] gap#28: state gets subtask_count + active_subtask_id + per-subtask criteria"
 
+
+# [120] gap#37: Layer 5 handoff files (dispatch write + merge + timeout + cleanup)
+python3 -c "
+import sys, json, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+import qg_layer5 as L5
+ss.STATE_PATH = tempfile.mktemp(suffix='.json')
+L5.MONITOR_PATH = tempfile.mktemp(suffix='.jsonl')
+L5.HANDOFF_DIR = tempfile.mkdtemp()
+
+state = ss.read_state()
+state['active_task_id'] = 'task-t120'
+state['layer1_scope_files'] = ['src/foo.py']
+state['task_success_criteria'] = ['Verify done.']
+state['layer2_unresolved_events'] = [{'status': 'open', 'task_id': 'task-t120', 'category': 'LAZINESS'}]
+ss.write_state(state)
+evt = L5.process_predispatch('Agent', {'prompt': 'Fix stuff'}, state)
+sid = evt['subagent_id']
+path = L5._handoff_path(sid)
+ok = os.path.exists(path)
+if ok:
+    import json as _j
+    d = _j.load(open(path))
+    ok = d.get('layer1_scope_files') == ['src/foo.py'] and len(d.get('layer2_unresolved_events', [])) == 1
+print('t120a_ok' if ok else 't120a_FAIL')
+" 2>/dev/null | grep -q "t120a_ok" && ok "[120] gap#37: dispatch writes handoff file with scope+events" || fail "[120] gap#37: dispatch writes handoff file with scope+events"
+python3 -c "
+import sys, json, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+import qg_layer5 as L5
+ss.STATE_PATH = tempfile.mktemp(suffix='.json')
+L5.MONITOR_PATH = tempfile.mktemp(suffix='.jsonl')
+L5.HANDOFF_DIR = tempfile.mkdtemp()
+state = ss.read_state()
+state['active_task_id'] = 'task-t120b'
+ss.write_state(state)
+evt = L5.process_predispatch('Agent', {'prompt': 'Do something'}, state)
+sid = evt['subagent_id']
+path = L5._handoff_path(sid)
+d = json.load(open(path))
+d['subagent_events'] = [{'event_id': 'e1', 'layer': 'layer2', 'category': 'ERROR_IGNORED', 'ts': 't'}]
+json.dump(d, open(path, 'w'))
+state2 = ss.read_state()
+L5.process_and_record('Agent', {'prompt': 'Do something'}, 'done', state2)
+file_gone = not os.path.exists(path)
+lines = [json.loads(l) for l in open(L5.MONITOR_PATH) if l.strip()]
+merged = [l for l in lines if l.get('category') == 'ERROR_IGNORED']
+ok = file_gone and len(merged) == 1 and merged[0].get('parent_task_id') == 'task-t120b'
+state3 = ss.read_state()
+merged_ids = [s for s, d in state3.get('layer5_subagents', {}).items() if d.get('status') == 'merged']
+ok = ok and len(merged_ids) == 1 and state3['layer5_subagents'][merged_ids[0]]['merged_events'] == 1
+print('t120b_ok' if ok else 't120b_FAIL:' + str(merged))
+" 2>/dev/null | grep -q "t120b_ok" && ok "[120] gap#37: merge tags parent_task_id, writes to JSONL, deletes file" || fail "[120] gap#37: merge tags parent_task_id, writes to JSONL, deletes file"
+python3 -c "
+import sys, json, os, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+import qg_layer5 as L5
+ss.STATE_PATH = tempfile.mktemp(suffix='.json')
+L5.MONITOR_PATH = tempfile.mktemp(suffix='.jsonl')
+L5.HANDOFF_DIR = tempfile.mkdtemp()
+state = ss.read_state()
+state['active_task_id'] = 'task-t120c'
+ss.write_state(state)
+evt = L5.process_predispatch('Agent', {'prompt': 'Timeout task'}, state)
+sid = evt['subagent_id']
+path = L5._handoff_path(sid)
+if os.path.exists(path): os.remove(path)
+state2 = ss.read_state()
+L5.process_and_record('Agent', {'prompt': 'Timeout task'}, 'done', state2)
+state3 = ss.read_state()
+ok = state3.get('layer5_subagents', {}).get(sid, {}).get('timeout_marker') == True
+print('t120c_ok' if ok else 't120c_FAIL:' + str(state3.get('layer5_subagents', {}).get(sid, {})))
+" 2>/dev/null | grep -q "t120c_ok" && ok "[120] gap#37: absent handoff file sets timeout_marker" || fail "[120] gap#37: absent handoff file sets timeout_marker"
+
 echo "=== Results: $PASS passed, $FAIL failed, $TOTAL total ==="
 
 # Coverage summary (fast, single-pass Python analysis)
