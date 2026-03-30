@@ -4698,6 +4698,45 @@ ok = state3.get('layer5_subagents', {}).get(sid, {}).get('timeout_marker') == Tr
 print('t120c_ok' if ok else 't120c_FAIL:' + str(state3.get('layer5_subagents', {}).get(sid, {})))
 " 2>/dev/null | grep -q "t120c_ok" && ok "[120] gap#37: absent handoff file sets timeout_marker" || fail "[120] gap#37: absent handoff file sets timeout_marker"
 
+# [121] SMOKE:new: verifiable-outcome claim with no tools run
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, importlib.util, tempfile, json, time
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+spec = importlib.util.spec_from_file_location('qg', os.path.expanduser('~/.claude/hooks/quality-gate.py'))
+qg = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(qg)
+
+# Test 1: no tools + verifiable claim -> BLOCK
+r = qg.mechanical_checks([], [], [], [], 'All tests pass. Committed and pushed.', '')
+print('t121a_ok' if r and 'OVERCONFIDENCE' in r else 't121a_FAIL:' + str(r))
+
+# Test 2: inline backtick evidence -> PASS
+r2 = qg.mechanical_checks([], [], [], [], 'Tests pass \xe2\x80\x94 \x60265 passed, 0 failed\x60.', '')
+print('t121b_ok' if r2 is None else 't121b_FAIL:' + str(r2))
+
+# Test 3: no verifiable claim -> PASS
+r3 = qg.mechanical_checks([], [], [], [], 'Done. Plan file removed.', '')
+print('t121c_ok' if r3 is None else 't121c_FAIL:' + str(r3))
+
+# Test 4: fully complete but has_verification=True (Bash ran) -> PASS (rule requires not has_verification)
+r4 = qg.mechanical_checks(['Bash'], [], ['bash -c pytest'], [], 'All tests pass.', '')
+print('t121d_ok' if r4 is None else 't121d_FAIL:' + str(r4))
+" 2>/dev/null | grep -q "t121a_ok" && ok "[121] SMOKE:new: no-tools verifiable claim -> BLOCK" || fail "[121] SMOKE:new: no-tools verifiable claim -> BLOCK"
+
+PYTHONIOENCODING=utf-8 python -c "
+import sys, os, importlib.util
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+spec = importlib.util.spec_from_file_location('qg', os.path.expanduser('~/.claude/hooks/quality-gate.py'))
+qg = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(qg)
+r2 = qg.mechanical_checks([], [], [], [], 'Tests pass \xe2\x80\x94 \x60265 passed, 0 failed\x60.', '')
+r3 = qg.mechanical_checks([], [], [], [], 'Done. Plan file removed.', '')
+r4 = qg.mechanical_checks(['Bash'], [], ['bash -c pytest'], [], 'All gaps are complete.', '')
+ok = r2 is None and r3 is None and r4 is None
+print('t121bcd_ok' if ok else 't121bcd_FAIL:' + repr((r2,r3,r4)))
+" 2>/dev/null | grep -q "t121bcd_ok" && ok "[121] SMOKE:new: inline evidence / no claim / has_verification -> PASS" || fail "[121] SMOKE:new: inline evidence / no claim / has_verification -> PASS"
+
+
 echo "=== Results: $PASS passed, $FAIL failed, $TOTAL total ==="
 
 # Coverage summary (fast, single-pass Python analysis)
