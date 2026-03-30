@@ -1167,6 +1167,16 @@ def _layer4_checkpoint(state, _ss):
             + (chr(10).join(_l35_unresolved(state)) + chr(10) + chr(10) if _l35_unresolved(state) else chr(10))
         )
 
+        # Gap #38: write recovery pending file for Layer 0 at next session start
+        _pending_evts = [e for e in _recovery if e.get('status') in ('open', 'timed_out')]
+        try:
+            with open(f'{STATE_DIR}/qg-recovery-pending.json', 'w', encoding='utf-8') as _rpf:
+                json.dump({'session_uuid': session_uuid, 'ts': ts,
+                           'consumed': not bool(_pending_evts),
+                           'events': _pending_evts[:10]}, _rpf)
+        except Exception:
+            pass
+
         history = ''
         if os.path.exists(_QG_HISTORY):
             with open(_QG_HISTORY, 'r', encoding='utf-8') as f:

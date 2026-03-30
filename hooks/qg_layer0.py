@@ -13,6 +13,7 @@ SESSION_UUID_RE = re.compile(r'^session_uuid:\s*(\S+)', re.MULTILINE)
 UNRESOLVED_RE = re.compile(r'^- UNRESOLVED:\s*(.+)', re.MULTILINE)
 CROSS_SESSION_PATH = os.path.expanduser('~/.claude/qg-cross-session.json')
 RULES_PATH = os.path.expanduser('~/.claude/qg-rules.json')
+RECOVERY_PENDING_PATH = os.path.expanduser('~/.claude/qg-recovery-pending.json')
 
 
 def find_previous_session_unresolved():
@@ -50,6 +51,24 @@ def load_cross_session_patterns():
         return []
 
 
+
+
+def load_recovery_pending():
+    """Read and consume unresolved recovery events from previous session."""
+    if not os.path.exists(RECOVERY_PENDING_PATH):
+        return []
+    try:
+        with open(RECOVERY_PENDING_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if data.get('consumed', True):
+            return []
+        events = data.get('events', [])
+        data['consumed'] = True
+        with open(RECOVERY_PENDING_PATH, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+        return events
+    except Exception:
+        return []
 def main():
     try:
         payload = json.load(sys.stdin)
@@ -85,6 +104,14 @@ def main():
         for item in unresolved[:5]:
             lines.append('  - ' + item)
         print('\n'.join(lines))
+
+    # Item 8: inject unresolved recovery events from previous session
+    recovery_pending = load_recovery_pending()
+    if recovery_pending:
+        rec_lines = ['[monitor:Layer0] Unresolved recovery attempts from previous session:']
+        for evt in recovery_pending[:5]:
+            rec_lines.append('  - [{}] {}'.format(evt.get('status', '?'), evt.get('event_type', '?')))
+        print(chr(10).join(rec_lines))
 
     # Reset per-session monitoring fields for the new session.
     # Called at SessionStart so old events from prior session don't leak in.
