@@ -8,6 +8,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import qg_session_state as ss
 
 RULES_PATH = os.path.expanduser("~/.claude/qg-rules.json")
+_REMOTE_URL_RE = re.compile(r'https?://', re.IGNORECASE)
+
+
+def find_remote_refs(text):
+    """Return URL literals found in text."""
+    if not text:
+        return []
+    return re.findall(r'https?://\S+', text, re.IGNORECASE)
 
 
 def check_path_exists(file_path):
@@ -116,6 +124,19 @@ def main():
                 'Read the file first to confirm exact imports.'
             )
         }))
+
+    # Gap #35: warn on URL/remote references in old_string (may be hallucinated)
+    _check_remote = _cfg.get('check_remote_refs', True)
+    if _check_remote:
+        remote_urls = find_remote_refs(old_string)
+        if remote_urls:
+            print(json.dumps({
+                'additionalContext': (
+                    f'[monitor:WARN:layer1.8] old_string contains {len(remote_urls)} '
+                    f'URL reference(s) (e.g. {remote_urls[0][:60]!r}). '
+                    'Verify these URLs are correct before editing.'
+                )
+            }))
 
     if not _check_fn_existence:
         return
