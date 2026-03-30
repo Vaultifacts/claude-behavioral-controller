@@ -39,6 +39,26 @@ def check_function_in_file(file_path, old_string):
         return True  # On read error, don't false-positive
 
 
+def check_imports_in_file(file_path, old_string):
+    """Return True if imported modules in old_string appear in file."""
+    if not old_string or not file_path:
+        return True
+    names = re.findall(r'^\s*import\s+([\w.]+)', old_string, re.MULTILINE)
+    names += re.findall(r'^\s*from\s+([\w.]+)\s+import', old_string, re.MULTILINE)
+    names = list({n.split('.')[0] for n in names if n})
+    if not names:
+        return True
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read()
+        for name in names:
+            if name not in content:
+                return False
+        return True
+    except Exception:
+        return True
+
+
 def main():
     try:
         payload = json.load(sys.stdin)
@@ -85,6 +105,17 @@ def main():
     old_string = tool_input.get('old_string', '')
     if not old_string:
         return
+
+    # Gap #34: warn if imports in old_string don't exist in file
+    _check_imports = _cfg.get('check_import_existence', True)
+    if _check_imports and not check_imports_in_file(file_path, old_string):
+        print(json.dumps({
+            'additionalContext': (
+                f'[monitor:WARN:layer1.8] Import in old_string may not exist in '
+                f'{os.path.basename(file_path)!r}. '
+                'Read the file first to confirm exact imports.'
+            )
+        }))
 
     if not _check_fn_existence:
         return
