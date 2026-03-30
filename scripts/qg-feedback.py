@@ -1380,8 +1380,10 @@ def main():
                 from collections import Counter as _Ctr
                 import datetime as _dt
                 _entries = []
+                _raw_line_count = 0
                 with open(SHADOW_LOG, encoding='utf-8') as _f:
                     for _line in _f:
+                        _raw_line_count += 1
                         _parts = [p.strip() for p in _line.split(' | ')]
                         if len(_parts) < 4:
                             continue
@@ -1414,7 +1416,7 @@ def main():
                                f'{_agreed}/{_total} agree ({_pct:.0f}%) | FPs: {_fp_desc}')
                 with open(SHADOW_TREND_LOG, 'a', encoding='utf-8') as _tf:
                     _tf.write(_trend_line + '\n')
-                n_lines = len(_entries)
+                n_lines = _raw_line_count
                 open(SHADOW_LOG, 'w').close()
                 print(f'Shadow log cleared ({n_lines} entries removed).')
                 print(f'Trend snapshot: {_trend_line}')
