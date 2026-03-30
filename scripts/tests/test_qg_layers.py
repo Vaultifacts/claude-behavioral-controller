@@ -1366,6 +1366,24 @@ class TestLayer35Extra(unittest.TestCase):
         self.assertIsInstance(result, list)
 
 
+    def test_memory_over_verification_signal(self):
+        """Gap #43 — detect when response uses memory phrases without verification output."""
+        import qg_layer35
+        # Memory phrase without verification output → signal
+        resp = "From memory, the function is in utils.py and returns True."
+        signals = qg_layer35._detect_fn_signals_rules(resp, {})
+        self.assertTrue(any('MEMORY_OVER_VERIFICATION' in s for s in signals),
+                        f"Expected MEMORY_OVER_VERIFICATION signal, got: {signals}")
+
+    def test_memory_phrase_with_verification_no_signal(self):
+        """If verification output is present, no MEMORY_OVER signal even with memory phrase."""
+        import qg_layer35
+        resp = "I recall the function was here. Running check: === Results: 3 passed ==="
+        signals = qg_layer35._detect_fn_signals_rules(resp, {})
+        self.assertFalse(any('MEMORY_OVER_VERIFICATION' in s for s in signals),
+                         f"Should not flag when verification output present: {signals}")
+
+
     def test_partial_status_same_turn_verify(self):
         import time
         from qg_layer35 import layer35_check_resolutions

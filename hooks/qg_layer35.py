@@ -15,6 +15,11 @@ _VERIFY_OUTPUT_RE = re.compile(
     r'(===|---|\d+ passed|\d+ failed|exit code \d|>>|\$\s)')
 
 _VERIFY_TOOLS = frozenset({'Read', 'Grep', 'Bash', 'Glob'})
+_MEMORY_OVER_RE = re.compile(
+    r'(from memory|I remember|I recall|from my training|based on my training|'
+    r'from my knowledge|my training data|as I recall|'
+    r'if I remember|if I recall correctly)',
+    re.IGNORECASE)
 
 
 def layer35_create_recovery_event(verdict, fn_signals, state, tool_names):
@@ -70,6 +75,9 @@ def _detect_fn_signals_rules(response, state):
     if response and _LAZINESS_TEXT_RE.search(response):
         if not _VERIFY_OUTPUT_RE.search(response):
             signals.append('claimed completion without verification output')
+    if response and _MEMORY_OVER_RE.search(response):
+        if not _VERIFY_OUTPUT_RE.search(response):
+            signals.append('MEMORY_OVER_VERIFICATION: used memory/training knowledge without tool verification')
     prev_claims = state.get('layer3_last_response_claims', [])
     for claim in prev_claims:
         if claim and len(claim) > 10 and claim.lower() in (response or '').lower():
