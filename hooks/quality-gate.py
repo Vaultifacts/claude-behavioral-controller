@@ -1145,14 +1145,15 @@ def _layer4_checkpoint(state, _ss):
         _defaults_cw = {'MECHANICAL': 1.0, 'ASSUMPTION': 1.0, 'OVERCONFIDENCE': 1.2,
                         'PLANNING': 1.3, 'DEEP': 1.5}
         cw = _cw_map.get(cat, _defaults_cw.get(cat, 1.0))
-        score = round(
-            (fn * _sw.get('fn', 3) + l2_criticals * _sw.get('l2_critical', 2) + fp * _sw.get('fp', 1))
-            / (total * cw), 3) if total > 0 else 0.0
-
         _recovery = state.get('layer35_recovery_events', [])
         r_open = sum(1 for e in _recovery if e.get('status') == 'open')
         r_resolved = sum(1 for e in _recovery if e.get('status') == 'resolved')
         r_timed_out = sum(1 for e in _recovery if e.get('status') == 'timed_out')
+
+        score = round(
+            (fn * _sw.get('fn', 3) + l2_criticals * _sw.get('l2_critical', 2) + fp * _sw.get('fp', 1)
+             + r_timed_out * _sw.get('timed_out', 2))
+            / (total * cw), 3) if total > 0 else 0.0
 
         entry = (
             f'## Session {ts}\n'
