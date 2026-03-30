@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Pre-check hook: classifies user request and enforces Layer 1 pre-task behaviors."""
-import json, os, re, sys, time, urllib.request, uuid
+import glob, json, os, re, sys, time, urllib.request, uuid
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from precheck_hook_ext import jaccard_similarity, detect_deep, infer_scope_files
@@ -77,6 +77,28 @@ def _run_layer1(message, category, state):
     scope = infer_scope_files(message)
     if scope:
         state['layer1_scope_files'] = scope
+
+    # Behavior 3 (gap #30): bounded codebase scan for DEEP/MECHANICAL tasks
+    if category in ('DEEP', 'MECHANICAL') and scope:
+        _scan_deadline = time.time() + 3.0
+        _found = []
+        try:
+            _cwd = os.getcwd()
+            for _hint in scope[:10]:
+                if time.time() > _scan_deadline:
+                    break
+                _base = os.path.basename(_hint)
+                for _match in glob.glob('**/' + _base, recursive=True):
+                    if time.time() > _scan_deadline:
+                        break
+                    _rel = os.path.relpath(_match, _cwd)
+                    if _rel not in _found:
+                        _found.append(_rel)
+        except Exception:
+            pass
+        if _found:
+            state['layer1_scope_files'] = list(set(
+                state.get('layer1_scope_files', []) + _found))
 
     # Success criteria (behavior 3) — category-specific measurable criteria
     _criteria_map = {
