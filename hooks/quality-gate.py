@@ -981,6 +981,12 @@ def _compute_confidence(gate_blocked, block_category, state):
     # Gap 7: HIGH/CRITICAL edit with no regression check
     if state.get('layer8_regression_expected'):
         score -= 0.10
+    # Gap #32: Layer 1.7 uncertainty level down-weights confidence
+    _unc = state.get('layer17_uncertainty_level', 'LOW')
+    if _unc == 'HIGH':
+        score -= 0.15
+    elif _unc == 'MEDIUM':
+        score -= 0.08
     return max(0.01, min(0.99, score))
 
 
