@@ -30,6 +30,7 @@ LOG_PATH = f'{STATE_DIR}/quality-gate.log'
 CLASSIFIER_LOG = f'{STATE_DIR}/task-classifier.log'
 _GRACE_FILE = f'{STATE_DIR}/hooks/qg-count-grace.json'
 _GRACE_SEC = 300  # 5 minutes
+_RULES_PATH = f'{STATE_DIR}/qg-rules.json'
 
 _BARE_COUNT_RE = re.compile(
     r'\d+\s+passed,\s*\d+\s+failed,\s*\d+\s+total'
@@ -1134,9 +1135,19 @@ def _layer4_checkpoint(state, _ss):
         l2_criticals = len([e for e in state.get('layer2_unresolved_events', [])
                             if e.get('severity') == 'critical' and e.get('status') == 'open'])
         cat = state.get('layer1_task_category', 'UNKNOWN')
-        cw = {'MECHANICAL': 1.0, 'ASSUMPTION': 1.0, 'OVERCONFIDENCE': 1.2,
-              'PLANNING': 1.3, 'DEEP': 1.5}.get(cat, 1.0)
-        score = round((fn * 3 + l2_criticals * 2 + fp) / (total * cw), 3) if total > 0 else 0.0
+        try:
+            with open(_RULES_PATH, 'r', encoding='utf-8') as _rf:
+                _l4cfg = json.load(_rf).get('layer4', {})
+        except Exception:
+            _l4cfg = {}
+        _sw = _l4cfg.get('quality_score_weights', {})
+        _cw_map = _l4cfg.get('category_complexity_weights', {})
+        _defaults_cw = {'MECHANICAL': 1.0, 'ASSUMPTION': 1.0, 'OVERCONFIDENCE': 1.2,
+                        'PLANNING': 1.3, 'DEEP': 1.5}
+        cw = _cw_map.get(cat, _defaults_cw.get(cat, 1.0))
+        score = round(
+            (fn * _sw.get('fn', 3) + l2_criticals * _sw.get('l2_critical', 2) + fp * _sw.get('fp', 1))
+            / (total * cw), 3) if total > 0 else 0.0
 
         _recovery = state.get('layer35_recovery_events', [])
         r_open = sum(1 for e in _recovery if e.get('status') == 'open')
@@ -1169,10 +1180,11 @@ def _layer4_checkpoint(state, _ss):
             history = entry + history
 
         entries = re.split(r'(?=^## Session )', history, flags=re.MULTILINE)
-        if len(entries) > 30:
+        _retention = _l4cfg.get('session_retention_count', 30)
+        if len(entries) > _retention:
             with open(_QG_ARCHIVE, 'a', encoding='utf-8') as f:
-                f.write('\n'.join(entries[30:]))
-            entries = entries[:30]
+                f.write('\n'.join(entries[_retention:]))
+            entries = entries[:_retention]
 
         with open(_QG_HISTORY, 'w', encoding='utf-8') as f:
             f.write('\n'.join(entries))

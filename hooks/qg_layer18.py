@@ -7,6 +7,8 @@ import json, os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import qg_session_state as ss
 
+RULES_PATH = os.path.expanduser("~/.claude/qg-rules.json")
+
 
 def check_path_exists(file_path):
     """Return True if file exists on disk."""
@@ -59,8 +61,16 @@ def main():
 
     state = ss.read_state()
 
+    try:
+        with open(RULES_PATH, 'r', encoding='utf-8') as _f:
+            _cfg = json.load(_f).get('layer18', {})
+    except Exception:
+        _cfg = {}
+    _suppress_artifacts = _cfg.get('suppress_on_creating_artifacts', True)
+    _check_fn_existence = _cfg.get('check_function_existence', True)
+
     # Suppress if Layer 1.7 confirmed creating new artifacts in this scope
-    if state.get('layer17_creating_new_artifacts'):
+    if _suppress_artifacts and state.get('layer17_creating_new_artifacts'):
         return
 
     if not check_path_exists(file_path):
@@ -74,6 +84,9 @@ def main():
 
     old_string = tool_input.get('old_string', '')
     if not old_string:
+        return
+
+    if not _check_fn_existence:
         return
 
     # Per-session dedup: skip function refs already checked this session

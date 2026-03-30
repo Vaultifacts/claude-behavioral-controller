@@ -15,6 +15,13 @@ Usage via alias: qg fp | tp | miss | report | failures | failures add | trend | 
   qg scan                — Scan recent PASS entries for structural false-negative signals
   qg weekly              — Compare this week's quality gate metrics against last week
   qg coverage            — Show which quality-gate.py branches have smoke test coverage
+  qg auto-detect         — Auto-detect potential false positives from recent session block rate
+  qg cross-check         — Cross-check quality-gate.py vs quality-gate-analyst.py for consistency
+  qg shadow [N]          — Show Ollama shadow vs Haiku agreement (last N); --diff, --clear, --trend
+  qg monitor             — Unified quality gate dashboard (L2 events, TP/FP/FN/TN, trends, patterns)
+  qg analyze             — Trigger cross-session pattern analysis (Layer 6)
+  qg integrity           — Audit trail integrity check and quarantine report (Layer 10)
+  qg rules               — View pending rule suggestions (Layer 7); rules apply/reject N
 """
 import sys
 import os

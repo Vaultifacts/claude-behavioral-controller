@@ -8,6 +8,7 @@ import qg_session_state as ss
 
 MONITOR_PATH = os.path.expanduser("~/.claude/qg-monitor.jsonl")
 CROSS_SESSION_PATH = os.path.expanduser("~/.claude/qg-cross-session.json")
+RULES_PATH = os.path.expanduser("~/.claude/qg-rules.json")
 
 
 def load_monitor_events(monitor_path=None):
@@ -62,7 +63,14 @@ def analyze_patterns(events, min_sessions=3, min_pct=0.15, window=10, project_di
 
 def run_analysis(monitor_path=None, output_path=None, project_dir=None):
     events = load_monitor_events(monitor_path)
-    patterns = analyze_patterns(events, project_dir=project_dir)
+    try:
+        with open(RULES_PATH, "r", encoding="utf-8") as _f:
+            _cfg = json.load(_f).get("layer6", {})
+        _min_sessions = _cfg.get("pattern_min_sessions", 3)
+        _min_pct = _cfg.get("pattern_min_pct", 15) / 100.0
+    except Exception:
+        _min_sessions, _min_pct = 3, 0.15
+    patterns = analyze_patterns(events, min_sessions=_min_sessions, min_pct=_min_pct, project_dir=project_dir)
     result = {
         "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "patterns": patterns,
