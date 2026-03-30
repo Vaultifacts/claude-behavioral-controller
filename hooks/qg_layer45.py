@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import qg_session_state as ss
 
 PRESERVE_PATH = os.path.expanduser('~/.claude/qg-context-preserve.json')
+PRESERVATION_CONFIG_PATH = os.path.expanduser('~/.claude/qg-preservation-config.json')
 
 PRESERVE_KEYS = [
     'session_uuid', 'session_start_ts', 'active_task_id', 'active_subtask_id',
@@ -32,6 +33,24 @@ def handle_pre_compact():
     """Snapshot current session state before compaction."""
     state = ss.read_state()
     preserved = {k: state.get(k) for k in PRESERVE_KEYS}
+
+    # Gap #40: load qg-preservation-config.json for dynamic key management
+    try:
+        with open(PRESERVATION_CONFIG_PATH, 'r', encoding='utf-8') as _pf:
+            _pcfg = json.load(_pf)
+        for key in _pcfg.get('always_preserve', []):
+            if key not in preserved:
+                preserved[key] = state.get(key)
+        for key in _pcfg.get('skip_preserve', []):
+            preserved.pop(key, None)
+    except Exception:
+        pass
+
+    # Gap #41: discard resolved events — only keep open events
+    for _ekey in ('layer2_unresolved_events', 'layer35_recovery_events'):
+        _evts = preserved.get(_ekey)
+        if isinstance(_evts, list):
+            preserved[_ekey] = [e for e in _evts if e.get('status') == 'open']
     preserved['pre_compact_hash'] = _state_hash(state)
     preserved['preserved_at'] = time.time()
     try:
