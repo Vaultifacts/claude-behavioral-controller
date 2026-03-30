@@ -92,6 +92,11 @@ def _run_layer1(message, category, state):
         'NONE':           ['Verify the response addresses the user request directly.'],
     }
     state['task_success_criteria'] = _criteria_map.get(category, ['Verify the task is completed as requested.'])
+    if state.get('layer19_last_impact_level', 'LOW') in ('HIGH', 'CRITICAL'):
+        state['task_success_criteria'].extend([
+            'Verify the modified file was read with the Read tool before editing.',
+            'Verify no dependent files are inadvertently broken by this change.',
+        ])
 
     # Reset per-turn counters on new user turn
     state['layer2_turn_event_count'] = 0
