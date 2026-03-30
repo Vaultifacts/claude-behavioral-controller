@@ -52,10 +52,12 @@ def layer35_check_resolutions(tool_names, state):
             continue
         if now - evt.get('ts', 0) > _L35_WINDOW_SEC:
             evt['status'] = 'timed_out'
+            evt['severity'] = 'critical'  # gap #39: escalate on timeout per spec behavior 7
             continue
         turns_elapsed = current_turn - evt.get('turn', 0)
         if turns_elapsed > _L35_WINDOW_TURNS:
             evt['status'] = 'timed_out'
+            evt['severity'] = 'critical'  # gap #39: escalate on timeout per spec behavior 7
             continue
         if has_verify and turns_elapsed > 0:
             evt['status'] = 'resolved'
@@ -121,8 +123,11 @@ def detect_fn_signals(response, tool_names, user_request, state, use_haiku=True)
 def layer35_unresolved_lines(state):
     lines = []
     for evt in state.get('layer35_recovery_events', []):
-        if evt.get('status') == 'open':
-            reason = evt.get('category', 'unknown')
-            task = evt.get('task_id', '')
+        status = evt.get('status')
+        reason = evt.get('category', 'unknown')
+        task = evt.get('task_id', '')
+        if status == 'open':
             lines.append(f'- UNRESOLVED: FN -- {reason} (task: {task})')
+        elif status == 'timed_out' and evt.get('severity') == 'critical':
+            lines.append(f'- TIMED_OUT [CRITICAL]: FN -- {reason} (task: {task})')
     return lines
