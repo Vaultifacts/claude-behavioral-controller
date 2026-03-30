@@ -1397,7 +1397,7 @@ def main():
                                f'{_agreed}/{_total} agree ({_pct:.0f}%) | FPs: {_fp_desc}')
                 with open(SHADOW_TREND_LOG, 'a', encoding='utf-8') as _tf:
                     _tf.write(_trend_line + '\n')
-                n_lines = len(_entries) + _smoke_n
+                n_lines = len(_entries)
                 open(SHADOW_LOG, 'w').close()
                 print(f'Shadow log cleared ({n_lines} entries removed).')
                 print(f'Trend snapshot: {_trend_line}')
