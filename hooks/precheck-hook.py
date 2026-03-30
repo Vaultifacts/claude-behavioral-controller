@@ -38,6 +38,21 @@ def extract_message(payload):
     return msg if isinstance(msg, str) else ""
 
 
+def detect_subtasks(message):
+    """Detect multiple subtasks in message. Returns list of subtask texts or []."""
+    # Pattern 1: numbered list (1. X or 1) X)
+    numbered = re.findall(r'(?:^|\n)\s*\d+[.)]\s+(.+)', message)
+    if len(numbered) >= 2:
+        return [s.strip() for s in numbered if s.strip()]
+    # Pattern 2: explicit conjunctions
+    parts = re.split(r'\b(?:and also|additionally|and then|furthermore)\b',
+                     message, flags=re.IGNORECASE)
+    parts = [p.strip() for p in parts if len(p.strip()) > 15]
+    if len(parts) >= 2:
+        return parts
+    return []
+
+
 def _run_layer1(message, category, state):
     """Layer 1: update session state, return extra output lines."""
     extra = []
@@ -119,6 +134,27 @@ def _run_layer1(message, category, state):
             'Verify the modified file was read with the Read tool before editing.',
             'Verify no dependent files are inadvertently broken by this change.',
         ])
+
+    # Behavior 6: multi-task splitting
+    subtasks = detect_subtasks(message)
+    if len(subtasks) >= 2:
+        state['layer1_subtask_count'] = len(subtasks)
+        state['active_subtask_id'] = str(uuid.uuid4())[:8]
+        for i, sub in enumerate(subtasks[:5], 1):
+            brief = sub[:60] + ('...' if len(sub) > 60 else '')
+            state['task_success_criteria'].append(
+                f'[Subtask {i}/{len(subtasks)}] Verify addressed: {brief}'
+            )
+        extra.append(
+            f'[monitor:layer1] Multi-task: {len(subtasks)} subtasks detected. '
+            + '; '.join(
+                f'({i}) {s[:50]}{"..." if len(s) > 50 else ""}'
+                for i, s in enumerate(subtasks[:5], 1)
+            )
+        )
+    else:
+        state['layer1_subtask_count'] = 0
+        state['active_subtask_id'] = None
 
     # Behavior 7: DEEP scope confirmation gate
     if category == 'DEEP' and not state.get('layer15_session_reads'):

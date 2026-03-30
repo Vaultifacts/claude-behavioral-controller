@@ -4514,6 +4514,113 @@ ok = len(lines) == 1 and 'TIMED_OUT [CRITICAL]' in lines[0] and 'LAZINESS' in li
 print('t118h_ok' if ok else 't118h_FAIL:' + str(lines))
 " 2>/dev/null | grep -q "t118h_ok" && ok "[118] gap#39: layer35_unresolved_lines emits TIMED_OUT [CRITICAL]" || fail "[118] gap#39: layer35_unresolved_lines emits TIMED_OUT [CRITICAL]"
 
+
+# [119] gap#28: multi-task splitting (detect_subtasks + state update)
+python3 -c "
+import sys, re, os, json, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ss.STATE_PATH = tempfile.mktemp(suffix='.json')
+
+fn_src = open(os.path.expanduser('~/.claude/hooks/precheck-hook.py')).read()
+fn_code = 'def detect_subtasks' + fn_src.split('def detect_subtasks')[1].split('\ndef ')[0]
+ns = {}; exec(compile(fn_code, '<t>', 'exec'), {'re': re}, ns)
+detect_subtasks = ns['detect_subtasks']
+
+# t119a: numbered list detects 3 subtasks
+r = detect_subtasks('Tasks:\n1. Fix foo.py\n2. Add tests for bar.py\n3. Update the README docs')
+ok = len(r) == 3
+print('t119a_ok' if ok else 't119a_FAIL:' + str(r))
+
+# t119b: conjunction 'and also' detects 2 subtasks
+r2 = detect_subtasks('Refactor the authentication module and also update the password reset flow to use new tokens')
+ok2 = len(r2) == 2
+print('t119b_ok' if ok2 else 't119b_FAIL:' + str(r2))
+
+# t119c: single task returns empty
+r3 = detect_subtasks('Fix the null pointer exception in the login handler function')
+ok3 = r3 == []
+print('t119c_ok' if ok3 else 't119c_FAIL:' + str(r3))
+
+# t119d: state gets subtask_count and active_subtask_id on multi-task message
+import uuid, glob, urllib.request, time
+os.chdir(os.path.expanduser('~/.claude'))
+state = ss.read_state()
+state['task_success_criteria'] = ['Verify task done.']
+# simulate behavior 6 inline (same logic as hook)
+subtasks = detect_subtasks('Tasks:\n1. Fix foo.py\n2. Add tests for bar.py')
+if len(subtasks) >= 2:
+    state['layer1_subtask_count'] = len(subtasks)
+    state['active_subtask_id'] = str(uuid.uuid4())[:8]
+    for i, sub in enumerate(subtasks[:5], 1):
+        brief = sub[:60] + ('...' if len(sub) > 60 else '')
+        state['task_success_criteria'].append(f'[Subtask {i}/{len(subtasks)}] Verify addressed: {brief}')
+ss.write_state(state)
+loaded = ss.read_state()
+ok4 = (loaded.get('layer1_subtask_count') == 2
+       and loaded.get('active_subtask_id') is not None
+       and any('[Subtask 1/2]' in c for c in loaded.get('task_success_criteria', [])))
+print('t119d_ok' if ok4 else 't119d_FAIL:count=' + str(loaded.get('layer1_subtask_count')) + ' criteria=' + str(loaded.get('task_success_criteria')))
+" 2>/dev/null
+python3 -c "
+import sys, re, os, json, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ss.STATE_PATH = tempfile.mktemp(suffix='.json')
+fn_src = open(os.path.expanduser('~/.claude/hooks/precheck-hook.py')).read()
+fn_code = 'def detect_subtasks' + fn_src.split('def detect_subtasks')[1].split('\ndef ')[0]
+ns = {}; exec(compile(fn_code, '<t>', 'exec'), {'re': re}, ns)
+detect_subtasks = ns['detect_subtasks']
+r = detect_subtasks('Tasks:\n1. Fix foo.py\n2. Add tests for bar.py\n3. Update the README docs')
+print('t119a_ok' if len(r) == 3 else 't119a_FAIL:' + str(r))
+" 2>/dev/null | grep -q "t119a_ok" && ok "[119] gap#28: numbered list detects 3 subtasks" || fail "[119] gap#28: numbered list detects 3 subtasks"
+python3 -c "
+import sys, re, os, json, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+fn_src = open(os.path.expanduser('~/.claude/hooks/precheck-hook.py')).read()
+fn_code = 'def detect_subtasks' + fn_src.split('def detect_subtasks')[1].split('\ndef ')[0]
+ns = {}; exec(compile(fn_code, '<t>', 'exec'), {'re': re}, ns)
+detect_subtasks = ns['detect_subtasks']
+r = detect_subtasks('Refactor the authentication module and also update the password reset flow to use the new tokens')
+print('t119b_ok' if len(r) == 2 else 't119b_FAIL:' + str(r))
+" 2>/dev/null | grep -q "t119b_ok" && ok "[119] gap#28: 'and also' conjunction detects 2 subtasks" || fail "[119] gap#28: 'and also' conjunction detects 2 subtasks"
+python3 -c "
+import sys, re, os, json, tempfile
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+fn_src = open(os.path.expanduser('~/.claude/hooks/precheck-hook.py')).read()
+fn_code = 'def detect_subtasks' + fn_src.split('def detect_subtasks')[1].split('\ndef ')[0]
+ns = {}; exec(compile(fn_code, '<t>', 'exec'), {'re': re}, ns)
+detect_subtasks = ns['detect_subtasks']
+r = detect_subtasks('Fix the null pointer exception in the login handler function')
+print('t119c_ok' if r == [] else 't119c_FAIL:' + str(r))
+" 2>/dev/null | grep -q "t119c_ok" && ok "[119] gap#28: single task returns no subtasks" || fail "[119] gap#28: single task returns no subtasks"
+python3 -c "
+import sys, re, os, json, tempfile, uuid
+sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+import qg_session_state as ss
+ss.STATE_PATH = tempfile.mktemp(suffix='.json')
+os.chdir(os.path.expanduser('~/.claude'))
+fn_src = open('hooks/precheck-hook.py').read()
+fn_code = 'def detect_subtasks' + fn_src.split('def detect_subtasks')[1].split('\ndef ')[0]
+ns = {}; exec(compile(fn_code, '<t>', 'exec'), {'re': re}, ns)
+detect_subtasks = ns['detect_subtasks']
+state = ss.read_state()
+state['task_success_criteria'] = ['Verify task done.']
+subtasks = detect_subtasks('Tasks:\n1. Fix the authentication bug\n2. Add unit tests for the new flow')
+if len(subtasks) >= 2:
+    state['layer1_subtask_count'] = len(subtasks)
+    state['active_subtask_id'] = str(uuid.uuid4())[:8]
+    for i, sub in enumerate(subtasks[:5], 1):
+        brief = sub[:60] + ('...' if len(sub) > 60 else '')
+        state['task_success_criteria'].append(f'[Subtask {i}/{len(subtasks)}] Verify addressed: {brief}')
+ss.write_state(state)
+loaded = ss.read_state()
+ok = (loaded.get('layer1_subtask_count') == 2
+      and loaded.get('active_subtask_id') is not None
+      and any('[Subtask 1/2]' in c for c in loaded.get('task_success_criteria', [])))
+print('t119d_ok' if ok else 't119d_FAIL:count=' + str(loaded.get('layer1_subtask_count')))
+" 2>/dev/null | grep -q "t119d_ok" && ok "[119] gap#28: state gets subtask_count + active_subtask_id + per-subtask criteria" || fail "[119] gap#28: state gets subtask_count + active_subtask_id + per-subtask criteria"
+
 echo "=== Results: $PASS passed, $FAIL failed, $TOTAL total ==="
 
 # Coverage summary (fast, single-pass Python analysis)
