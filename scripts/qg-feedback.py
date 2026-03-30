@@ -1198,6 +1198,23 @@ def cmd_monitor():
     else:
         print("Audit:    no integrity check run yet (run: qg integrity)")
 
+    # --- Active config (qg-rules.json) ---
+    rules_path = f'{CLAUDE_DIR}/qg-rules.json'
+    try:
+        with open(rules_path, 'r', encoding='utf-8') as f:
+            rules = json.load(f)
+        l2 = rules.get('layer2', {})
+        l6 = rules.get('layer6', {})
+        l9 = rules.get('layer9', {})
+        l4 = rules.get('layer4', {})
+        print(f"Config:   L2 limit={l2.get('events_per_turn_limit', 5)}/turn  "
+              f"loop={l2.get('loop_same_tool_count', 3)}  "
+              f"L6 pattern>={l6.get('pattern_min_sessions', 3)}sess/{l6.get('pattern_min_pct', 15)}%  "
+              f"L9 min={l9.get('min_responses_before_recalibration', 5)}  "
+              f"retain={l4.get('session_retention_count', 30)}sess")
+    except (FileNotFoundError, json.JSONDecodeError):
+        print("Config:   qg-rules.json not found")
+
     # --- Cross-session patterns ---
     try:
         with open(cross_session_path, 'r', encoding='utf-8') as f:
