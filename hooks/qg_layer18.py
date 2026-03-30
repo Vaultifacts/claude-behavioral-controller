@@ -88,6 +88,7 @@ def main():
         return
 
     state = ss.read_state()
+    _warned = False
 
     try:
         with open(RULES_PATH, 'r', encoding='utf-8') as _f:
@@ -102,6 +103,8 @@ def main():
         return
 
     if not check_path_exists(file_path):
+        state['layer18_hallucination_warned'] = True
+        ss.write_state(state)
         print(json.dumps({
             'additionalContext': (
                 f'[monitor:WARN:layer1.8] Path does not exist: {file_path!r}. '
@@ -117,6 +120,7 @@ def main():
     # Gap #34: warn if imports in old_string don't exist in file
     _check_imports = _cfg.get('check_import_existence', True)
     if _check_imports and not check_imports_in_file(file_path, old_string):
+        _warned = True
         print(json.dumps({
             'additionalContext': (
                 f'[monitor:WARN:layer1.8] Import in old_string may not exist in '
@@ -130,6 +134,7 @@ def main():
     if _check_remote:
         remote_urls = find_remote_refs(old_string)
         if remote_urls:
+            _warned = True
             print(json.dumps({
                 'additionalContext': (
                     f'[monitor:WARN:layer1.8] old_string contains {len(remote_urls)} '
@@ -139,17 +144,26 @@ def main():
             }))
 
     if not _check_fn_existence:
+        if _warned:
+            state['layer18_hallucination_warned'] = True
+            ss.write_state(state)
         return
 
     # Per-session dedup: skip function refs already checked this session
     names_found = re.findall(r'(?:^|\s)def\s+(\w+)|(?:^|\s)class\s+(\w+)', old_string)
     names = [d or c for d, c in names_found if d or c]
     if not names:
+        if _warned:
+            state['layer18_hallucination_warned'] = True
+            ss.write_state(state)
         return
 
     checked = state.get('layer18_session_checked', {})
     unchecked = [n for n in names if f'{file_path}::{n}' not in checked]
     if not unchecked:
+        if _warned:
+            state['layer18_hallucination_warned'] = True
+            ss.write_state(state)
         return  # all refs already verified this session
 
     try:
@@ -166,6 +180,8 @@ def main():
             missing.append(name)
 
     state['layer18_session_checked'] = checked
+    if _warned or missing:
+        state['layer18_hallucination_warned'] = True
     ss.write_state(state)
 
     if missing:
