@@ -98,6 +98,14 @@ def _run_layer1(message, category, state):
             'Verify no dependent files are inadvertently broken by this change.',
         ])
 
+    # Behavior 7: DEEP scope confirmation gate
+    if category == 'DEEP' and not state.get('layer15_session_reads'):
+        extra.append(
+            '[monitor:layer1] DEEP task with no prior file reads this session. '
+            'Read the key files (Glob/Read) before editing anything. '
+            'Confirm scope before proceeding.'
+        )
+
     # Reset per-turn counters on new user turn
     state['layer2_turn_event_count'] = 0
     state['layer15_turn_warnings'] = []
