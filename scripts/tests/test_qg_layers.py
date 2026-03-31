@@ -5828,5 +5828,141 @@ class TestLayer16RollbackUndo(unittest.TestCase):
         self.assertEqual(len(get_snapshots_for_file(p2, state)), 1)
 
 
+
+
+# ============================================================================
+# qg_layer12.py -- User Satisfaction Tracking tests
+# ============================================================================
+
+
+class TestLayer12UserSatisfaction(unittest.TestCase):
+    """classify_sentiment and _extract_message tests."""
+    def setUp(self):
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    # --- _extract_message ---
+
+    def test_extract_message_string(self):
+        from qg_layer12 import _extract_message
+        self.assertEqual(_extract_message({"message": "hello"}), "hello")
+
+    def test_extract_message_dict(self):
+        from qg_layer12 import _extract_message
+        self.assertEqual(_extract_message({"message": {"content": "hi"}}), "hi")
+
+    def test_extract_message_list(self):
+        from qg_layer12 import _extract_message
+        self.assertEqual(_extract_message({"message": [{"content": "a"}, {"content": "b"}]}), "a b")
+
+    def test_extract_message_prompt_fallback(self):
+        from qg_layer12 import _extract_message
+        self.assertEqual(_extract_message({"prompt": "test"}), "test")
+
+    def test_extract_message_empty(self):
+        from qg_layer12 import _extract_message
+        self.assertEqual(_extract_message({}), "")
+
+    # --- classify_sentiment: frustration ---
+
+    def test_frustration_wrong(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("No, that's wrong")
+        self.assertEqual(cat, "frustration")
+        self.assertLess(score, 0)
+
+    def test_frustration_try_again(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("Try again please")
+        self.assertEqual(cat, "frustration")
+        self.assertIn("retry_request", sigs)
+
+    def test_frustration_i_said(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("I said to use React, not Vue")
+        self.assertEqual(cat, "frustration")
+        self.assertIn("correction", sigs)
+
+    def test_frustration_thats_not(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("That's not what I asked for")
+        self.assertEqual(cat, "frustration")
+
+    def test_frustration_undo(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("undo that change")
+        self.assertEqual(cat, "frustration")
+
+    # --- classify_sentiment: satisfaction ---
+
+    def test_satisfaction_thanks(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("Thanks, that looks great!")
+        self.assertEqual(cat, "satisfaction")
+        self.assertGreater(score, 0)
+
+    def test_satisfaction_perfect(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("Perfect!")
+        self.assertEqual(cat, "satisfaction")
+        self.assertIn("praise", sigs)
+
+    def test_satisfaction_lgtm(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("LGTM, ship it")
+        self.assertEqual(cat, "satisfaction")
+
+    def test_satisfaction_numbered_selection(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("1")
+        self.assertEqual(cat, "satisfaction")
+        self.assertIn("numbered_selection", sigs)
+
+    def test_satisfaction_yes(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("yes")
+        self.assertEqual(cat, "satisfaction")
+
+    # --- classify_sentiment: confusion ---
+
+    def test_confusion_what(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("What? I don't understand")
+        self.assertEqual(cat, "confusion")
+
+    def test_confusion_explain(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("Can you explain that?")
+        self.assertEqual(cat, "confusion")
+
+    # --- classify_sentiment: neutral ---
+
+    def test_neutral_task_request(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("Add a login page with OAuth support")
+        self.assertEqual(cat, "neutral")
+
+    def test_neutral_empty(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("")
+        self.assertEqual(cat, "neutral")
+
+    def test_neutral_code_block(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("def hello():\n    return 42")
+        self.assertEqual(cat, "neutral")
+
+    # --- edge cases ---
+
+    def test_mixed_signals_frustration_wins(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("Thanks but that's not what I asked, try again")
+        self.assertEqual(cat, "frustration")
+
+    def test_case_insensitive(self):
+        from qg_layer12 import classify_sentiment
+        cat, score, sigs = classify_sentiment("WRONG! TRY AGAIN!")
+        self.assertEqual(cat, "frustration")
+
+
 if __name__ == '__main__':
     unittest.main()

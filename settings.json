@@ -152,6 +152,14 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer12.py"
+          }
+        ]
       }
     ],
     "PreToolUse": [
