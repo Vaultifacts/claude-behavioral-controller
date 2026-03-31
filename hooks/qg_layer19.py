@@ -8,6 +8,16 @@ import qg_session_state as ss
 
 RULES_PATH = os.path.expanduser('~/.claude/qg-rules.json')
 
+_MONITOR_PATH = os.path.expanduser('~/.claude/qg-monitor.jsonl')
+
+def _write_event(event):
+    try:
+        with open(_MONITOR_PATH, 'a', encoding='utf-8') as f:
+            f.write(__import__('json').dumps(event, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
+
+
 CORE_PATTERNS = re.compile(
     r'(utils?|shared|common|base|core|config|settings|constants?|helpers?)\.(py|js|ts)$',
     re.IGNORECASE)
@@ -111,6 +121,11 @@ def main():
 
     result = analyze_impact(file_path)
     level = result['level']
+    import time as _t, uuid as _uuid
+    _write_event({'event_id': str(_uuid.uuid4()), 'ts': _t.strftime('%Y-%m-%dT%H:%M:%S'),
+                  'layer': 'layer19', 'category': 'IMPACT_ASSESSED', 'severity': level.lower(),
+                  'detection_signal': f'{os.path.basename(file_path)}: {level} ({result["dependent_count"]} deps)',
+                  'file_path': file_path})
 
     if level in ('HIGH', 'CRITICAL'):
         n = result['dependent_count']

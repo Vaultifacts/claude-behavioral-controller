@@ -5,6 +5,15 @@ Imported by quality-gate.py for use in _layer3_run and _layer4_checkpoint.
 import re, sys, os, time, uuid
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+_MONITOR_PATH = __import__('os').path.expanduser('~/.claude/qg-monitor.jsonl')
+
+def _write_event_35(event):
+    try:
+        with open(_MONITOR_PATH, 'a', encoding='utf-8') as f:
+            f.write(__import__('json').dumps(event, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
+
 _L35_WINDOW_TURNS = 3
 _L35_WINDOW_SEC = 1800  # 30 minutes
 
@@ -39,6 +48,10 @@ def layer35_create_recovery_event(verdict, fn_signals, state, tool_names):
     }
     events.append(event)
     state['layer35_recovery_events'] = events[-20:]
+    _write_event_35({'event_id': event['event_id'], 'ts': time.strftime('%Y-%m-%dT%H:%M:%S'),
+                     'layer': 'layer35', 'category': f'RECOVERY_{verdict}', 'severity': 'info',
+                     'detection_signal': event.get('category', 'unknown'),
+                     'session_uuid': state.get('session_uuid', '')})
 
 
 def layer35_check_resolutions(tool_names, state):

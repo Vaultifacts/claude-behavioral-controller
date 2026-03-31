@@ -7,6 +7,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import qg_session_state as ss
 
 CALIBRATION_PATH = os.path.expanduser('~/.claude/qg-calibration.jsonl')
+
+_MONITOR_PATH = os.path.expanduser('~/.claude/qg-monitor.jsonl')
+
+def _write_event(event):
+    try:
+        with open(_MONITOR_PATH, 'a', encoding='utf-8') as f:
+            f.write(__import__('json').dumps(event, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
+
 HIGH_RE = re.compile(
     r"\b(I'?m certain|definitely|I know|this will work|guaranteed|100%|confirmed)\b",
     re.IGNORECASE)
@@ -84,6 +94,10 @@ def main():
             f.write(json.dumps(record, ensure_ascii=False) + chr(10))
     except Exception:
         pass
+    _write_event({'event_id': record.get('event_id', ''), 'ts': record.get('ts', ''),
+                  'layer': 'layer9', 'category': 'CALIBRATION',
+                  'severity': 'info', 'detection_signal': f'certainty={certainty} outcome={actual_outcome}',
+                  'session_uuid': record.get('session_uuid', '')})
 
 
 if __name__ == '__main__':

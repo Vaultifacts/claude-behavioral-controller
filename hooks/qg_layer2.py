@@ -7,6 +7,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import qg_session_state as ss
 
 MONITOR_PATH = os.path.expanduser('~/.claude/qg-monitor.jsonl')
+
+def _norm_path(p):
+    """Normalize path for comparison."""
+    return os.path.normpath(p).replace('\\', '/') if p else ''
+
 BASH_TOOL_RE = re.compile(r'\b(grep|cat|find|head|tail)\b')
 ERROR_RE = re.compile(
     r'(error|exception|traceback|failed|exit code [1-9]|errno|not found|permission denied)',
@@ -35,9 +40,9 @@ def detect_loop(tool_name, target, history, threshold=3):
 def detect_all_events(tool_name, tool_input, tool_response, state, prev_calls, turn_history=None):
     """Return list of violation event dicts for this tool call."""
     events = []
-    reads = state.get('layer15_session_reads', [])
+    reads = [_norm_path(r) for r in state.get('layer15_session_reads', [])]
     scope = state.get('layer1_scope_files', [])
-    fp = (tool_input or {}).get('file_path', '')
+    fp = _norm_path((tool_input or {}).get('file_path', ''))
     cmd = (tool_input or {}).get('command', '')
 
     # LAZINESS: Edit without prior Read
@@ -151,10 +156,10 @@ def main():
     unresolved = state.get('layer2_unresolved_events', [])
 
     # Resolution transitions: mark events addressed when the triggering file is read
-    current_fp = ti.get('file_path', '')
+    current_fp = _norm_path(ti.get('file_path', ''))
     if tool_name == 'Read' and current_fp:
         for evt in unresolved:
-            if (evt.get('status') == 'open' and evt.get('target_file') == current_fp
+            if (evt.get('status') == 'open' and _norm_path(evt.get('target_file', '')) == current_fp
                     and evt.get('category') in ('LAZINESS', 'ASSUMPTION')):
                 evt['status'] = 'addressed'
     if tool_name in ('Read', 'Bash'):

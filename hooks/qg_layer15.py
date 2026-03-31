@@ -9,6 +9,21 @@ import qg_session_state as ss
 import qg_notification_router as router
 
 RULES_PATH = os.path.expanduser('~/.claude/qg-rules.json')
+
+_MONITOR_PATH = os.path.expanduser('~/.claude/qg-monitor.jsonl')
+
+def _write_event(event):
+    try:
+        with open(_MONITOR_PATH, 'a', encoding='utf-8') as f:
+            f.write(__import__('json').dumps(event, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
+
+
+def _norm_path(p):
+    """Normalize path for comparison."""
+    return os.path.normpath(p).replace('\\', '/') if p else ''
+
 BASH_TOOL_RE = re.compile(r'\b(grep|cat|find|head|tail|sed|awk)\b')
 
 
@@ -22,8 +37,8 @@ def _load_rules():
 
 def evaluate_rules(tool_name, tool_input, state):
     """Returns first matching rule violation dict or None."""
-    reads = state.get('layer15_session_reads', [])
-    fp = tool_input.get('file_path', '') if isinstance(tool_input, dict) else ''
+    reads = [_norm_path(r) for r in state.get('layer15_session_reads', [])]
+    fp = _norm_path(tool_input.get('file_path', '') if isinstance(tool_input, dict) else '')
     cmd = tool_input.get('command', '') if isinstance(tool_input, dict) else ''
 
     if tool_name == 'Edit' and fp and fp not in reads:
@@ -45,7 +60,7 @@ def evaluate_rules(tool_name, tool_input, state):
 
 def handle_read_tracking(tool_name, tool_input):
     if tool_name == 'Read':
-        fp = (tool_input or {}).get('file_path', '')
+        fp = _norm_path((tool_input or {}).get('file_path', ''))
         if fp:
             state = ss.read_state()
             reads = state.get('layer15_session_reads', [])
@@ -112,6 +127,11 @@ def main():
         router.notify('CRITICAL', 'layer15', rule_id, None,
                       f'Rule {rule_id!r} violated {counts[rule_id]}x this session.', 'pretooluse')
 
+    import time as _t, uuid as _uuid
+    _write_event({'event_id': str(_uuid.uuid4()), 'ts': _t.strftime('%Y-%m-%dT%H:%M:%S'),
+                  'layer': 'layer15', 'category': result['rule_id'], 'severity': result['action'],
+                  'detection_signal': result['message'][:200],
+                  'session_uuid': state.get('session_uuid', '')})
     action = result['action']
     impact_level = state.get('layer19_last_impact_level', 'LOW')
     if impact_level in ('HIGH', 'CRITICAL') and action == 'warn':

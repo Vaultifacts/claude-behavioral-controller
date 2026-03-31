@@ -5,6 +5,15 @@ import glob, json, os, re, sys, time, urllib.request, uuid
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from precheck_hook_ext import jaccard_similarity, detect_deep, infer_scope_files
 
+_MONITOR_PATH = os.path.expanduser('~/.claude/qg-monitor.jsonl')
+
+def _write_event(event):
+    try:
+        with open(_MONITOR_PATH, 'a', encoding='utf-8') as f:
+            f.write(__import__('json').dumps(event, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
+
 DIRECTIVES = {
     "OVERCONFIDENCE": "Before citing test results, counts, or specific outputs — run the command and quote the result inline.",
     "ASSUMPTION": "Before claiming anything about code, file contents, or system state — use Grep or Read to verify first.",
@@ -204,6 +213,10 @@ def main():
     if detect_deep(message):
         category = "DEEP"
 
+    import time as _t
+    _write_event({'event_id': str(uuid.uuid4()), 'ts': _t.strftime('%Y-%m-%dT%H:%M:%S'),
+                  'layer': 'precheck', 'category': f'CLASSIFY_{category}', 'severity': 'info',
+                  'detection_signal': f'Request classified as {category}: {message[:80]}'})
     output_lines = []
     directive = DIRECTIVES.get(category)
     if directive:

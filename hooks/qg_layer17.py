@@ -10,6 +10,11 @@ import qg_session_state as ss
 RULES_PATH = os.path.expanduser('~/.claude/qg-rules.json')
 MONITOR_PATH = os.path.expanduser('~/.claude/qg-monitor.jsonl')
 
+def _norm_path(p):
+    """Normalize path for comparison."""
+    return os.path.normpath(p).replace('\\', '/') if p else ''
+
+
 _CREATE_RE = re.compile(
     r'\b(create|write new|add a? new|make a? new|scaffold|generate|init(?:ialize)?)\b',
     re.IGNORECASE)
@@ -88,7 +93,7 @@ def main():
         tool_name = payload.get('tool_name', '')
         if tool_name in ('Edit', 'Write'):
             scope_files = state.get('layer1_scope_files', [])
-            file_path = (payload.get('tool_input') or {}).get('file_path', '')
+            file_path = _norm_path((payload.get('tool_input') or {}).get('file_path', ''))
             if scope_files and file_path:
                 basename = os.path.basename(file_path)
                 if not any(s in file_path or s in basename for s in scope_files):

@@ -8,6 +8,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import qg_session_state as ss
 
 RULES_PATH = os.path.expanduser("~/.claude/qg-rules.json")
+
+_MONITOR_PATH = os.path.expanduser('~/.claude/qg-monitor.jsonl')
+
+def _write_event(event):
+    try:
+        with open(_MONITOR_PATH, 'a', encoding='utf-8') as f:
+            f.write(__import__('json').dumps(event, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
+
 _REMOTE_URL_RE = re.compile(r'https?://', re.IGNORECASE)
 
 
@@ -215,6 +225,11 @@ def main():
     ss.write_state(state)
 
     if missing:
+        import time as _t, uuid as _uuid
+        _write_event({'event_id': str(_uuid.uuid4()), 'ts': _t.strftime('%Y-%m-%dT%H:%M:%S'),
+                      'layer': 'layer18', 'category': 'HALLUCINATION_DETECTED', 'severity': 'warning',
+                      'detection_signal': f'Missing refs in {os.path.basename(file_path)}: {missing[:3]}',
+                      'file_path': file_path})
         print(json.dumps({
             'additionalContext': (
                 f'[monitor:WARN:layer1.8] Referenced function/class in old_string '

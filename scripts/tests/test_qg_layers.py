@@ -3151,5 +3151,1522 @@ class TestLayer5HandoffFiles(unittest.TestCase):
         self.assertEqual(state['layer5_subagents'][subagent_id].get('merged_events'), 1)
 
 
+
+
+# ============================================================================
+# quality-gate.py unit tests (Tiers 1-5)
+# ============================================================================
+
+def _load_qg():
+    """Helper to import quality-gate.py via importlib (hyphenated filename)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        'quality_gate', os.path.expanduser('~/.claude/hooks/quality-gate.py'))
+    qg = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(qg)
+    return qg
+
+
+class TestQGRecordVerifiedCounts(unittest.TestCase):
+    """Tier 1: _record_verified_counts — writes grace file when both regexes match."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_grace = self.qg._GRACE_FILE
+        self._orig_log = self.qg.LOG_PATH
+        self.qg._GRACE_FILE = os.path.join(self.tmpdir, 'grace.json')
+        self.qg.LOG_PATH = os.path.join(self.tmpdir, 'qg.log')
+
+    def tearDown(self):
+        self.qg._GRACE_FILE = self._orig_grace
+        self.qg.LOG_PATH = self._orig_log
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_writes_grace_file_on_matching_response(self):
+        self.qg._record_verified_counts('=== Results: 265 passed, 0 failed, 265 total ===', ['Bash'])
+        self.assertTrue(os.path.exists(self.qg._GRACE_FILE))
+        import json
+        with open(self.qg._GRACE_FILE) as f:
+            data = json.load(f)
+        self.assertEqual(data['key'], '265')
+        self.assertIn('ts', data)
+
+    def test_no_write_when_bare_count_missing(self):
+        self.qg._record_verified_counts('265 passed somewhere', ['Bash'])
+        self.assertFalse(os.path.exists(self.qg._GRACE_FILE))
+
+    def test_log_entry_includes_tools(self):
+        self.qg._record_verified_counts('=== Results: 10 passed, 0 failed, 10 total ===', ['Bash', 'Read'])
+        with open(self.qg.LOG_PATH) as f:
+            content = f.read()
+        self.assertIn('GRACE-WRITE', content)
+        self.assertIn('Bash,Read', content)
+
+
+class TestQGCheckCountGrace(unittest.TestCase):
+    """Tier 1: _check_count_grace — grace period logic."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_grace = self.qg._GRACE_FILE
+        self._orig_log = self.qg.LOG_PATH
+        self.qg._GRACE_FILE = os.path.join(self.tmpdir, 'grace.json')
+        self.qg.LOG_PATH = os.path.join(self.tmpdir, 'qg.log')
+
+    def tearDown(self):
+        self.qg._GRACE_FILE = self._orig_grace
+        self.qg.LOG_PATH = self._orig_log
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_returns_true_within_grace_period(self):
+        import json, time
+        with open(self.qg._GRACE_FILE, 'w') as f:
+            json.dump({'ts': time.time(), 'key': '42'}, f)
+        self.assertTrue(self.qg._check_count_grace('42 passed, 0 failed, 42 total'))
+
+    def test_returns_false_when_expired(self):
+        import json, time
+        with open(self.qg._GRACE_FILE, 'w') as f:
+            json.dump({'ts': time.time() - 600, 'key': '42'}, f)
+        self.assertFalse(self.qg._check_count_grace('42 passed, 0 failed, 42 total'))
+
+    def test_returns_false_when_no_file(self):
+        self.assertFalse(self.qg._check_count_grace('42 passed'))
+
+    def test_returns_false_when_count_mismatch(self):
+        import json, time
+        with open(self.qg._GRACE_FILE, 'w') as f:
+            json.dump({'ts': time.time(), 'key': '42'}, f)
+        self.assertFalse(self.qg._check_count_grace('99 passed, 0 failed'))
+
+
+class TestQGLogDecision(unittest.TestCase):
+    """Tier 1: log_decision — format and rotation."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_log = self.qg.LOG_PATH
+        self.qg.LOG_PATH = os.path.join(self.tmpdir, 'qg.log')
+
+    def tearDown(self):
+        self.qg.LOG_PATH = self._orig_log
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_writes_formatted_line(self):
+        self.qg.log_decision('PASS', 'llm-ok', 'Fix the bug', ['Edit', 'Bash'], 'MODERATE', 'Done.')
+        with open(self.qg.LOG_PATH) as f:
+            line = f.read().strip()
+        self.assertIn('| PASS', line)
+        self.assertIn('MODERATE', line)
+        self.assertIn('llm-ok', line)
+
+    def test_handles_empty_inputs(self):
+        self.qg.log_decision('BLOCK', 'reason', '', [], 'TRIVIAL')
+        with open(self.qg.LOG_PATH) as f:
+            line = f.read().strip()
+        self.assertIn('BLOCK', line)
+
+
+class TestQGGetLastComplexity(unittest.TestCase):
+    """Tier 1: get_last_complexity — classifier log parsing."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig = self.qg.CLASSIFIER_LOG
+        self.qg.CLASSIFIER_LOG = os.path.join(self.tmpdir, 'classifier.log')
+
+    def tearDown(self):
+        self.qg.CLASSIFIER_LOG = self._orig
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_parses_deep(self):
+        with open(self.qg.CLASSIFIER_LOG, 'w') as f:
+            f.write('2026-03-30 | DEEP | some details\n')
+        self.assertEqual(self.qg.get_last_complexity(), 'DEEP')
+
+    def test_parses_moderate(self):
+        with open(self.qg.CLASSIFIER_LOG, 'w') as f:
+            f.write('2026-03-30 | MODERATE | task\n')
+        self.assertEqual(self.qg.get_last_complexity(), 'MODERATE')
+
+    def test_returns_default_on_missing(self):
+        self.assertEqual(self.qg.get_last_complexity(), 'MODERATE')
+
+
+class TestQGCountUserItems(unittest.TestCase):
+    """Tier 1: _count_user_items — heuristic item counter."""
+    def setUp(self):
+        self.qg = _load_qg()
+
+    def test_explicit_number(self):
+        self.assertEqual(self.qg._count_user_items('fix all 5 bugs'), 5)
+
+    def test_comma_list(self):
+        result = self.qg._count_user_items('fix: error in login, broken signup, and missing dashboard')
+        self.assertGreaterEqual(result, 3)
+
+    def test_too_few_items_returns_zero(self):
+        self.assertEqual(self.qg._count_user_items('fix the bug'), 0)
+
+    def test_empty_returns_zero(self):
+        self.assertEqual(self.qg._count_user_items(''), 0)
+
+
+class TestQGExtractCertainty(unittest.TestCase):
+    """Tier 1: _extract_stated_certainty — regex certainty extraction."""
+    def setUp(self):
+        self.qg = _load_qg()
+
+    def test_high(self):
+        self.assertEqual(self.qg._extract_stated_certainty("I'm certain this is correct"), 'high')
+
+    def test_medium(self):
+        self.assertEqual(self.qg._extract_stated_certainty("I believe this should work"), 'medium')
+
+    def test_low(self):
+        self.assertEqual(self.qg._extract_stated_certainty("It might work, possibly"), 'low')
+
+    def test_none(self):
+        self.assertEqual(self.qg._extract_stated_certainty("Hello world"), 'none')
+
+
+class TestQGComputeConfidenceEdge(unittest.TestCase):
+    """Tier 1: _compute_confidence — clipping and adjustment paths."""
+    def setUp(self):
+        self.qg = _load_qg()
+
+    def test_floor_clips_to_001(self):
+        state = {
+            'layer2_unresolved_events': [{'status': 'open', 'severity': 'critical'}] * 10,
+            'layer2_elevated_scrutiny': True,
+            'layer15_warnings_ignored_count': 10,
+            'layer25_syntax_failure': True,
+            'layer8_regression_expected': True,
+            'layer17_uncertainty_level': 'HIGH',
+            'layer17_mismatch_count': 10,
+        }
+        score = self.qg._compute_confidence(False, None, state)
+        self.assertEqual(score, 0.01)
+
+    def test_ceiling_clips_to_099(self):
+        score = self.qg._compute_confidence(True, 'OVERCONFIDENCE', {})
+        self.assertLessEqual(score, 0.99)
+
+    def test_mechanical_block_gets_boost(self):
+        base_score = self.qg._compute_confidence(True, 'PLANNING', {})
+        mech_score = self.qg._compute_confidence(True, 'MECHANICAL', {})
+        self.assertGreater(mech_score, base_score)
+
+
+class TestQGWriteMonitorEvent(unittest.TestCase):
+    """Tier 1: _write_monitor_event — JSON append."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig = self.qg._QG_MONITOR
+        self.qg._QG_MONITOR = os.path.join(self.tmpdir, 'monitor.jsonl')
+
+    def tearDown(self):
+        self.qg._QG_MONITOR = self._orig
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_appends_json_line(self):
+        import json
+        self.qg._write_monitor_event({'test': True, 'value': 42})
+        with open(self.qg._QG_MONITOR) as f:
+            data = json.loads(f.read().strip())
+        self.assertEqual(data['test'], True)
+        self.assertEqual(data['value'], 42)
+
+    def test_silent_on_error(self):
+        self.qg._QG_MONITOR = '/nonexistent/dir/file.jsonl'
+        self.qg._write_monitor_event({'test': True})  # Should not raise
+
+
+class TestQGGetLastTurnLines(unittest.TestCase):
+    """Tier 2: _get_last_turn_lines — transcript backward walk."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_transcript(self, lines):
+        import json
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w') as f:
+            for line in lines:
+                f.write(json.dumps(line) + '\n')
+        return path
+
+    def test_single_turn(self):
+        import json
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': 'Fix the bug'}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'Done.'}]}},
+        ])
+        result = self.qg._get_last_turn_lines(path)
+        self.assertEqual(len(result), 1)
+
+    def test_skips_tool_result_user_entries(self):
+        import json
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': 'Fix it'}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'tool_use', 'id': 'tu1', 'name': 'Read', 'input': {}}]}},
+            {'type': 'user', 'message': {'content': [{'type': 'tool_result', 'tool_use_id': 'tu1', 'content': 'data'}]}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'Fixed.'}]}},
+        ])
+        result = self.qg._get_last_turn_lines(path)
+        self.assertEqual(len(result), 2)  # Both assistant entries
+
+    def test_empty_path(self):
+        result = self.qg._get_last_turn_lines('')
+        self.assertEqual(result, [])
+
+
+class TestQGGetToolSummary(unittest.TestCase):
+    """Tier 2: get_tool_summary — tool extraction from transcript."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_transcript(self, lines):
+        import json
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w') as f:
+            for line in lines:
+                f.write(json.dumps(line) + '\n')
+        return path
+
+    def test_extracts_tools_and_paths(self):
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': 'Fix it'}},
+            {'type': 'assistant', 'message': {'content': [
+                {'type': 'tool_use', 'id': 'tu1', 'name': 'Read', 'input': {'file_path': '/a.py'}},
+                {'type': 'tool_use', 'id': 'tu2', 'name': 'Edit', 'input': {'file_path': '/a.py'}},
+                {'type': 'tool_use', 'id': 'tu3', 'name': 'Bash', 'input': {'command': 'pytest'}},
+            ]}},
+        ])
+        tools, edited, bash = self.qg.get_tool_summary(path)
+        self.assertEqual(tools, ['Read', 'Edit', 'Bash'])
+        self.assertEqual(edited, ['/a.py'])
+        self.assertEqual(bash, ['pytest'])
+
+    def test_no_tools(self):
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': 'Hello'}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'Hi'}]}},
+        ])
+        tools, edited, bash = self.qg.get_tool_summary(path)
+        self.assertEqual(tools, [])
+        self.assertEqual(edited, [])
+
+    def test_empty_transcript(self):
+        tools, edited, bash = self.qg.get_tool_summary('')
+        self.assertEqual(tools, [])
+
+
+class TestQGGetFailedCommands(unittest.TestCase):
+    """Tier 2: get_failed_commands — detects failed Bash commands."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_transcript(self, lines):
+        import json
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w') as f:
+            for line in lines:
+                f.write(json.dumps(line) + '\n')
+        return path
+
+    def test_detects_failed_bash(self):
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': 'Run tests'}},
+            {'type': 'assistant', 'message': {'content': [
+                {'type': 'tool_use', 'id': 'tu1', 'name': 'Bash', 'input': {'command': 'pytest'}},
+            ]}},
+            {'type': 'user', 'message': {'content': [
+                {'type': 'tool_result', 'tool_use_id': 'tu1', 'content': 'FAILED test_foo.py', 'is_error': True},
+            ]}},
+        ])
+        failed = self.qg.get_failed_commands(path)
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(failed[0][0], 'pytest')
+
+    def test_no_failures(self):
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': 'Run tests'}},
+            {'type': 'assistant', 'message': {'content': [
+                {'type': 'tool_use', 'id': 'tu1', 'name': 'Bash', 'input': {'command': 'pytest'}},
+            ]}},
+            {'type': 'user', 'message': {'content': [
+                {'type': 'tool_result', 'tool_use_id': 'tu1', 'content': '5 passed', 'is_error': False},
+            ]}},
+        ])
+        failed = self.qg.get_failed_commands(path)
+        self.assertEqual(len(failed), 0)
+
+    def test_non_bash_not_detected(self):
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': 'Read file'}},
+            {'type': 'assistant', 'message': {'content': [
+                {'type': 'tool_use', 'id': 'tu1', 'name': 'Read', 'input': {'file_path': '/x'}},
+            ]}},
+            {'type': 'user', 'message': {'content': [
+                {'type': 'tool_result', 'tool_use_id': 'tu1', 'content': 'error reading', 'is_error': True},
+            ]}},
+        ])
+        failed = self.qg.get_failed_commands(path)
+        self.assertEqual(len(failed), 0)
+
+    def test_empty_transcript(self):
+        self.assertEqual(self.qg.get_failed_commands(''), [])
+
+
+class TestQGGetUserRequest(unittest.TestCase):
+    """Tier 3: get_user_request — finds real user message."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_transcript(self, lines):
+        import json
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w') as f:
+            for line in lines:
+                f.write(json.dumps(line) + '\n')
+        return path
+
+    def test_finds_string_message(self):
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': 'Fix the auth bug'}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'Done'}]}},
+        ])
+        self.assertEqual(self.qg.get_user_request(path), 'Fix the auth bug')
+
+    def test_skips_tool_result_only(self):
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': 'Fix it'}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'tool_use', 'id': 'tu1', 'name': 'Read', 'input': {}}]}},
+            {'type': 'user', 'message': {'content': [{'type': 'tool_result', 'tool_use_id': 'tu1', 'content': 'data'}]}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'Done'}]}},
+        ])
+        self.assertEqual(self.qg.get_user_request(path), 'Fix it')
+
+    def test_truncates_at_500(self):
+        long_msg = 'A' * 600
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': long_msg}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'Ok'}]}},
+        ])
+        result = self.qg.get_user_request(path)
+        self.assertEqual(len(result), 500)
+
+    def test_empty_returns_empty(self):
+        self.assertEqual(self.qg.get_user_request(''), '')
+
+
+class TestQGCountRetryBlocks(unittest.TestCase):
+    """Tier 4: _count_recent_retry_blocks — counts compliance retries."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_counts_retries_in_window(self):
+        from datetime import datetime
+        log = os.path.join(self.tmpdir, 'test.log')
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(log, 'w') as f:
+            f.write(f'{now} | BLOCK | MODERATE | OVERCONFIDENCE: test | tools=- | req=Stop hook feedback: QG\n')
+            f.write(f'{now} | BLOCK | MODERATE | ASSUMPTION: test | tools=- | req=Stop hook feedback: fix\n')
+        count = self.qg._count_recent_retry_blocks(log_path=log, window_sec=120)
+        self.assertEqual(count, 2)
+
+    def test_returns_zero_no_retries(self):
+        from datetime import datetime
+        log = os.path.join(self.tmpdir, 'test.log')
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(log, 'w') as f:
+            f.write(f'{now} | PASS | MODERATE | llm-ok | tools=Bash | req=Fix the bug\n')
+        count = self.qg._count_recent_retry_blocks(log_path=log, window_sec=120)
+        self.assertEqual(count, 0)
+
+
+class TestQGMechanicalChecks(unittest.TestCase):
+    """Tier 5: mechanical_checks — all SMOKE rules."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_grace = self.qg._GRACE_FILE
+        self.qg._GRACE_FILE = os.path.join(self.tmpdir, 'grace.json')
+
+    def tearDown(self):
+        self.qg._GRACE_FILE = self._orig_grace
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_smoke2_edit_without_verification_blocks(self):
+        result = self.qg.mechanical_checks(['Edit'], ['/foo.py'], [], [], 'Done.', '')
+        self.assertIsNotNone(result)
+        self.assertIn('MECHANICAL', result)
+
+    def test_smoke2_edit_with_bash_passes(self):
+        result = self.qg.mechanical_checks(
+            ['Edit', 'Bash'], ['/foo.py'], ['pytest'], [],
+            'Tests pass. === Results: 5 passed, 0 failed ===', '')
+        self.assertIsNone(result)
+
+    def test_smoke3_last_action_is_edit_blocks(self):
+        result = self.qg.mechanical_checks(
+            ['Bash', 'Edit'], ['/foo.py'], ['pytest'], [],
+            'Edited the file after testing.', '')
+        self.assertIsNotNone(result)
+        self.assertIn('Last action was editing', result)
+
+    def test_smoke4_bash_not_real_test_blocks(self):
+        result = self.qg.mechanical_checks(
+            ['Edit', 'Bash'], ['/foo.py'], ['echo hello'], [],
+            'Ran a command.', '')
+        self.assertIsNotNone(result)
+        self.assertIn("doesn't look like a real test", result)
+
+    def test_smoke5_failed_command_not_mentioned_blocks(self):
+        result = self.qg.mechanical_checks(
+            [], [], [], [('pytest', 'ModuleNotFoundError: xyz')],
+            'Everything looks good.', '')
+        self.assertIsNotNone(result)
+        self.assertIn('failed', result.lower())
+
+    def test_smoke6_claims_without_evidence_blocks(self):
+        result = self.qg.mechanical_checks(
+            ['Edit', 'Bash'], ['/foo.py'], ['pytest'], [],
+            'All tests pass successfully.', '')
+        self.assertIsNotNone(result)
+        self.assertIn('OVERCONFIDENCE', result)
+
+    def test_smoke7_bare_count_without_verification_blocks(self):
+        result = self.qg.mechanical_checks(
+            [], [], [], [],
+            '265 passed, 0 failed, 265 total', '')
+        self.assertIsNotNone(result)
+        self.assertIn('OVERCONFIDENCE', result)
+
+    def test_smoke7_grace_period_passes(self):
+        import json, time
+        with open(self.qg._GRACE_FILE, 'w') as f:
+            json.dump({'ts': time.time(), 'key': '265'}, f)
+        result = self.qg.mechanical_checks(
+            [], [], [], [],
+            '265 passed, 0 failed, 265 total', '')
+        self.assertIsNone(result)
+
+    def test_smoke_new_no_tools_verifiable_claim_blocks(self):
+        result = self.qg.mechanical_checks(
+            [], [], [], [],
+            'All tests passed and everything is fully verified.', '')
+        self.assertIsNotNone(result)
+        self.assertIn('OVERCONFIDENCE', result)
+
+    def test_smoke8_quantity_mismatch_blocks(self):
+        result = self.qg.mechanical_checks(
+            ['Edit'], ['/foo.py'], [], [],
+            'Fixed all the issues.', 'fix all 5 bugs in: login, signup, dashboard, settings, and profile')
+        # This triggers SMOKE:2 first (edit without verification), but if we add Bash:
+        result = self.qg.mechanical_checks(
+            ['Edit', 'Bash'], ['/foo.py'], ['pytest'], [],
+            'Fixed all the issues. Tests pass: === Results: 5 passed ===',
+            'fix all 5 bugs in: login, signup, dashboard, settings, and profile')
+        self.assertIsNotNone(result)
+        self.assertIn('items', result.lower())
+
+    def test_smoke15_non_code_paths_pass(self):
+        result = self.qg.mechanical_checks(
+            ['Edit'], ['memory/STATUS.md'], [], [],
+            'Updated the status file.', '')
+        self.assertIsNone(result)
+
+
+
+
+# ============================================================================
+# quality-gate.py Tier 6 unit tests (coverage push toward 70%)
+# ============================================================================
+
+
+class TestQGGetPriorContext(unittest.TestCase):
+    """Tier 3: get_prior_context — collects previous exchanges."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_transcript(self, lines):
+        import json
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w') as f:
+            for line in lines:
+                f.write(json.dumps(line) + '\n')
+        return path
+
+    def test_returns_prior_exchanges_skipping_current(self):
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': 'First question'}},
+            {'type': 'assistant', 'message': {'content': [
+                {'type': 'tool_use', 'id': 'tu0', 'name': 'Read', 'input': {}},
+                {'type': 'text', 'text': 'First answer with some details.'},
+            ]}},
+            {'type': 'user', 'message': {'content': [
+                {'type': 'tool_result', 'tool_use_id': 'tu0', 'content': 'data'},
+            ]}},
+            {'type': 'user', 'message': {'content': 'Second question'}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'Second answer.'}]}},
+            {'type': 'user', 'message': {'content': 'Current question'}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'Current answer.'}]}},
+        ])
+        result = self.qg.get_prior_context(path)
+        self.assertEqual(len(result), 2)
+        self.assertIn('First question', result[0]['user'])
+
+    def test_max_exchanges_limit(self):
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': 'Q1'}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'A1'}]}},
+            {'type': 'user', 'message': {'content': 'Q2'}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'A2'}]}},
+            {'type': 'user', 'message': {'content': 'Q3'}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'A3'}]}},
+            {'type': 'user', 'message': {'content': 'Current'}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'Now'}]}},
+        ])
+        result = self.qg.get_prior_context(path, max_exchanges=2)
+        self.assertLessEqual(len(result), 2)
+
+    def test_empty_transcript(self):
+        result = self.qg.get_prior_context('')
+        self.assertEqual(result, [])
+
+
+class TestQGGetBashResults(unittest.TestCase):
+    """Tier 2: get_bash_results — pairs Bash tool_use with tool_results."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_transcript(self, lines):
+        import json
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w') as f:
+            for line in lines:
+                f.write(json.dumps(line) + '\n')
+        return path
+
+    def test_pairs_bash_result(self):
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': 'Run tests'}},
+            {'type': 'assistant', 'message': {'content': [
+                {'type': 'tool_use', 'id': 'bash1', 'name': 'Bash', 'input': {'command': 'pytest'}},
+            ]}},
+            {'type': 'user', 'message': {'content': [
+                {'type': 'tool_result', 'tool_use_id': 'bash1', 'content': '10 passed, 0 failed'},
+            ]}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'Done'}]}},
+        ])
+        results = self.qg.get_bash_results(path)
+        self.assertEqual(len(results), 1)
+        self.assertIn('10 passed', results[0])
+
+    def test_ignores_non_bash_results(self):
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': 'Read file'}},
+            {'type': 'assistant', 'message': {'content': [
+                {'type': 'tool_use', 'id': 'read1', 'name': 'Read', 'input': {'file_path': '/x'}},
+            ]}},
+            {'type': 'user', 'message': {'content': [
+                {'type': 'tool_result', 'tool_use_id': 'read1', 'content': 'file contents'},
+            ]}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'Got it'}]}},
+        ])
+        results = self.qg.get_bash_results(path)
+        self.assertEqual(len(results), 0)
+
+    def test_empty_transcript(self):
+        self.assertEqual(self.qg.get_bash_results(''), [])
+
+    def test_multiple_bash_results(self):
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'content': 'Run stuff'}},
+            {'type': 'assistant', 'message': {'content': [
+                {'type': 'tool_use', 'id': 'b1', 'name': 'Bash', 'input': {'command': 'pytest'}},
+                {'type': 'tool_use', 'id': 'b2', 'name': 'Bash', 'input': {'command': 'eslint .'}},
+            ]}},
+            {'type': 'user', 'message': {'content': [
+                {'type': 'tool_result', 'tool_use_id': 'b1', 'content': '5 passed'},
+                {'type': 'tool_result', 'tool_use_id': 'b2', 'content': 'no errors'},
+            ]}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'Both passed'}]}},
+        ])
+        results = self.qg.get_bash_results(path)
+        self.assertEqual(len(results), 2)
+
+
+class TestQGDetectOverride(unittest.TestCase):
+    """Tier 4: _detect_override — classifies BLOCK->PASS cycles."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+        self.captured = []
+        self._orig_wo = self.qg.write_override
+        self.qg.write_override = lambda r: self.captured.append(r)
+
+    def tearDown(self):
+        self.qg.write_override = self._orig_wo
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_likely_fp_same_tools(self):
+        from datetime import datetime
+        logpath = os.path.join(self.tmpdir, 'qg.log')
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(logpath, 'w') as f:
+            f.write(f'{now} | BLOCK | MODERATE | OVERCONFIDENCE: claims                                              | tools=Bash,Edit | req=Refactor the auth module                                        | hash=abc12345\n')
+        self.qg._detect_override('Refactor the auth module', ['Bash', 'Edit'], 'Refactored.', log_path=logpath)
+        self.assertEqual(len(self.captured), 1)
+        self.assertEqual(self.captured[0]['auto_verdict'], 'likely_fp')
+
+    def test_likely_tp_different_tools(self):
+        from datetime import datetime
+        logpath = os.path.join(self.tmpdir, 'qg.log')
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(logpath, 'w') as f:
+            f.write(f'{now} | BLOCK | MODERATE | ASSUMPTION: guessed path                                             | tools=Edit | req=Refactor the auth module                                        | hash=abc12345\n')
+        self.qg._detect_override('Refactor the auth module', ['Read', 'Grep', 'Edit', 'Bash'], 'Fixed.', log_path=logpath)
+        self.assertEqual(len(self.captured), 1)
+        self.assertEqual(self.captured[0]['auto_verdict'], 'likely_tp')
+
+    def test_no_recent_block(self):
+        logpath = os.path.join(self.tmpdir, 'qg.log')
+        from datetime import datetime
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(logpath, 'w') as f:
+            f.write(f'{now} | PASS  | MODERATE | llm-ok                                                                           | tools=Bash | req=Refactor the auth module                                        | hash=abc12345\n')
+        self.qg._detect_override('Refactor the auth module', ['Bash'], 'Done.', log_path=logpath)
+        self.assertEqual(len(self.captured), 0)
+
+
+class TestQGLlmEvaluateMocked(unittest.TestCase):
+    """Tier 6: llm_evaluate with mocked Haiku API."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self._orig_haiku = self.qg.call_haiku_check
+        self._orig_shadow = self.qg._shadow_ollama_async
+        self._orig_cache_check = self.qg.check_cache
+        self._orig_cache_write = self.qg.write_cache
+        # Disable shadow and cache
+        self.qg._shadow_ollama_async = lambda *a, **kw: None
+        self.qg.check_cache = lambda *a: None
+        self.qg.write_cache = lambda *a: None
+
+    def tearDown(self):
+        self.qg.call_haiku_check = self._orig_haiku
+        self.qg._shadow_ollama_async = self._orig_shadow
+        self.qg.check_cache = self._orig_cache_check
+        self.qg.write_cache = self._orig_cache_write
+
+    def test_haiku_pass(self):
+        self.qg.call_haiku_check = lambda prompt: (True, '', True)
+        ok, reason, genuine = self.qg.llm_evaluate(
+            'I fixed the bug. Tests pass: === 5 passed ===',
+            'Fix the bug', ['Edit', 'Bash'], ['/foo.py'], ['pytest'], ['5 passed'],
+            'MODERATE')
+        self.assertTrue(ok)
+        self.assertTrue(genuine)
+
+    def test_haiku_block(self):
+        self.qg.call_haiku_check = lambda prompt: (False, 'OVERCONFIDENCE: claims without evidence', True)
+        ok, reason, genuine = self.qg.llm_evaluate(
+            'All done, tests pass.', 'Fix the bug', ['Edit'], ['/foo.py'], [], [],
+            'MODERATE')
+        self.assertFalse(ok)
+        self.assertIn('OVERCONFIDENCE', reason)
+
+    def test_haiku_degraded(self):
+        self.qg.call_haiku_check = lambda prompt: (True, '', False)
+        ok, reason, genuine = self.qg.llm_evaluate(
+            'Done.', 'Fix it', [], [], [], [], 'TRIVIAL')
+        self.assertTrue(ok)
+        self.assertFalse(genuine)
+
+    def test_cache_hit(self):
+        self.qg.check_cache = lambda resp: (True, '')
+        ok, reason, cached = self.qg.llm_evaluate(
+            'Cached response.', 'Do something', [], [], [], [], 'MODERATE')
+        self.assertTrue(ok)
+        self.assertTrue(cached)
+
+    def test_retry_note_included_for_stop_hook_feedback(self):
+        prompts_seen = []
+        def capture_haiku(prompt):
+            prompts_seen.append(prompt)
+            return (True, '', True)
+        self.qg.call_haiku_check = capture_haiku
+        self.qg.llm_evaluate(
+            'I verified it.', 'Stop hook feedback: QUALITY GATE: OVERCONFIDENCE',
+            ['Bash'], [], ['pytest'], ['5 passed'], 'MODERATE')
+        self.assertTrue(any('COMPLIANCE RETRY' in p for p in prompts_seen))
+
+    def test_deep_gets_longer_response_limit(self):
+        prompts_seen = []
+        def capture_haiku(prompt):
+            prompts_seen.append(prompt)
+            return (True, '', True)
+        self.qg.call_haiku_check = capture_haiku
+        long_response = 'A' * 7000
+        self.qg.llm_evaluate(long_response, 'Deep task', [], [], [], [], 'DEEP')
+        # DEEP allows 6000 chars, MODERATE allows 4000
+        self.assertTrue(any('A' * 5000 in p for p in prompts_seen))
+
+
+class TestQGLayer3RunMocked(unittest.TestCase):
+    """Tier 6: _layer3_run with mocked dependencies."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_monitor = self.qg._QG_MONITOR
+        self.qg._QG_MONITOR = os.path.join(self.tmpdir, 'monitor.jsonl')
+        # Mock _qg_load_ss to return controllable state
+        self._orig_load_ss = self.qg._qg_load_ss
+        self._mock_state = {}
+        self._mock_ss = type('MockSS', (), {
+            'read_state': lambda self_: self._mock_state,
+            'write_state': lambda self_, s: None,
+        })()
+        self.qg._qg_load_ss = lambda: (self._mock_state, self._mock_ss)
+        # Mock layer35 functions
+        self._orig_l35_create = self.qg._l35_create
+        self._orig_l35_check = self.qg._l35_check
+        self._orig_detect_fn = self.qg._detect_fn_signals
+        self.qg._l35_create = lambda *a, **kw: None
+        self.qg._l35_check = lambda *a, **kw: None
+
+    def tearDown(self):
+        self.qg._QG_MONITOR = self._orig_monitor
+        self.qg._qg_load_ss = self._orig_load_ss
+        self.qg._l35_create = self._orig_l35_create
+        self.qg._l35_check = self._orig_l35_check
+        self.qg._detect_fn_signals = self._orig_detect_fn
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_blocked_high_confidence_returns_tp(self):
+        self._mock_state = {}
+        self.qg._detect_fn_signals = lambda *a, **kw: []
+        verdict, tag, warnings = self.qg._layer3_run(True, 'MECHANICAL: code edit without verify', 'Done.', ['Edit'], '')
+        self.assertEqual(verdict, 'TP')
+        self.assertIn('TP', tag)
+
+    def test_passed_no_fn_signals_returns_tn(self):
+        self._mock_state = {}
+        self.qg._detect_fn_signals = lambda *a, **kw: []
+        verdict, tag, warnings = self.qg._layer3_run(False, None, 'Here is the answer.', ['Read'], 'What is this?')
+        self.assertEqual(verdict, 'TN')
+        self.assertEqual(tag, '')
+
+    def test_passed_with_fn_signals_returns_fn(self):
+        self._mock_state = {}
+        self.qg._detect_fn_signals = lambda *a, **kw: ['claimed completion without verification output']
+        verdict, tag, warnings = self.qg._layer3_run(False, None, 'All done and verified.', [], 'Do the task')
+        self.assertEqual(verdict, 'FN')
+
+    def test_blocked_low_confidence_returns_fp(self):
+        self._mock_state = {
+            'layer2_unresolved_events': [{'status': 'open', 'severity': 'critical', 'category': 'ERROR_IGNORED'}] * 5,
+            'layer2_elevated_scrutiny': True,
+            'layer15_warnings_ignored_count': 5,
+        }
+        self.qg._detect_fn_signals = lambda *a, **kw: []
+        verdict, tag, warnings = self.qg._layer3_run(True, 'PLANNING: unclear', 'Plan: ...', [], '')
+        self.assertEqual(verdict, 'FP')
+        self.assertIn('FP', tag)
+
+    def test_writes_monitor_event(self):
+        import json
+        self._mock_state = {'session_uuid': 'test-uuid', 'active_task_id': 'task-1'}
+        self.qg._detect_fn_signals = lambda *a, **kw: []
+        self.qg._layer3_run(False, None, 'Answer.', ['Read'], 'Question')
+        with open(self.qg._QG_MONITOR) as f:
+            event = json.loads(f.read().strip())
+        self.assertEqual(event['layer'], 'layer3')
+        self.assertEqual(event['verdict'], 'TN')
+        self.assertEqual(event['session_uuid'], 'test-uuid')
+
+    def test_ss_none_returns_unknown(self):
+        self.qg._qg_load_ss = lambda: ({}, None)
+        verdict, tag, warnings = self.qg._layer3_run(False, None, 'Hi', [], '')
+        self.assertEqual(verdict, 'UNKNOWN')
+
+
+class TestQGMechanicalChecksAgent(unittest.TestCase):
+    """Tier 5 supplement: SMOKE:14 agent without post-verify."""
+    def setUp(self):
+        self.qg = _load_qg()
+
+    def test_smoke14_agent_without_post_verify_blocks(self):
+        result = self.qg.mechanical_checks(
+            ['Agent'], [], [], [],
+            'The agent completed the task.', '')
+        self.assertIsNotNone(result)
+        self.assertIn('MECHANICAL', result)
+
+    def test_smoke14_agent_with_post_bash_passes(self):
+        result = self.qg.mechanical_checks(
+            ['Agent', 'Bash'], [], ['pytest'], [],
+            'Agent finished. Tests pass: === 5 passed ===', '')
+        self.assertIsNone(result)
+
+
+
+
+# ============================================================================
+# quality-gate.py Tier 7: main() + _layer4_checkpoint + override branches
+# ============================================================================
+
+
+class TestQGMainOrchestration(unittest.TestCase):
+    """Tier 7: main() — full pipeline orchestration with mocked dependencies."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+        # Redirect all file paths to tmpdir
+        self._orig_log = self.qg.LOG_PATH
+        self._orig_classifier = self.qg.CLASSIFIER_LOG
+        self._orig_grace = self.qg._GRACE_FILE
+        self._orig_monitor = self.qg._QG_MONITOR
+        self.qg.LOG_PATH = os.path.join(self.tmpdir, 'qg.log')
+        self.qg.CLASSIFIER_LOG = os.path.join(self.tmpdir, 'classifier.log')
+        self.qg._GRACE_FILE = os.path.join(self.tmpdir, 'grace.json')
+        self.qg._QG_MONITOR = os.path.join(self.tmpdir, 'monitor.jsonl')
+        # Write classifier log
+        with open(self.qg.CLASSIFIER_LOG, 'w') as f:
+            f.write('2026-03-30 | MODERATE | task\n')
+        # Mock LLM and layer3/4
+        self._orig_llm = self.qg.llm_evaluate
+        self._orig_l3 = self.qg._layer3_run
+        self._orig_l4 = self.qg._layer4_checkpoint
+        self._orig_detect = self.qg._detect_override
+        self._orig_load_ss = self.qg._qg_load_ss
+        self.qg._layer3_run = lambda *a, **kw: ('TN', '', None)
+        self.qg._layer4_checkpoint = lambda *a, **kw: None
+        self.qg._detect_override = lambda *a, **kw: None
+        self.qg._qg_load_ss = lambda: ({}, type('M', (), {'write_state': lambda s, d: None})())
+
+    def tearDown(self):
+        self.qg.LOG_PATH = self._orig_log
+        self.qg.CLASSIFIER_LOG = self._orig_classifier
+        self.qg._GRACE_FILE = self._orig_grace
+        self.qg._QG_MONITOR = self._orig_monitor
+        self.qg.llm_evaluate = self._orig_llm
+        self.qg._layer3_run = self._orig_l3
+        self.qg._layer4_checkpoint = self._orig_l4
+        self.qg._detect_override = self._orig_detect
+        self.qg._qg_load_ss = self._orig_load_ss
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _run_main(self, data_dict):
+        """Run main() with mocked stdin."""
+        import io, json
+        old_stdin = sys.stdin
+        sys.stdin = io.StringIO(json.dumps(data_dict))
+        old_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+        try:
+            self.qg.main()
+            output = sys.stdout.getvalue()
+        finally:
+            sys.stdin = old_stdin
+            sys.stdout = old_stdout
+        return output
+
+    def test_stop_hook_active_returns_continue(self):
+        output = self._run_main({'stop_hook_active': True})
+        import json
+        result = json.loads(output.strip())
+        self.assertTrue(result.get('continue'))
+
+    def test_mechanical_block_returns_block(self):
+        # Build transcript with Edit but no Bash
+        import json
+        transcript = os.path.join(self.tmpdir, 'transcript.jsonl')
+        lines = [
+            json.dumps({'type': 'user', 'message': {'content': 'Fix the auth module code'}}),
+            json.dumps({'type': 'assistant', 'message': {'content': [
+                {'type': 'tool_use', 'id': 'tu1', 'name': 'Edit', 'input': {'file_path': '/foo.py', 'old_string': 'x', 'new_string': 'y'}},
+                {'type': 'text', 'text': 'Fixed it.'},
+            ]}}),
+        ]
+        with open(transcript, 'w') as f:
+            f.write('\n'.join(lines))
+        output = self._run_main({
+            'transcript_path': transcript,
+            'last_assistant_message': 'Fixed it.',
+        })
+        result = json.loads(output.strip())
+        self.assertEqual(result.get('decision'), 'block')
+        self.assertIn('MECHANICAL', result.get('reason', ''))
+
+    def test_llm_pass_returns_continue(self):
+        import json
+        self.qg.llm_evaluate = lambda *a, **kw: (True, '', True)
+        transcript = os.path.join(self.tmpdir, 'transcript.jsonl')
+        lines = [
+            json.dumps({'type': 'user', 'message': {'content': 'What time is it?'}}),
+            json.dumps({'type': 'assistant', 'message': {'content': [
+                {'type': 'text', 'text': 'I cannot check the current time.'},
+            ]}}),
+        ]
+        with open(transcript, 'w') as f:
+            f.write('\n'.join(lines))
+        output = self._run_main({
+            'transcript_path': transcript,
+            'last_assistant_message': 'I cannot check the current time.',
+        })
+        result = json.loads(output.strip())
+        self.assertTrue(result.get('continue'))
+
+    def test_llm_block_returns_block_with_fix(self):
+        import json
+        self.qg.llm_evaluate = lambda *a, **kw: (False, 'OVERCONFIDENCE: claims without evidence', True)
+        transcript = os.path.join(self.tmpdir, 'transcript.jsonl')
+        lines = [
+            json.dumps({'type': 'user', 'message': {'content': 'Refactor the auth module code'}}),
+            json.dumps({'type': 'assistant', 'message': {'content': [
+                {'type': 'text', 'text': 'All done, everything works.'},
+            ]}}),
+        ]
+        with open(transcript, 'w') as f:
+            f.write('\n'.join(lines))
+        output = self._run_main({
+            'transcript_path': transcript,
+            'last_assistant_message': 'All done, everything works.',
+        })
+        result = json.loads(output.strip())
+        self.assertEqual(result.get('decision'), 'block')
+        self.assertIn('OVERCONFIDENCE', result.get('reason', ''))
+        self.assertIn('FIX', result.get('reason', ''))
+
+    def test_degraded_pass(self):
+        import json
+        self.qg.llm_evaluate = lambda *a, **kw: (True, '', False)
+        transcript = os.path.join(self.tmpdir, 'transcript.jsonl')
+        lines = [
+            json.dumps({'type': 'user', 'message': {'content': 'Tell me about path normalization'}}),
+            json.dumps({'type': 'assistant', 'message': {'content': [
+                {'type': 'text', 'text': 'Path normalization converts...'},
+            ]}}),
+        ]
+        with open(transcript, 'w') as f:
+            f.write('\n'.join(lines))
+        output = self._run_main({
+            'transcript_path': transcript,
+            'last_assistant_message': 'Path normalization converts...',
+        })
+        result = json.loads(output.strip())
+        self.assertTrue(result.get('continue'))
+        # Check log has DEGRADED-PASS
+        with open(self.qg.LOG_PATH) as f:
+            log = f.read()
+        self.assertIn('DEGRADED-PASS', log)
+
+    def test_retry_block_with_mandatory_escalation(self):
+        import json
+        from datetime import datetime
+        self.qg.llm_evaluate = lambda *a, **kw: (False, 'ASSUMPTION: guessed', True)
+        # Write log with 2 prior retry blocks
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(self.qg.LOG_PATH, 'w') as f:
+            f.write(f'{now} | BLOCK | MODERATE | ASSUMPTION: guessed                                                              | tools=- | req=Stop hook feedback: QG block              | hash=aaa\n')
+            f.write(f'{now} | BLOCK | MODERATE | ASSUMPTION: guessed                                                              | tools=- | req=Stop hook feedback: QG block              | hash=bbb\n')
+        transcript = os.path.join(self.tmpdir, 'transcript.jsonl')
+        lines = [
+            json.dumps({'type': 'user', 'message': {'content': 'Stop hook feedback: QUALITY GATE: ASSUMPTION'}}),
+            json.dumps({'type': 'assistant', 'message': {'content': [
+                {'type': 'text', 'text': 'I believe it is correct based on standard practice.'},
+            ]}}),
+        ]
+        with open(transcript, 'w') as f:
+            f.write('\n'.join(lines))
+        output = self._run_main({
+            'transcript_path': transcript,
+            'last_assistant_message': 'I believe it is correct based on standard practice.',
+        })
+        result = json.loads(output.strip())
+        self.assertEqual(result.get('decision'), 'block')
+        self.assertIn('MANDATORY', result.get('reason', ''))
+
+    def test_no_tools_transcript_logs_diagnostic(self):
+        import json
+        self.qg.llm_evaluate = lambda *a, **kw: (True, '', True)
+        # Transcript with only text, no tools
+        transcript = os.path.join(self.tmpdir, 'transcript.jsonl')
+        lines = [
+            json.dumps({'type': 'user', 'message': {'content': 'Tell me a joke about normalization'}}),
+            json.dumps({'type': 'assistant', 'message': {'content': [
+                {'type': 'text', 'text': 'Why did the path cross the road?'},
+            ]}}),
+        ]
+        with open(transcript, 'w') as f:
+            f.write('\n'.join(lines))
+        self._run_main({
+            'transcript_path': transcript,
+            'last_assistant_message': 'Why did the path cross the road?',
+        })
+        with open(self.qg.LOG_PATH) as f:
+            log = f.read()
+        self.assertIn('TRANSCRIPT', log)
+
+    def test_empty_stdin(self):
+        import io
+        old_stdin = sys.stdin
+        sys.stdin = io.StringIO('')
+        old_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+        try:
+            self.qg.main()
+            output = sys.stdout.getvalue()
+        finally:
+            sys.stdin = old_stdin
+            sys.stdout = old_stdout
+        # Empty stdin = no stop_hook_active, empty data → processes with empty transcript
+        # Should not crash
+
+
+class TestQGLayer4Checkpoint(unittest.TestCase):
+    """Tier 7: _layer4_checkpoint — session summary and history rotation."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_monitor = self.qg._QG_MONITOR
+        self._orig_history = self.qg._QG_HISTORY
+        self._orig_archive = self.qg._QG_ARCHIVE
+        self._orig_rules = self.qg._RULES_PATH
+        self._orig_state_dir = self.qg.STATE_DIR
+        self.qg._QG_MONITOR = os.path.join(self.tmpdir, 'monitor.jsonl')
+        self.qg._QG_HISTORY = os.path.join(self.tmpdir, 'history.md')
+        self.qg._QG_ARCHIVE = os.path.join(self.tmpdir, 'archive.md')
+        self.qg._RULES_PATH = os.path.join(self.tmpdir, 'rules.json')
+        self.qg.STATE_DIR = self.tmpdir
+        # Mock _trigger_phase3_layers to avoid subprocess calls
+        self._orig_trigger = self.qg._trigger_phase3_layers
+        self.qg._trigger_phase3_layers = lambda *a: None
+        # Mock notification router
+        self._orig_l35_unresolved = self.qg._l35_unresolved
+        self.qg._l35_unresolved = lambda state: []
+
+    def tearDown(self):
+        self.qg._QG_MONITOR = self._orig_monitor
+        self.qg._QG_HISTORY = self._orig_history
+        self.qg._QG_ARCHIVE = self._orig_archive
+        self.qg._RULES_PATH = self._orig_rules
+        self.qg.STATE_DIR = self._orig_state_dir
+        self.qg._trigger_phase3_layers = self._orig_trigger
+        self.qg._l35_unresolved = self._orig_l35_unresolved
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _make_ss_mock(self):
+        writes = []
+        return type('MockSS', (), {
+            'read_state': lambda self_: {},
+            'write_state': lambda self_, s: writes.append(s),
+        })(), writes
+
+    def test_writes_session_summary(self):
+        import json
+        state = {
+            'session_uuid': 'test-sess-123',
+            'layer1_task_category': 'MODERATE',
+            'layer2_unresolved_events': [],
+            'layer35_recovery_events': [],
+        }
+        # Write a layer3 event to monitor
+        with open(self.qg._QG_MONITOR, 'w') as f:
+            f.write(json.dumps({
+                'session_uuid': 'test-sess-123', 'layer': 'layer3',
+                'verdict': 'TN', 'confidence': 0.75,
+            }) + '\n')
+        ss_mock, _ = self._make_ss_mock()
+        self.qg._layer4_checkpoint(state, ss_mock)
+        self.assertTrue(os.path.exists(self.qg._QG_HISTORY))
+        with open(self.qg._QG_HISTORY) as f:
+            content = f.read()
+        self.assertIn('test-sess-123', content)
+        self.assertIn('TN: 1', content)
+        self.assertIn('quality_score:', content)
+
+    def test_updates_existing_session_entry(self):
+        import json
+        # Pre-populate history with same session
+        with open(self.qg._QG_HISTORY, 'w') as f:
+            f.write('## Session 2026-03-30T10:00:00\nsession_uuid: test-sess-123\nquality_score: 0.0\nTP: 0  FP: 0  FN: 0  TN: 0  total: 0\n\n')
+        state = {
+            'session_uuid': 'test-sess-123',
+            'layer1_task_category': 'MODERATE',
+            'layer2_unresolved_events': [],
+            'layer35_recovery_events': [],
+        }
+        with open(self.qg._QG_MONITOR, 'w') as f:
+            f.write(json.dumps({
+                'session_uuid': 'test-sess-123', 'layer': 'layer3',
+                'verdict': 'TP', 'confidence': 0.85,
+            }) + '\n')
+        ss_mock, _ = self._make_ss_mock()
+        self.qg._layer4_checkpoint(state, ss_mock)
+        with open(self.qg._QG_HISTORY) as f:
+            content = f.read()
+        self.assertIn('TP: 1', content)
+        # Should have only one session entry
+        self.assertEqual(content.count('session_uuid: test-sess-123'), 1)
+
+    def test_writes_recovery_pending(self):
+        import json
+        state = {
+            'session_uuid': 'test-sess-456',
+            'layer1_task_category': 'DEEP',
+            'layer2_unresolved_events': [],
+            'layer35_recovery_events': [
+                {'status': 'open', 'category': 'unverified'},
+            ],
+        }
+        with open(self.qg._QG_MONITOR, 'w') as f:
+            f.write(json.dumps({
+                'session_uuid': 'test-sess-456', 'layer': 'layer3', 'verdict': 'TN',
+            }) + '\n')
+        ss_mock, _ = self._make_ss_mock()
+        self.qg._layer4_checkpoint(state, ss_mock)
+        pending_path = os.path.join(self.tmpdir, 'qg-recovery-pending.json')
+        self.assertTrue(os.path.exists(pending_path))
+        with open(pending_path) as f:
+            data = json.load(f)
+        self.assertFalse(data['consumed'])
+        self.assertEqual(len(data['events']), 1)
+
+    def test_ss_none_returns_early(self):
+        self.qg._layer4_checkpoint({}, None)
+        self.assertFalse(os.path.exists(self.qg._QG_HISTORY))
+
+
+class TestQGDetectOverrideBranches(unittest.TestCase):
+    """Tier 7: _detect_override — additional branch coverage."""
+    def setUp(self):
+        self.qg = _load_qg()
+        self.tmpdir = tempfile.mkdtemp()
+        self.captured = []
+        self._orig_wo = self.qg.write_override
+        self.qg.write_override = lambda r: self.captured.append(r)
+
+    def tearDown(self):
+        self.qg.write_override = self._orig_wo
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_skips_subagent_entries(self):
+        from datetime import datetime
+        logpath = os.path.join(self.tmpdir, 'qg.log')
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(logpath, 'w') as f:
+            f.write(f'{now} | BLOCK | subagent: test-agent | OVERCONFIDENCE | tools=- | req=Refactor the auth module | hash=abc\n')
+        self.qg._detect_override('Refactor the auth module', ['Bash'], 'Done.', log_path=logpath)
+        self.assertEqual(len(self.captured), 0)
+
+    def test_skips_old_blocks_beyond_120s(self):
+        from datetime import datetime, timedelta
+        logpath = os.path.join(self.tmpdir, 'qg.log')
+        old_ts = (datetime.now() - timedelta(seconds=200)).strftime('%Y-%m-%d %H:%M:%S')
+        with open(logpath, 'w') as f:
+            f.write(f'{old_ts} | BLOCK | MODERATE | OVERCONFIDENCE: old claim                                         | tools=Bash | req=Refactor the auth module                                        | hash=abc12345\n')
+        self.qg._detect_override('Refactor the auth module', ['Bash'], 'Done.', log_path=logpath)
+        self.assertEqual(len(self.captured), 0)
+
+    def test_missing_log_file(self):
+        logpath = os.path.join(self.tmpdir, 'nonexistent.log')
+        self.qg._detect_override('Test', ['Bash'], 'Done.', log_path=logpath)
+        self.assertEqual(len(self.captured), 0)
+
+
+class TestQGTriggerPhase3(unittest.TestCase):
+    """Tier 7: _trigger_phase3_layers — verify it calls subprocess."""
+    def setUp(self):
+        self.qg = _load_qg()
+
+    def test_does_not_crash_with_empty_state(self):
+        import subprocess
+        orig_popen = subprocess.Popen
+        calls = []
+        class FakePopen:
+            def __init__(self, *a, **kw):
+                calls.append(a[0] if a else kw)
+            def communicate(self, *a, **kw):
+                return (b'', b'')
+        subprocess.Popen = FakePopen
+        try:
+            self.qg._trigger_phase3_layers({})
+        finally:
+            subprocess.Popen = orig_popen
+        # Should have attempted to call at least one layer script
+        self.assertGreaterEqual(len(calls), 1)
+
+
+
+
+# ============================================================================
+# qg_layer7.py comprehensive tests (coverage push from 23% to 80%+)
+# ============================================================================
+
+
+class TestLayer7LoadFeedback(unittest.TestCase):
+    """load_feedback — reads quality-gate-feedback.jsonl."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_reads_valid_jsonl(self):
+        import json
+        from qg_layer7 import load_feedback
+        path = os.path.join(self.tmpdir, 'feedback.jsonl')
+        with open(path, 'w') as f:
+            f.write(json.dumps({'outcome': 'FN', 'category': 'OVERCONFIDENCE'}) + '\n')
+            f.write(json.dumps({'outcome': 'TN', 'category': 'NONE'}) + '\n')
+        result = load_feedback(path)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]['outcome'], 'FN')
+
+    def test_skips_invalid_json(self):
+        from qg_layer7 import load_feedback
+        path = os.path.join(self.tmpdir, 'feedback.jsonl')
+        with open(path, 'w') as f:
+            f.write('{"valid": true}\n')
+            f.write('not json\n')
+            f.write('{"also": "valid"}\n')
+        result = load_feedback(path)
+        self.assertEqual(len(result), 2)
+
+    def test_returns_empty_on_missing_file(self):
+        from qg_layer7 import load_feedback
+        result = load_feedback(os.path.join(self.tmpdir, 'nonexistent.jsonl'))
+        self.assertEqual(result, [])
+
+    def test_returns_empty_on_empty_file(self):
+        from qg_layer7 import load_feedback
+        path = os.path.join(self.tmpdir, 'empty.jsonl')
+        with open(path, 'w') as f:
+            f.write('')
+        result = load_feedback(path)
+        self.assertEqual(result, [])
+
+
+class TestLayer7GenerateSuggestions(unittest.TestCase):
+    """generate_suggestions — creates suggestions from repeat FNs + cross-session patterns."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_generates_from_repeat_fns(self):
+        import json
+        from qg_layer7 import generate_suggestions
+        feedback_path = os.path.join(self.tmpdir, 'feedback.jsonl')
+        with open(feedback_path, 'w') as f:
+            for _ in range(4):
+                f.write(json.dumps({'outcome': 'FN', 'category': 'OVERCONFIDENCE'}) + '\n')
+        result = generate_suggestions(feedback_path=feedback_path,
+                                       cross_session_path=os.path.join(self.tmpdir, 'no-cross.json'))
+        self.assertGreaterEqual(len(result), 1)
+        self.assertEqual(result[0]['category'], 'OVERCONFIDENCE')
+        self.assertIn('Repeated FN', result[0]['reason'])
+
+    def test_generates_from_cross_session(self):
+        import json
+        from qg_layer7 import generate_suggestions
+        feedback_path = os.path.join(self.tmpdir, 'empty-feedback.jsonl')
+        with open(feedback_path, 'w') as f:
+            f.write('')
+        cross_path = os.path.join(self.tmpdir, 'cross.json')
+        with open(cross_path, 'w') as f:
+            json.dump({
+                'patterns': [
+                    {'category': 'LOOP_DETECTED', 'sessions_count': 5, 'event_pct': 0.25, 'total_events': 20},
+                ]
+            }, f)
+        result = generate_suggestions(feedback_path=feedback_path, cross_session_path=cross_path)
+        self.assertGreaterEqual(len(result), 1)
+        self.assertEqual(result[0]['category'], 'LOOP_DETECTED')
+        self.assertIn('Cross-session', result[0]['reason'])
+
+    def test_deduplicates_cross_session_with_repeat_fns(self):
+        import json
+        from qg_layer7 import generate_suggestions
+        feedback_path = os.path.join(self.tmpdir, 'feedback.jsonl')
+        with open(feedback_path, 'w') as f:
+            for _ in range(4):
+                f.write(json.dumps({'outcome': 'FN', 'category': 'OVERCONFIDENCE'}) + '\n')
+        cross_path = os.path.join(self.tmpdir, 'cross.json')
+        with open(cross_path, 'w') as f:
+            json.dump({
+                'patterns': [
+                    {'category': 'OVERCONFIDENCE', 'sessions_count': 3, 'event_pct': 0.15, 'total_events': 10},
+                    {'category': 'LOOP_DETECTED', 'sessions_count': 4, 'event_pct': 0.20, 'total_events': 15},
+                ]
+            }, f)
+        result = generate_suggestions(feedback_path=feedback_path, cross_session_path=cross_path)
+        categories = [s['category'] for s in result]
+        # OVERCONFIDENCE should appear once (from repeat FNs), not duplicated by cross-session
+        self.assertEqual(categories.count('OVERCONFIDENCE'), 1)
+        # LOOP_DETECTED should appear from cross-session
+        self.assertIn('LOOP_DETECTED', categories)
+
+    def test_returns_empty_with_no_data(self):
+        from qg_layer7 import generate_suggestions
+        result = generate_suggestions(
+            feedback_path=os.path.join(self.tmpdir, 'none.jsonl'),
+            cross_session_path=os.path.join(self.tmpdir, 'none.json'))
+        self.assertEqual(result, [])
+
+    def test_below_threshold_not_included(self):
+        import json
+        from qg_layer7 import generate_suggestions
+        feedback_path = os.path.join(self.tmpdir, 'feedback.jsonl')
+        with open(feedback_path, 'w') as f:
+            # Only 2 FNs for ASSUMPTION — below default threshold of 3
+            f.write(json.dumps({'outcome': 'FN', 'category': 'ASSUMPTION'}) + '\n')
+            f.write(json.dumps({'outcome': 'FN', 'category': 'ASSUMPTION'}) + '\n')
+        result = generate_suggestions(feedback_path=feedback_path,
+                                       cross_session_path=os.path.join(self.tmpdir, 'none.json'))
+        self.assertEqual(result, [])
+
+
+class TestLayer7WriteSuggestions(unittest.TestCase):
+    """write_suggestions — outputs markdown file."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_writes_markdown_with_suggestions(self):
+        from qg_layer7 import write_suggestions
+        output_path = os.path.join(self.tmpdir, 'suggestions.md')
+        suggestions = [
+            {'status': 'pending', 'id': 1, 'category': 'OVERCONFIDENCE',
+             'reason': 'Repeated FN (4 times)', 'supporting_count': 4,
+             'ts': '2026-03-30T12:00:00'},
+        ]
+        write_suggestions(suggestions, output_path=output_path)
+        with open(output_path) as f:
+            content = f.read()
+        self.assertIn('OVERCONFIDENCE', content)
+        self.assertIn('PENDING', content)
+        self.assertIn('Repeated FN', content)
+
+    def test_writes_empty_when_no_suggestions(self):
+        from qg_layer7 import write_suggestions
+        output_path = os.path.join(self.tmpdir, 'suggestions.md')
+        write_suggestions([], output_path=output_path)
+        with open(output_path) as f:
+            content = f.read()
+        self.assertIn('No pending suggestions', content)
+
+    def test_overwrites_existing_file(self):
+        from qg_layer7 import write_suggestions
+        output_path = os.path.join(self.tmpdir, 'suggestions.md')
+        with open(output_path, 'w') as f:
+            f.write('old content')
+        write_suggestions([{
+            'status': 'pending', 'id': 1, 'category': 'TEST',
+            'reason': 'test', 'supporting_count': 1, 'ts': '2026-03-30',
+        }], output_path=output_path)
+        with open(output_path) as f:
+            content = f.read()
+        self.assertNotIn('old content', content)
+        self.assertIn('TEST', content)
+
+
+class TestLayer7MainTrigger(unittest.TestCase):
+    """main() — only generates suggestions when layer3_pending_fn_alert is set."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        import qg_session_state as ss
+        self._orig_state = ss.STATE_PATH
+        self._orig_lock = ss.LOCK_PATH
+        ss.STATE_PATH = os.path.join(self.tmpdir, 'state.json')
+        ss.LOCK_PATH = ss.STATE_PATH + '.lock'
+
+    def tearDown(self):
+        import qg_session_state as ss
+        ss.STATE_PATH = self._orig_state
+        ss.LOCK_PATH = self._orig_lock
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_skips_when_no_fn_alert(self):
+        import json, qg_session_state as ss
+        ss.write_state({'layer3_pending_fn_alert': None})
+        from qg_layer7 import main as l7_main
+        import io
+        old_stdin = sys.stdin
+        sys.stdin = io.StringIO('{}')
+        try:
+            l7_main()  # Should return early without generating suggestions
+        finally:
+            sys.stdin = old_stdin
+        # No suggestions file should be created at default path
+        # (we can't easily check the default path, but no crash = success)
+
+    def test_generates_when_fn_alert_set(self):
+        import json, qg_session_state as ss
+        ss.write_state({'layer3_pending_fn_alert': '[monitor] Missed Failure — test'})
+        # Create feedback file with enough FNs
+        from qg_layer7 import FEEDBACK_PATH, SUGGESTIONS_PATH
+        feedback_tmp = os.path.join(self.tmpdir, 'feedback.jsonl')
+        suggestions_tmp = os.path.join(self.tmpdir, 'suggestions.md')
+        import qg_layer7
+        orig_fb = qg_layer7.FEEDBACK_PATH
+        orig_sg = qg_layer7.SUGGESTIONS_PATH
+        qg_layer7.FEEDBACK_PATH = feedback_tmp
+        qg_layer7.SUGGESTIONS_PATH = suggestions_tmp
+        with open(feedback_tmp, 'w') as f:
+            for _ in range(4):
+                f.write(json.dumps({'outcome': 'FN', 'category': 'OVERCONFIDENCE'}) + '\n')
+        try:
+            import io
+            old_stdin = sys.stdin
+            sys.stdin = io.StringIO('{}')
+            try:
+                qg_layer7.main()
+            finally:
+                sys.stdin = old_stdin
+            self.assertTrue(os.path.exists(suggestions_tmp))
+            with open(suggestions_tmp) as f:
+                content = f.read()
+            self.assertIn('OVERCONFIDENCE', content)
+        finally:
+            qg_layer7.FEEDBACK_PATH = orig_fb
+            qg_layer7.SUGGESTIONS_PATH = orig_sg
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -10,6 +10,16 @@ import qg_session_state as ss
 
 ENV_CONFIG_PATH = os.path.expanduser('~/.claude/qg-env.json')
 
+_MONITOR_PATH = os.path.expanduser('~/.claude/qg-monitor.jsonl')
+
+def _write_event(event):
+    try:
+        with open(_MONITOR_PATH, 'a', encoding='utf-8') as f:
+            f.write(__import__('json').dumps(event, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
+
+
 
 def validate_git_branch(expected_branch, get_branch_fn=None):
     """Returns (ok, message). Testable via get_branch_fn injection."""
@@ -92,6 +102,11 @@ def run_session_start(payload):
             pass
     ss.update_state(layer_env_baseline=baseline)
     if messages:
+        import time as _t, uuid as _uuid
+        for _msg in messages:
+            _write_event({'event_id': str(_uuid.uuid4()), 'ts': _t.strftime('%Y-%m-%dT%H:%M:%S'),
+                          'layer': 'layer_env', 'category': 'ENV_WARNING', 'severity': 'warning',
+                          'detection_signal': _msg[:200]})
         print('\n'.join(messages))
 
 

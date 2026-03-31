@@ -7,6 +7,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 CODE_EXTS = {".py", ".js", ".ts", ".go", ".java", ".cs"}
 
+_MONITOR_PATH = os.path.expanduser('~/.claude/qg-monitor.jsonl')
+
+def _write_event(event):
+    try:
+        with open(_MONITOR_PATH, 'a', encoding='utf-8') as f:
+            f.write(__import__('json').dumps(event, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
+
+
 
 def find_test_file(source_path):
     base = os.path.splitext(os.path.basename(source_path))[0]
@@ -57,6 +67,11 @@ def main():
     if find_test_file(file_path):
         return
 
+    import time as _t, uuid as _uuid
+    _write_event({"event_id": str(_uuid.uuid4()), "ts": _t.strftime("%Y-%m-%dT%H:%M:%S"),
+                  "layer": "layer27", "category": "NO_TEST_FILE", "severity": "info",
+                  "detection_signal": f"No test file for {os.path.basename(file_path)}",
+                  "file_path": file_path})
     out = {"hookSpecificOutput": {"hookEventName": "PreToolUse",
         "additionalContext": "[Layer 2.7] No test file found for {}. Consider adding tests.".format(
             os.path.basename(file_path))}}

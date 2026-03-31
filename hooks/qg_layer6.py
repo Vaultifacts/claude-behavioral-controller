@@ -30,7 +30,7 @@ def load_monitor_events(monitor_path=None):
 
 def analyze_patterns(events, min_sessions=3, min_pct=0.15, window=10, project_dir=None):
     if project_dir:
-        events = [e for e in events if e.get("working_dir", project_dir) == project_dir]
+        events = [e for e in events if e.get("working_dir") == project_dir]
     if not events:
         return []
     sessions = {}

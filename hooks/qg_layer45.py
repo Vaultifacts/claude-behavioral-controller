@@ -12,6 +12,16 @@ import qg_session_state as ss
 PRESERVE_PATH = os.path.expanduser('~/.claude/qg-context-preserve.json')
 PRESERVATION_CONFIG_PATH = os.path.expanduser('~/.claude/qg-preservation-config.json')
 
+_MONITOR_PATH = os.path.expanduser('~/.claude/qg-monitor.jsonl')
+
+def _write_event(event):
+    try:
+        with open(_MONITOR_PATH, 'a', encoding='utf-8') as f:
+            f.write(__import__('json').dumps(event, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
+
+
 PRESERVE_KEYS = [
     'session_uuid', 'session_start_ts', 'active_task_id', 'active_subtask_id',
     'active_task_description', 'layer1_task_category', 'layer1_scope_files',
@@ -53,6 +63,11 @@ def handle_pre_compact():
             preserved[_ekey] = [e for e in _evts if e.get('status') == 'open']
     preserved['pre_compact_hash'] = _state_hash(state)
     preserved['preserved_at'] = time.time()
+    import uuid as _uuid
+    _write_event({'event_id': str(_uuid.uuid4()), 'ts': time.strftime('%Y-%m-%dT%H:%M:%S'),
+                  'layer': 'layer45', 'category': 'PRE_COMPACT', 'severity': 'info',
+                  'detection_signal': f'Preserved {len(preserved)} keys',
+                  'session_uuid': state.get('session_uuid', '')})
     try:
         with open(PRESERVE_PATH, 'w', encoding='utf-8') as f:
             json.dump(preserved, f, ensure_ascii=False)
@@ -93,6 +108,11 @@ def handle_post_compact():
 
     if restored:
         ss.write_state(state)
+        import uuid as _uuid
+        _write_event({'event_id': str(_uuid.uuid4()), 'ts': time.strftime('%Y-%m-%dT%H:%M:%S'),
+                      'layer': 'layer45', 'category': 'POST_COMPACT_RESTORE', 'severity': 'info',
+                      'detection_signal': f'Restored {len(restored)} fields: {", ".join(restored[:5])}',
+                      'session_uuid': state.get('session_uuid', '')})
         print(f'[monitor:layer4.5] Restored {len(restored)} state fields after compaction.')
 
 
