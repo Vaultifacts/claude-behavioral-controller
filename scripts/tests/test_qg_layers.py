@@ -6944,5 +6944,127 @@ class TestLayer14TranscriptParsing(unittest.TestCase):
         self.assertEqual(report["stats"]["redundant_reads"], 1)
 
 
+
+# ============================================================================
+# qg_layer29.py -- Additional coverage tests (_get_last_turn_data)
+# ============================================================================
+
+
+class TestLayer29TranscriptParsing(unittest.TestCase):
+    """Tests for _get_last_turn_data with mock transcript data."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_transcript(self, lines_data):
+        import json
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w') as f:
+            for d in lines_data:
+                f.write(json.dumps(d) + '\n')
+        return path
+
+    def test_get_response_and_edits(self):
+        from qg_layer29 import _get_last_turn_data
+        transcript = self._write_transcript([
+            {"role": "user", "message": {"content": [{"type": "text", "text": "add tests"}]}},
+            {"role": "assistant", "message": {"content": [
+                {"type": "text", "text": "I added error handling to the module"},
+                {"type": "tool_use", "name": "Edit", "input": {"file_path": "/a.py"}}
+            ]}},
+            {"role": "user", "message": {"content": [
+                {"type": "tool_result", "content": "try:\n    x()\nexcept:\n    pass"}
+            ]}},
+        ])
+        resp, edits = _get_last_turn_data(transcript)
+        self.assertIn("error handling", resp)
+        self.assertIn("try:", edits)
+        self.assertIn("except:", edits)
+
+    def test_get_empty_transcript(self):
+        from qg_layer29 import _get_last_turn_data
+        self.assertEqual(_get_last_turn_data(None), ("", ""))
+        self.assertEqual(_get_last_turn_data("/nonexistent"), ("", ""))
+
+    def test_get_no_tool_results(self):
+        from qg_layer29 import _get_last_turn_data
+        transcript = self._write_transcript([
+            {"role": "user", "message": {"content": [{"type": "text", "text": "hello"}]}},
+            {"role": "assistant", "message": {"content": [
+                {"type": "text", "text": "Hi there!"}
+            ]}},
+        ])
+        resp, edits = _get_last_turn_data(transcript)
+        self.assertIn("Hi there", resp)
+        self.assertEqual(edits, "")
+
+    def test_get_multiple_tool_results(self):
+        from qg_layer29 import _get_last_turn_data
+        transcript = self._write_transcript([
+            {"role": "user", "message": {"content": [{"type": "text", "text": "task"}]}},
+            {"role": "assistant", "message": {"content": [
+                {"type": "text", "text": "I added tests and logging"}
+            ]}},
+            {"role": "user", "message": {"content": [
+                {"type": "tool_result", "content": "def test_a(): pass"},
+                {"type": "tool_result", "content": "import logging\nlogger.info('x')"}
+            ]}},
+        ])
+        resp, edits = _get_last_turn_data(transcript)
+        self.assertIn("test_a", edits)
+        self.assertIn("logging", edits)
+
+    def test_get_stops_at_real_user_message(self):
+        from qg_layer29 import _get_last_turn_data
+        transcript = self._write_transcript([
+            {"role": "user", "message": {"content": [{"type": "text", "text": "first"}]}},
+            {"role": "assistant", "message": {"content": [
+                {"type": "text", "text": "old response"}
+            ]}},
+            {"role": "user", "message": {"content": [{"type": "text", "text": "second"}]}},
+            {"role": "assistant", "message": {"content": [
+                {"type": "text", "text": "new response with error handling"}
+            ]}},
+            {"role": "user", "message": {"content": [
+                {"type": "tool_result", "content": "try: pass\nexcept: pass"}
+            ]}},
+        ])
+        resp, edits = _get_last_turn_data(transcript)
+        self.assertIn("new response", resp)
+        self.assertNotIn("old response", resp)
+
+    def test_end_to_end_claim_check(self):
+        from qg_layer29 import _get_last_turn_data, analyze_semantics
+        transcript = self._write_transcript([
+            {"role": "user", "message": {"content": [{"type": "text", "text": "add tests"}]}},
+            {"role": "assistant", "message": {"content": [
+                {"type": "text", "text": "I added error handling and 5 tests"}
+            ]}},
+            {"role": "user", "message": {"content": [
+                {"type": "tool_result", "content": "def foo(): return 1\ndef test_one(): pass"}
+            ]}},
+        ])
+        resp, edits = _get_last_turn_data(transcript)
+        report = analyze_semantics(resp, edits)
+        # Should flag: claims error handling (missing) and 5 tests (only 1 found)
+        self.assertEqual(report["status"], "warning")
+        self.assertGreater(len(report["issues"]), 0)
+
+    def test_invalid_json_in_transcript(self):
+        from qg_layer29 import _get_last_turn_data
+        import json
+        path = os.path.join(self.tmpdir, 'bad.jsonl')
+        with open(path, 'w') as f:
+            f.write('not json at all\n')
+            f.write(json.dumps({"role": "assistant", "message": {"content": [
+                {"type": "text", "text": "response here"}
+            ]}}) + '\n')
+        resp, edits = _get_last_turn_data(path)
+        self.assertIn("response here", resp)
+
+
 if __name__ == '__main__':
     unittest.main()
