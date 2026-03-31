@@ -57,6 +57,7 @@ Standards: [README.md](README.md)
 | [Precheck](precheck.md) | precheck-hook.py | 49% | **49** | 17 | Ollama classification accuracy unmeasured |
 | [Session State](session-state.md) | qg_session_state.py | 87% | N/A | 14 | Silent lock failure; no atomic writes |
 | [Notification Router](notification-router.md) | qg_notification_router.py | **97%** | N/A | 15 | Per-turn counter resets each process (may not limit) |
+| [Verify Reminder](verify-reminder.md) | verify-reminder.py | N/A | new | 1 | Untested: whether Claude follows the reminder reliably |
 
 `*` = operates through quality-gate.py; decisions logged in quality-gate.log (627 total)
 `**` = writes to qg-cross-session.json; confirmed working via Layer 0 output
@@ -82,17 +83,17 @@ Coverage now **84%** with 14 new tests covering `load_feedback`, `generate_sugge
 ### 6. ~~Layer 6 has a filter bug~~ RESOLVED
 Changed `e.get("working_dir", project_dir)` to `e.get("working_dir")`.
 
-### 7. Dead code candidates — PARTIALLY RESOLVED
-- `SCOPE_CREEP` in Layer 2 — still 0 events (scope rarely set by precheck)
-- `INCOMPLETE_COVERAGE` in Layer 2 — still 0 events
-- **Layer 2.7 — NOT DEAD.** Now has 12 events after monitor logging was added. It was firing but invisible.
-- `introduces_new_problem` flag in Layer 3.5 — still not consumed downstream
+### 7. ~~Dead code candidates~~ MOSTLY RESOLVED
+- **SCOPE_CREEP — NOT DEAD.** 31 events in monitor log since March 28. Fires when edits land outside `layer1_scope_files`. Was always logging via Layer 2 — the original scorecard search missed them.
+- **INCOMPLETE_COVERAGE — NOT DEAD.** 1 event confirmed. Rare but functional.
+- **Layer 2.7 — NOT DEAD.** 12 events after monitor logging was added.
+- `introduces_new_problem` flag in Layer 3.5 — still not consumed downstream (only remaining dead code candidate)
 
 ---
 
 ## Remaining Priority Improvements
 
-1. **Investigate SCOPE_CREEP/INCOMPLETE_COVERAGE** — confirm dead or fix scope inference
+1. **Consume `introduces_new_problem` flag** — or remove from Layer 3.5 (only dead code left)
 2. **Add atomic writes to session state** — temp file + rename to prevent corruption on crash
 3. **Verify notification router per-turn limit** — global counter resets each process invocation
 4. **Improve Layer 9 coverage** (41%) — second-lowest after Layer 2.7

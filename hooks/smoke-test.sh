@@ -4737,6 +4737,35 @@ print('t121bcd_ok' if ok else 't121bcd_FAIL:' + repr((r2,r3,r4)))
 " 2>/dev/null | grep -q "t121bcd_ok" && ok "[121] SMOKE:new: inline evidence / no claim / has_verification -> PASS" || fail "[121] SMOKE:new: inline evidence / no claim / has_verification -> PASS"
 
 
+# ----------------------------------------------------------------
+# [122] verify-reminder.py (PostToolUse verification reminder)
+# ----------------------------------------------------------------
+echo "[122] verify-reminder.py"
+
+# Code file edit should trigger reminder (exit 2 + stderr)
+result=$(echo '{"tool_name":"Edit","tool_input":{"file_path":"/tmp/project/src/app.py"}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/verify-reminder.py" 2>&1)
+[ $? -eq 2 ] && echo "$result" | grep -q "[verify]" && ok "[122] code file Edit triggers verify reminder (exit 2)" || fail "[122] code file Edit triggers verify reminder (exit 2)"
+
+# Write to code file should also trigger
+result=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/tmp/project/utils.py"}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/verify-reminder.py" 2>&1)
+[ $? -eq 2 ] && echo "$result" | grep -q "utils.py" && ok "[122] code file Write triggers with filename" || fail "[122] code file Write triggers with filename"
+
+# Non-code file should NOT trigger (exit 0, no output)
+result=$(echo '{"tool_name":"Edit","tool_input":{"file_path":"~/.claude/memory/MEMORY.md"}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/verify-reminder.py" 2>&1)
+[ $? -eq 0 ] && [ -z "$result" ] && ok "[122] non-code file skipped (exit 0)" || fail "[122] non-code file skipped (exit 0)"
+
+# CLAUDE.md should NOT trigger
+result=$(echo '{"tool_name":"Edit","tool_input":{"file_path":"/project/CLAUDE.md"}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/verify-reminder.py" 2>&1)
+[ $? -eq 0 ] && ok "[122] CLAUDE.md skipped" || fail "[122] CLAUDE.md skipped"
+
+# Read tool should NOT trigger (not Edit/Write)
+result=$(echo '{"tool_name":"Read","tool_input":{"file_path":"/tmp/app.py"}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/verify-reminder.py" 2>&1)
+[ $? -eq 0 ] && ok "[122] Read tool ignored" || fail "[122] Read tool ignored"
+
+# Bad JSON should exit 0 gracefully
+result=$(echo 'not json' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/verify-reminder.py" 2>&1)
+[ $? -eq 0 ] && ok "[122] bad JSON exits 0" || fail "[122] bad JSON exits 0"
+
 echo "=== Results: $PASS passed, $FAIL failed, $TOTAL total ==="
 
 # Coverage summary (fast, single-pass Python analysis)
