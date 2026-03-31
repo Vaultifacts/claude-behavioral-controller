@@ -126,8 +126,11 @@ def write_state(data):
         if len(content.encode('utf-8')) > MAX_SIZE_BYTES:
             data = _prune_turn_scoped(data)
             content = json.dumps(data, ensure_ascii=False)
-        with open(STATE_PATH, 'w', encoding='utf-8') as f:
+        # Atomic write: temp file + os.replace to prevent corruption on crash
+        tmp_path = STATE_PATH + '.tmp'
+        with open(tmp_path, 'w', encoding='utf-8') as f:
             f.write(content)
+        os.replace(tmp_path, STATE_PATH)
     finally:
         _release_lock()
 
