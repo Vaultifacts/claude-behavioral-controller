@@ -64,9 +64,9 @@ def _is_git_push(cmd):
 
 
 def _extract_commit_message(cmd):
-    m = re.search(r'-m\s+([\'"])(.*?)\1', cmd)
+    m = re.search(r'-m\s+([\'"])(.*?)\1', cmd, re.DOTALL)
     if m:
-        return m.group(2)
+        return m.group(2).split('\n')[0].strip()
     m = re.search(r'-m\s+(\S+)', cmd)
     if m:
         return m.group(1)
