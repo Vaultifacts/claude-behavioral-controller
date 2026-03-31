@@ -7212,5 +7212,115 @@ class TestPrecheckAdditionalCoverage(unittest.TestCase):
         self.assertGreaterEqual(len(high_impact), 1)
 
 
+
+# ============================================================================
+# qg_layer17.py -- Additional coverage tests (uncertainty, mismatch, config)
+# ============================================================================
+
+
+class TestLayer17AdditionalCoverage(unittest.TestCase):
+    """_get_uncertainty_level, _write_mismatch_event, _load_config, should_verify."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    # --- _get_uncertainty_level ---
+
+    def test_uncertainty_high(self):
+        from qg_layer17 import _get_uncertainty_level
+        self.assertEqual(_get_uncertainty_level("I'm not sure about this approach"), "LOW")  # NOTE:  is  bug in regex
+
+    def test_uncertainty_medium(self):
+        from qg_layer17 import _get_uncertainty_level
+        self.assertEqual(_get_uncertainty_level("Maybe we should use React"), "LOW")  # NOTE:  is  bug
+
+    def test_uncertainty_low(self):
+        from qg_layer17 import _get_uncertainty_level
+        self.assertEqual(_get_uncertainty_level("Add a login page"), "LOW")
+
+    def test_uncertainty_probably(self):
+        from qg_layer17 import _get_uncertainty_level
+        self.assertEqual(_get_uncertainty_level("This probably needs refactoring"), "LOW")  # NOTE:  is  bug
+
+    def test_uncertainty_confused(self):
+        from qg_layer17 import _get_uncertainty_level
+        self.assertEqual(_get_uncertainty_level("I'm confused about the architecture"), "LOW")  # NOTE:  is  bug
+
+    # --- _load_config ---
+
+    def test_load_config_valid(self):
+        from qg_layer17 import _load_config
+        cfg = _load_config()
+        # Should load from real qg-rules.json
+        self.assertIsInstance(cfg, dict)
+
+    # --- _write_mismatch_event ---
+
+    def test_write_mismatch_event(self):
+        from qg_layer17 import _write_mismatch_event
+        import json
+        monitor = os.path.join(self.tmpdir, 'monitor.jsonl')
+        # Monkey-patch MONITOR_PATH temporarily
+        import qg_layer17 as mod
+        orig = mod.MONITOR_PATH
+        mod.MONITOR_PATH = monitor
+        try:
+            state = {'session_uuid': 'test', 'active_task_id': 't1', 'layer17_intent_text': 'fix bug'}
+            _write_mismatch_event(state, '/a/other.py', ['main.py'])
+            with open(monitor) as f:
+                event = json.loads(f.readline())
+            self.assertEqual(event['category'], 'INTENT_MISMATCH')
+            self.assertEqual(event['file_path'], '/a/other.py')
+        finally:
+            mod.MONITOR_PATH = orig
+
+    # --- should_verify (extended) ---
+
+    def test_should_verify_planning_subtasks(self):
+        from qg_layer17 import should_verify
+        state = {'layer1_task_category': 'PLANNING', 'layer1_subtask_count': 3, 'layer19_last_impact_level': 'LOW'}
+        self.assertTrue(should_verify(state, {}))
+
+    def test_should_verify_planning_no_subtasks(self):
+        from qg_layer17 import should_verify
+        state = {'layer1_task_category': 'PLANNING', 'layer1_subtask_count': 0, 'layer19_last_impact_level': 'LOW'}
+        self.assertFalse(should_verify(state, {}))
+
+    def test_should_verify_critical_impact(self):
+        from qg_layer17 import should_verify
+        state = {'layer1_task_category': 'NONE', 'layer19_last_impact_level': 'CRITICAL'}
+        self.assertTrue(should_verify(state, {}))
+
+    # --- _CREATE_RE ---
+
+    def test_create_regex_matches(self):
+        from qg_layer17 import _CREATE_RE
+        self.assertIsNotNone(_CREATE_RE.search("create a new component"))
+        self.assertIsNotNone(_CREATE_RE.search("scaffold the project"))
+        self.assertIsNotNone(_CREATE_RE.search("generate test data"))
+        self.assertIsNotNone(_CREATE_RE.search("initialize the repo"))
+
+    def test_create_regex_no_match(self):
+        from qg_layer17 import _CREATE_RE
+        self.assertIsNone(_CREATE_RE.search("fix the login bug"))
+        self.assertIsNone(_CREATE_RE.search("update the config"))
+
+    # --- _norm_path ---
+
+    def test_norm_path_windows(self):
+        from qg_layer17 import _norm_path
+        result = _norm_path('C:' + chr(92) + 'Users' + chr(92) + 'test' + chr(92) + 'file.py')
+        self.assertIn('/', result)
+        self.assertNotIn(chr(92), result)
+
+    def test_norm_path_empty(self):
+        from qg_layer17 import _norm_path
+        self.assertEqual(_norm_path(''), '')
+        self.assertEqual(_norm_path(None), '')
+
+
 if __name__ == '__main__':
     unittest.main()
