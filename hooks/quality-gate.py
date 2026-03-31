@@ -492,14 +492,17 @@ def mechanical_checks(tool_names, edited_paths, bash_commands, failed_commands, 
             has_verification = False
 
     if has_code_edit and not has_verification:  # SMOKE:2
-        return "MECHANICAL: Code was edited but no syntax check or test was run. Verify the changes."
+        files = ", ".join(os.path.basename(p) for p in edited_paths[:3]) if edited_paths else "unknown"
+        return f"MECHANICAL: Code was edited but no syntax check or test was run. Your edits to {files} are already applied — do NOT re-edit. Just run the project test command and quote the output."
 
     if has_code_edit and has_verification and tool_names and tool_names[-1] in ("Edit", "Write"):  # SMOKE:3
-        return "MECHANICAL: Last action was editing, not verification. Run a check after all edits."
+        files = ", ".join(os.path.basename(p) for p in edited_paths[:3]) if edited_paths else "unknown"
+        return f"MECHANICAL: Last action was editing, not verification. Your edits to {files} are already applied — do NOT re-edit. Run a test or syntax check and quote the output."
 
     if has_code_edit and has_verification:
         if bash_commands and not any(VALIDATION_COMMAND_RE.search(cmd) for cmd in bash_commands):
-            return "MECHANICAL: Ran a Bash command but it doesn't look like a real test. Run an actual test, linter, or syntax check."  # SMOKE:4
+            cmds = ", ".join(c[:40] for c in bash_commands[:2]) if bash_commands else "unknown"
+            return f"MECHANICAL: Ran a Bash command but it doesn't look like a real test. You ran: {cmds}. Run an actual test, linter, or syntax check instead."  # SMOKE:4
 
     # Check: Bash command failed but response doesn't mention the failure
     if failed_commands and response:
@@ -802,7 +805,8 @@ FIX_DIRECTIVES = {
     'OVERCONFIDENCE': 'Run a test or check command and quote the output in your response.',
     'LAZINESS': 'Address each item individually — don\'t summarize across all.',
     'CARELESSNESS': 'Re-read the tool output and address what it actually says.',
-    'MECHANICAL': 'Run verification (syntax check, test, or linter) after every code edit and quote the output.',
+    'MECHANICAL': ('Your edits are already applied on disk — do NOT re-edit any files. '
+               'Run the project test command (pytest, bun test, etc.) and paste the key output inline.'),
     'INVALID': 'This response is not a coding action — respond with code analysis, file edits, or tool use.',
     'CONTEXT_VIOLATION': 'Stay on task — respond directly to the coding request.',
     'OVERCONFIDENCE:confidence-challenge': 'User challenged your confidence. Run Read/Grep/Bash on the specific items and quote the output before confirming.',

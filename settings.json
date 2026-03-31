@@ -133,7 +133,6 @@
     "defaultMode": "default",
     "disableBypassPermissionsMode": "disable"
   },
-  "model": "opusplan",
   "enableAllProjectMcpServers": true,
   "hooks": {
     "UserPromptSubmit": [
@@ -349,6 +348,15 @@
           {
             "type": "command",
             "command": "python /c/Users/Matt1/.claude/hooks/qg_layer8.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/Matt1/.claude/hooks/verify-reminder.py"
           }
         ]
       }

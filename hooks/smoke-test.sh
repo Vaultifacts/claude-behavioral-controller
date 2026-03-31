@@ -415,7 +415,7 @@ result=$(PYTHONIOENCODING=utf-8 python -c "
 import json, subprocess, sys, os
 payload = json.dumps({'last_assistant_message': 'This would normally block.', 'transcript_path': '', 'stop_hook_active': True})
 r = subprocess.run([sys.executable, os.path.expanduser('~/.claude/hooks/quality-gate.py').replace(chr(92), '/')],
-    input=payload, capture_output=True, text=True, env={**os.environ, 'PYTHONIOENCODING': 'utf-8'}, timeout=5)
+    input=payload, capture_output=True, text=True, env={**os.environ, 'PYTHONIOENCODING': 'utf-8', 'AUDIT_LOG_PATH': os.path.expanduser('~/.claude/audit-log-test.md').replace(chr(92), '/')}, timeout=5)
 print(r.stdout.strip())
 " 2>/dev/null)
 echo "$result" | grep -q '"continue"' && ok "stop_hook_active passes through" || fail "stop_hook_active passes through (got: $result)"
@@ -461,21 +461,21 @@ payload = json.dumps({
 r = subprocess.run(
     [sys.executable, os.path.expanduser('~/.claude/hooks/stop-log.py').replace(chr(92), '/')],
     input=payload, capture_output=True, text=True,
-    env={**os.environ, 'PYTHONIOENCODING': 'utf-8'}, timeout=5
+    env={**os.environ, 'PYTHONIOENCODING': 'utf-8', 'AUDIT_LOG_PATH': os.path.expanduser('~/.claude/audit-log-test.md').replace(chr(92), '/')}, timeout=5
 )
 sys.exit(r.returncode)
 " 2>/dev/null)
 [ $? -eq 0 ] && ok "exits 0 on valid stop" || fail "exits 0 on valid stop"
 
 # Should have written to audit-log.md
-grep -q "test-sl-" "$HOME/.claude/audit-log.md" && ok "appends to audit log" || fail "appends to audit log"
+grep -q "test-sl-" "$HOME/.claude/audit-log-test.md" && ok "appends to audit log" || fail "appends to audit log"
 
 # Empty/malformed input → exit 0 gracefully
-result=$(echo 'not json' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/stop-log.py" 2>&1)
+result=$(echo 'not json' | AUDIT_LOG_PATH="$HOME/.claude/audit-log-test.md" PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/stop-log.py" 2>&1)
 [ $? -eq 0 ] && ok "handles malformed input" || fail "handles malformed input"
 
 # Missing cost fields → exit 0
-result=$(echo '{"session_id":"test-sl-empty"}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/stop-log.py" 2>&1)
+result=$(echo '{"session_id":"test-sl-empty"}' | AUDIT_LOG_PATH="$HOME/.claude/audit-log-test.md" PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/stop-log.py" 2>&1)
 [ $? -eq 0 ] && ok "handles missing cost fields" || fail "handles missing cost fields"
 
 # --- permission-guard.py ---

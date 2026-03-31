@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _hooks_shared import rotate_log
 
 STATE_DIR = os.path.expanduser('~/.claude').replace('\\', '/')
-LOG_PATH = f'{STATE_DIR}/audit-log.md'
+LOG_PATH = os.environ.get('AUDIT_LOG_PATH', f'{STATE_DIR}/audit-log.md')
 
 try:
     payload = json.load(sys.stdin)
