@@ -150,20 +150,20 @@
 **Code:** Lines 62-66
 
 ### 5.1 Detection logic
-**Score: 6/10**
-**Evidence:** Checks if `fp` doesn't match any of `layer1_scope_files` using `fp.endswith(s) or s in fp`. Only fires when scope is set (non-empty).
-**Missing:** No path normalization. `s in fp` is substring match — `foo.py` would match `/bar/foo.py/baz` (unlikely but possible). No test for scope being empty (should not fire).
+**Score: 7/10**
+**Evidence:** Checks if `fp` doesn't match any of `layer1_scope_files` using `fp.endswith(s) or s in fp`. Only fires when scope is set (non-empty). Path normalization now applied via `_norm_path()`.
+**Missing:** `s in fp` is substring match — `foo.py` would match `/bar/foo.py/baz` (unlikely but possible). No test for scope being empty (should not fire).
 **To reach 10:** Use proper path comparison. Add edge case tests.
 
 ### 5.2 Unit tests
 **Score: 5/10**
-**Evidence:** Tested in TestLayer2Extra but no dedicated test for empty scope, path normalization, or substring false match.
+**Evidence:** Tested in TestLayer2Extra but no dedicated test for empty scope or substring false match.
 **To reach 10:** Add dedicated tests.
 
 ### 5.3 Live fire rate
-**Score: 2/10**
-**Evidence:** No SCOPE_CREEP events found in the production log. Either the detection never triggers, or `layer1_scope_files` is never populated.
-**To reach 10:** Investigate why it never fires. If scope is never set, this detection is dead code.
+**Score: 8/10**
+**Evidence:** 31 SCOPE_CREEP events in production log since 2026-03-28. Fires on real violations (e.g., editing CSV import files outside task scope, editing test files when scope was production code). Initially misidentified as dead code — events were always in `qg-monitor.jsonl` but the original scorecard search missed them.
+**Missing:** No FP analysis on the 31 events. Some may be false positives (e.g., editing memory files is often intentional).
 
 ---
 
@@ -201,9 +201,9 @@
 **To reach 10:** Add positive and negative unit tests.
 
 ### 7.3 Live fire rate
-**Score: 0/10**
-**Evidence:** No INCOMPLETE_COVERAGE events in the production log.
-**To reach 10:** Investigate if this ever fires. If not, it may be dead code.
+**Score: 3/10**
+**Evidence:** 1 INCOMPLETE_COVERAGE event confirmed in production log. Rare but functional — requires scope with >1 file AND repeated edits to same file, which is an uncommon combination.
+**Missing:** Only 1 event — insufficient data to assess FP rate or effectiveness.
 
 ---
 
@@ -280,5 +280,5 @@
 
 ## 12. Live Effectiveness
 **Score: 10/10**
-**Evidence:** 1932 events (87.6% of all monitor events). Fires across every session. Categories detected in production: LOOP_DETECTED, ERROR_IGNORED, LAZINESS, INCORRECT_TOOL, ASSUMPTION, OUTPUT_UNVALIDATED. Most active and effective layer in the system.
-**Missing:** SCOPE_CREEP and INCOMPLETE_COVERAGE have zero events — possible dead code.
+**Evidence:** 2131 events (74% of all monitor events). Fires across every session. All 8 categories detected in production: LOOP_DETECTED, ERROR_IGNORED, LAZINESS, INCORRECT_TOOL, ASSUMPTION, OUTPUT_UNVALIDATED, SCOPE_CREEP (31 events), INCOMPLETE_COVERAGE (1 event). Most active and effective layer in the system.
+**Missing:** SCOPE_CREEP FP analysis not done (some events may be intentional out-of-scope edits).

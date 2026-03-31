@@ -4668,5 +4668,351 @@ class TestLayer7MainTrigger(unittest.TestCase):
             qg_layer7.SUGGESTIONS_PATH = orig_sg
 
 
+
+
+# ============================================================================
+# qg_layer9.py comprehensive tests (coverage push from 41% to 80%+)
+# ============================================================================
+
+
+class TestLayer9GetResponseText(unittest.TestCase):
+    """get_response_text — extracts last assistant message from transcript."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_transcript(self, lines):
+        import json
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w') as f:
+            for line in lines:
+                f.write(json.dumps(line) + '\n')
+        return path
+
+    def test_extracts_string_content(self):
+        from qg_layer9 import get_response_text
+        path = self._write_transcript([
+            {'type': 'user', 'message': {'role': 'user', 'content': 'Hi'}},
+            {'message': {'role': 'assistant', 'content': "I'm certain this works."}},
+        ])
+        result = get_response_text(path)
+        self.assertIn("I'm certain", result)
+
+    def test_extracts_list_content(self):
+        from qg_layer9 import get_response_text
+        path = self._write_transcript([
+            {'message': {'role': 'assistant', 'content': [
+                {'type': 'text', 'text': 'I believe this should work.'},
+                {'type': 'tool_use', 'id': 'tu1', 'name': 'Bash'},
+            ]}},
+        ])
+        result = get_response_text(path)
+        self.assertIn('I believe', result)
+        self.assertNotIn('tool_use', result)
+
+    def test_returns_empty_on_missing_path(self):
+        from qg_layer9 import get_response_text
+        self.assertEqual(get_response_text(''), '')
+        self.assertEqual(get_response_text(os.path.join(self.tmpdir, 'missing.jsonl')), '')
+
+    def test_returns_empty_on_no_assistant(self):
+        from qg_layer9 import get_response_text
+        path = self._write_transcript([
+            {'message': {'role': 'user', 'content': 'Hello'}},
+        ])
+        self.assertEqual(get_response_text(path), '')
+
+    def test_handles_malformed_json(self):
+        from qg_layer9 import get_response_text
+        path = os.path.join(self.tmpdir, 'bad.jsonl')
+        with open(path, 'w') as f:
+            f.write('not json\n')
+            f.write('{"message": {"role": "assistant", "content": "I think maybe."}}\n')
+        result = get_response_text(path)
+        self.assertIn('I think', result)
+
+
+class TestLayer9MainFlow(unittest.TestCase):
+    """main() — threshold gate, outcome determination, record writing."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        import qg_session_state as _ss
+        self._orig_state = _ss.STATE_PATH
+        self._orig_lock = _ss.LOCK_PATH
+        _ss.STATE_PATH = os.path.join(self.tmpdir, 'state.json')
+        _ss.LOCK_PATH = _ss.STATE_PATH + '.lock'
+        import qg_layer9
+        self._orig_cal = qg_layer9.CALIBRATION_PATH
+        self._orig_monitor = qg_layer9._MONITOR_PATH
+        qg_layer9.CALIBRATION_PATH = os.path.join(self.tmpdir, 'calibration.jsonl')
+        qg_layer9._MONITOR_PATH = os.path.join(self.tmpdir, 'monitor.jsonl')
+
+    def tearDown(self):
+        import qg_session_state as _ss
+        _ss.STATE_PATH = self._orig_state
+        _ss.LOCK_PATH = self._orig_lock
+        import qg_layer9
+        qg_layer9.CALIBRATION_PATH = self._orig_cal
+        qg_layer9._MONITOR_PATH = self._orig_monitor
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_transcript(self, text):
+        import json
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w') as f:
+            f.write(json.dumps({'message': {'role': 'assistant', 'content': text}}) + '\n')
+        return path
+
+    def _run_main(self, data_dict):
+        import io, json, qg_layer9
+        old_stdin = sys.stdin
+        sys.stdin = io.StringIO(json.dumps(data_dict))
+        try:
+            qg_layer9.main()
+        finally:
+            sys.stdin = old_stdin
+
+    def test_writes_calibration_record_when_above_threshold(self):
+        import json, qg_session_state as _ss
+        _ss.write_state({
+            'layer3_evaluation_count': 10,
+            'layer3_pending_fn_alert': None,
+            'session_uuid': 'test-sess',
+            'layer1_task_category': 'MODERATE',
+        })
+        transcript = self._write_transcript("I'm certain this is correct and verified.")
+        self._run_main({'transcript_path': transcript})
+        import qg_layer9
+        self.assertTrue(os.path.exists(qg_layer9.CALIBRATION_PATH))
+        with open(qg_layer9.CALIBRATION_PATH) as f:
+            record = json.loads(f.read().strip())
+        self.assertEqual(record['stated_certainty'], 'high')
+        self.assertEqual(record['actual_outcome'], 'TN')
+
+    def test_skips_when_below_threshold(self):
+        import json, qg_session_state as _ss
+        _ss.write_state({
+            'layer3_evaluation_count': 2,
+            'session_uuid': 'test-sess',
+        })
+        transcript = self._write_transcript("I'm certain this works.")
+        self._run_main({'transcript_path': transcript})
+        import qg_layer9
+        self.assertFalse(os.path.exists(qg_layer9.CALIBRATION_PATH))
+
+    def test_records_fn_outcome(self):
+        import json, qg_session_state as _ss
+        _ss.write_state({
+            'layer3_evaluation_count': 10,
+            'layer3_pending_fn_alert': '[monitor] Missed Failure — test',
+            'session_uuid': 'test-sess',
+        })
+        transcript = self._write_transcript("I believe the fix is correct.")
+        self._run_main({'transcript_path': transcript})
+        import qg_layer9
+        with open(qg_layer9.CALIBRATION_PATH) as f:
+            record = json.loads(f.read().strip())
+        self.assertEqual(record['stated_certainty'], 'medium')
+        self.assertEqual(record['actual_outcome'], 'FN')
+
+    def test_skips_when_no_certainty_detected(self):
+        import json, qg_session_state as _ss
+        _ss.write_state({'layer3_evaluation_count': 10})
+        transcript = self._write_transcript("Here is the code change.")
+        self._run_main({'transcript_path': transcript})
+        import qg_layer9
+        self.assertFalse(os.path.exists(qg_layer9.CALIBRATION_PATH))
+
+    def test_writes_monitor_event(self):
+        import json, qg_session_state as _ss
+        _ss.write_state({
+            'layer3_evaluation_count': 10,
+            'layer3_pending_fn_alert': None,
+            'session_uuid': 'mon-test',
+        })
+        transcript = self._write_transcript("It might work, possibly.")
+        self._run_main({'transcript_path': transcript})
+        import qg_layer9
+        self.assertTrue(os.path.exists(qg_layer9._MONITOR_PATH))
+        with open(qg_layer9._MONITOR_PATH) as f:
+            event = json.loads(f.read().strip())
+        self.assertEqual(event['layer'], 'layer9')
+        self.assertIn('certainty=low', event['detection_signal'])
+
+    def test_reads_threshold_from_rules(self):
+        import json, qg_session_state as _ss
+        _ss.write_state({
+            'layer3_evaluation_count': 3,
+            'session_uuid': 'test',
+        })
+        # Write rules with threshold=2
+        rules_path = os.path.expanduser('~/.claude/qg-rules.json')
+        try:
+            with open(rules_path, 'r') as f:
+                rules = json.load(f)
+        except Exception:
+            rules = {}
+        orig_l9 = rules.get('layer9', {})
+        rules['layer9'] = {'min_responses_before_recalibration': 2}
+        with open(rules_path, 'w') as f:
+            json.dump(rules, f)
+        try:
+            transcript = self._write_transcript("I'm certain it works.")
+            self._run_main({'transcript_path': transcript})
+            import qg_layer9
+            # eval_count=3 >= threshold=2, so should write
+            self.assertTrue(os.path.exists(qg_layer9.CALIBRATION_PATH))
+        finally:
+            rules['layer9'] = orig_l9
+            with open(rules_path, 'w') as f:
+                json.dump(rules, f)
+
+    def test_empty_stdin(self):
+        import io, qg_layer9
+        old_stdin = sys.stdin
+        sys.stdin = io.StringIO('')
+        try:
+            qg_layer9.main()  # Should not crash
+        finally:
+            sys.stdin = old_stdin
+
+
+
+
+# ============================================================================
+# qg_layer27.py comprehensive tests (coverage push from 45% to 80%+)
+# ============================================================================
+
+
+class TestLayer27HasCoverageData(unittest.TestCase):
+    """has_coverage_data — checks for coverage report files."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_cwd = os.getcwd()
+        os.chdir(self.tmpdir)
+
+    def tearDown(self):
+        os.chdir(self._orig_cwd)
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_returns_true_for_dotcoverage(self):
+        from qg_layer27 import has_coverage_data
+        with open('.coverage', 'w') as f:
+            f.write('data')
+        self.assertTrue(has_coverage_data())
+
+    def test_returns_true_for_coverage_xml(self):
+        from qg_layer27 import has_coverage_data
+        with open('coverage.xml', 'w') as f:
+            f.write('<xml/>')
+        self.assertTrue(has_coverage_data())
+
+    def test_returns_false_when_none(self):
+        from qg_layer27 import has_coverage_data
+        self.assertFalse(has_coverage_data())
+
+
+class TestLayer27MainFlow(unittest.TestCase):
+    """main() — full hook flow with payload processing."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self._orig_cwd = os.getcwd()
+        os.chdir(self.tmpdir)
+        # Create a source file so the layer has something to check
+        with open('app.py', 'w') as f:
+            f.write('def hello(): pass\n')
+        import qg_layer27
+        self._orig_monitor = qg_layer27._MONITOR_PATH
+        qg_layer27._MONITOR_PATH = os.path.join(self.tmpdir, 'monitor.jsonl')
+
+    def tearDown(self):
+        os.chdir(self._orig_cwd)
+        import qg_layer27
+        qg_layer27._MONITOR_PATH = self._orig_monitor
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _run_main(self, payload):
+        import io, json, qg_layer27
+        old_stdin = sys.stdin
+        old_stdout = sys.stdout
+        sys.stdin = io.StringIO(json.dumps(payload))
+        sys.stdout = io.StringIO()
+        try:
+            qg_layer27.main()
+            return sys.stdout.getvalue()
+        finally:
+            sys.stdin = old_stdin
+            sys.stdout = old_stdout
+
+    def test_warns_when_no_test_file(self):
+        output = self._run_main({
+            'tool_name': 'Edit',
+            'tool_input': {'file_path': os.path.join(self.tmpdir, 'app.py')},
+        })
+        self.assertIn('No test file found', output)
+
+    def test_silent_when_test_file_exists(self):
+        # Create a matching test file
+        with open(os.path.join(self.tmpdir, 'test_app.py'), 'w') as f:
+            f.write('def test_hello(): pass\n')
+        output = self._run_main({
+            'tool_name': 'Edit',
+            'tool_input': {'file_path': os.path.join(self.tmpdir, 'app.py')},
+        })
+        self.assertEqual(output.strip(), '')
+
+    def test_silent_when_coverage_data_exists(self):
+        with open(os.path.join(self.tmpdir, '.coverage'), 'w') as f:
+            f.write('data')
+        output = self._run_main({
+            'tool_name': 'Edit',
+            'tool_input': {'file_path': os.path.join(self.tmpdir, 'app.py')},
+        })
+        self.assertEqual(output.strip(), '')
+
+    def test_skips_non_edit_tools(self):
+        output = self._run_main({
+            'tool_name': 'Read',
+            'tool_input': {'file_path': os.path.join(self.tmpdir, 'app.py')},
+        })
+        self.assertEqual(output.strip(), '')
+
+    def test_skips_non_code_extensions(self):
+        with open(os.path.join(self.tmpdir, 'readme.md'), 'w') as f:
+            f.write('# Readme')
+        output = self._run_main({
+            'tool_name': 'Edit',
+            'tool_input': {'file_path': os.path.join(self.tmpdir, 'readme.md')},
+        })
+        self.assertEqual(output.strip(), '')
+
+    def test_skips_test_files_themselves(self):
+        with open(os.path.join(self.tmpdir, 'test_app.py'), 'w') as f:
+            f.write('def test(): pass\n')
+        output = self._run_main({
+            'tool_name': 'Edit',
+            'tool_input': {'file_path': os.path.join(self.tmpdir, 'test_app.py')},
+        })
+        self.assertEqual(output.strip(), '')
+
+    def test_writes_monitor_event_on_warn(self):
+        import json, qg_layer27
+        self._run_main({
+            'tool_name': 'Edit',
+            'tool_input': {'file_path': os.path.join(self.tmpdir, 'app.py')},
+        })
+        self.assertTrue(os.path.exists(qg_layer27._MONITOR_PATH))
+        with open(qg_layer27._MONITOR_PATH) as f:
+            event = json.loads(f.read().strip())
+        self.assertEqual(event['layer'], 'layer27')
+        self.assertEqual(event['category'], 'NO_TEST_FILE')
+
+    def test_empty_payload(self):
+        output = self._run_main({})
+        self.assertEqual(output.strip(), '')
+
+
 if __name__ == '__main__':
     unittest.main()
