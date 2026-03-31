@@ -394,6 +394,15 @@
             "command": "python /c/Users/Matt1/.claude/hooks/qg_layer28.py"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer13.py"
+          }
+        ]
       }
     ],
     "PostToolUseFailure": [

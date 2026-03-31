@@ -6569,5 +6569,114 @@ class TestLayer15MemoryIntegrity(unittest.TestCase):
         self.assertEqual(report['status'], 'warning')
 
 
+
+# ============================================================================
+# qg_layer13.py -- Knowledge Freshness Verification tests
+# ============================================================================
+
+
+class TestLayer13KnowledgeFreshness(unittest.TestCase):
+    """extract_imports, check_module_exists, check_attribute_exists, check_imports."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_file(self, name, content):
+        path = os.path.join(self.tmpdir, name)
+        with open(path, 'w') as f:
+            f.write(content)
+        return path
+
+    # --- extract_imports ---
+
+    def test_extract_import_basic(self):
+        from qg_layer13 import extract_imports
+        imports = extract_imports("import os\nimport json\n")
+        modules = [m for m, _ in imports]
+        self.assertIn("os", modules)
+        self.assertIn("json", modules)
+
+    def test_extract_from_import(self):
+        from qg_layer13 import extract_imports
+        imports = extract_imports("from os.path import join, exists\n")
+        self.assertEqual(imports[0][0], "os.path")
+        self.assertIn("join", imports[0][1])
+        self.assertIn("exists", imports[0][1])
+
+    def test_extract_import_star(self):
+        from qg_layer13 import extract_imports
+        imports = extract_imports("from os import *\n")
+        self.assertEqual(imports[0][1], [])
+
+    def test_extract_import_as(self):
+        from qg_layer13 import extract_imports
+        imports = extract_imports("from collections import OrderedDict as OD\n")
+        self.assertIn("OrderedDict", imports[0][1])
+
+    def test_extract_comment_skipped(self):
+        from qg_layer13 import extract_imports
+        imports = extract_imports("# import fake_module\ndef foo(): pass\n")
+        self.assertEqual(imports, [])
+
+    def test_extract_empty(self):
+        from qg_layer13 import extract_imports
+        self.assertEqual(extract_imports(""), [])
+
+    # --- check_module_exists ---
+
+    def test_module_exists_stdlib(self):
+        from qg_layer13 import check_module_exists
+        self.assertTrue(check_module_exists("os"))
+        self.assertTrue(check_module_exists("json"))
+
+    def test_module_exists_nonexistent(self):
+        from qg_layer13 import check_module_exists
+        self.assertFalse(check_module_exists("totally_fake_module_xyz"))
+
+    # --- check_attribute_exists ---
+
+    def test_attribute_exists_valid(self):
+        from qg_layer13 import check_attribute_exists
+        self.assertTrue(check_attribute_exists("os", "path"))
+        self.assertTrue(check_attribute_exists("json", "dumps"))
+
+    def test_attribute_exists_invalid(self):
+        from qg_layer13 import check_attribute_exists
+        self.assertFalse(check_attribute_exists("os", "totally_fake_function_xyz"))
+
+    # --- check_imports ---
+
+    def test_check_imports_stdlib_clean(self):
+        from qg_layer13 import check_imports
+        p = self._write_file("test.py", "import os\nimport json\nfrom pathlib import Path\n")
+        issues = check_imports(p)
+        self.assertEqual(issues, [])
+
+    def test_check_imports_nonexistent_module(self):
+        from qg_layer13 import check_imports
+        p = self._write_file("test.py", "import totally_fake_module_xyz\n")
+        issues = check_imports(p)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn("MODULE_NOT_FOUND", issues[0][1])
+
+    def test_check_imports_non_python_skipped(self):
+        from qg_layer13 import check_imports
+        p = self._write_file("test.js", "import os\n")
+        self.assertEqual(check_imports(p), [])
+
+    def test_check_imports_content_param(self):
+        from qg_layer13 import check_imports
+        issues = check_imports("/fake/path.py", content="import totally_fake_module_xyz\n")
+        self.assertGreaterEqual(len(issues), 1)
+
+    def test_check_imports_empty_file(self):
+        from qg_layer13 import check_imports
+        p = self._write_file("test.py", "def hello(): pass\n")
+        self.assertEqual(check_imports(p), [])
+
+
 if __name__ == '__main__':
     unittest.main()
