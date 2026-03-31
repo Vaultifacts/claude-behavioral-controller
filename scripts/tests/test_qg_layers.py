@@ -5173,5 +5173,289 @@ class TestLayer28SecurityDetection(unittest.TestCase):
         self.assertEqual(r[0][1], 'warning')
 
 
+
+
+# ============================================================================
+# qg_layer20.py -- System Health Dashboard tests
+# ============================================================================
+
+
+class TestLayer20SystemHealth(unittest.TestCase):
+    """check_hook_files, check_state_health, check_monitor_health, etc."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_file(self, name, content):
+        path = os.path.join(self.tmpdir, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w') as f:
+            f.write(content)
+        return path
+
+    def _write_settings(self, hook_commands):
+        """Write a minimal settings.json with given hook commands."""
+        hooks = {"SessionStart": []}
+        for cmd in hook_commands:
+            hooks["SessionStart"].append({"hooks": [{"type": "command", "command": cmd}]})
+        path = os.path.join(self.tmpdir, 'settings.json')
+        with open(path, 'w') as f:
+            import json; json.dump({"hooks": hooks}, f)
+        return path
+
+    # --- check_hook_files ---
+
+    def test_hook_files_all_valid(self):
+        from qg_layer20 import check_hook_files
+        py_path = self._write_file('hooks/good.py', 'x = 1\n')
+        settings = self._write_settings(['python ' + py_path])
+        issues, count = check_hook_files(settings)
+        self.assertEqual(issues, [])
+        self.assertEqual(count, 1)
+
+    def test_hook_file_missing(self):
+        from qg_layer20 import check_hook_files
+        settings = self._write_settings(['python /nonexistent/fake_hook.py'])
+        issues, count = check_hook_files(settings)
+        self.assertEqual(count, 1)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertEqual(issues[0][0], 'critical')
+        self.assertIn('MISSING_FILE', issues[0][1])
+
+    def test_hook_file_syntax_error(self):
+        from qg_layer20 import check_hook_files
+        bad_path = self._write_file('hooks/bad.py', 'def foo(\n')
+        settings = self._write_settings(['python ' + bad_path])
+        issues, count = check_hook_files(settings)
+        self.assertEqual(count, 1)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertEqual(issues[0][0], 'warning')
+        self.assertIn('SYNTAX_ERROR', issues[0][1])
+
+    def test_hook_file_bash_script(self):
+        from qg_layer20 import check_hook_files
+        sh_path = self._write_file('hooks/test.sh', '#!/bin/bash\necho hi\n')
+        settings = self._write_settings(['bash ' + sh_path])
+        issues, count = check_hook_files(settings)
+        self.assertEqual(issues, [])
+        self.assertEqual(count, 1)
+
+    # --- check_registration_integrity ---
+
+    def test_registration_integrity_clean(self):
+        from qg_layer20 import check_registration_integrity
+        hooks_dir = os.path.join(self.tmpdir, 'hooks')
+        os.makedirs(hooks_dir, exist_ok=True)
+        layer_path = self._write_file('hooks/qg_layer99.py', 'x=1\n')
+        settings = self._write_settings(['python ' + layer_path])
+        issues = check_registration_integrity(settings, hooks_dir)
+        self.assertEqual(issues, [])
+
+    def test_registration_unregistered_layer(self):
+        from qg_layer20 import check_registration_integrity
+        hooks_dir = os.path.join(self.tmpdir, 'hooks')
+        os.makedirs(hooks_dir, exist_ok=True)
+        self._write_file('hooks/qg_layer99.py', 'x=1\n')
+        settings = self._write_settings([])  # no hooks registered
+        issues = check_registration_integrity(settings, hooks_dir)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('UNREGISTERED', issues[0][1])
+
+    def test_registration_library_excluded(self):
+        from qg_layer20 import check_registration_integrity
+        hooks_dir = os.path.join(self.tmpdir, 'hooks')
+        os.makedirs(hooks_dir, exist_ok=True)
+        self._write_file('hooks/qg_layer10.py', 'x=1\n')
+        self._write_file('hooks/qg_layer35.py', 'x=1\n')
+        settings = self._write_settings([])
+        issues = check_registration_integrity(settings, hooks_dir)
+        self.assertEqual(issues, [])
+
+    # --- check_state_health ---
+
+    def test_state_valid(self):
+        from qg_layer20 import check_state_health
+        import json
+        state_path = self._write_file('state.json', json.dumps({"schema_version": 1}))
+        issues, size = check_state_health(state_path)
+        self.assertEqual(issues, [])
+        self.assertGreater(size, 0)
+
+    def test_state_too_large(self):
+        from qg_layer20 import check_state_health
+        import json
+        big = {"schema_version": 1, "data": "x" * 60000}
+        state_path = self._write_file('state.json', json.dumps(big))
+        issues, size = check_state_health(state_path)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('STATE_SIZE', issues[0][1])
+
+    def test_state_invalid_json(self):
+        from qg_layer20 import check_state_health
+        state_path = self._write_file('state.json', '{broken json')
+        issues, size = check_state_health(state_path)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertEqual(issues[0][0], 'critical')
+        self.assertIn('STATE_CORRUPT', issues[0][1])
+
+    def test_state_missing(self):
+        from qg_layer20 import check_state_health
+        issues, size = check_state_health('/nonexistent/state.json')
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertEqual(issues[0][0], 'critical')
+        self.assertIn('STATE_MISSING', issues[0][1])
+
+    def test_state_no_schema_version(self):
+        from qg_layer20 import check_state_health
+        import json
+        state_path = self._write_file('state.json', json.dumps({"foo": "bar"}))
+        issues, size = check_state_health(state_path)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('STATE_NO_SCHEMA', issues[0][1])
+
+    # --- check_monitor_health ---
+
+    def test_monitor_healthy(self):
+        from qg_layer20 import check_monitor_health
+        import json
+        lines = [json.dumps({"layer": "layer2", "ts": "2026-03-30T12:00:00"}) + '\n'] * 10
+        mon_path = self._write_file('monitor.jsonl', ''.join(lines))
+        issues, size, count = check_monitor_health(mon_path)
+        self.assertEqual(issues, [])
+        self.assertEqual(count, 10)
+
+    def test_monitor_too_large(self):
+        from qg_layer20 import check_monitor_health
+        big = 'x' * (6 * 1024 * 1024)
+        mon_path = self._write_file('monitor.jsonl', big)
+        issues, size, count = check_monitor_health(mon_path)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('MONITOR_SIZE', issues[0][1])
+
+    def test_monitor_missing(self):
+        from qg_layer20 import check_monitor_health
+        issues, size, count = check_monitor_health('/nonexistent/monitor.jsonl')
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('MONITOR_MISSING', issues[0][1])
+
+    # --- check_quarantine ---
+
+    def test_quarantine_entries(self):
+        from qg_layer20 import check_quarantine
+        import json
+        lines = [json.dumps({"reason": "invalid_json"}) + '\n'] * 5
+        q_path = self._write_file('quarantine.jsonl', ''.join(lines))
+        issues, count = check_quarantine(q_path)
+        self.assertEqual(count, 5)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertEqual(issues[0][0], 'info')
+
+    def test_quarantine_many(self):
+        from qg_layer20 import check_quarantine
+        import json
+        lines = [json.dumps({"reason": "bad"}) + '\n'] * 25
+        q_path = self._write_file('quarantine.jsonl', ''.join(lines))
+        issues, count = check_quarantine(q_path)
+        self.assertEqual(count, 25)
+        self.assertEqual(issues[0][0], 'warning')
+
+    def test_quarantine_empty(self):
+        from qg_layer20 import check_quarantine
+        issues, count = check_quarantine('/nonexistent/quarantine.jsonl')
+        self.assertEqual(count, 0)
+        self.assertEqual(issues, [])
+
+    # --- check_layer_activity ---
+
+    def test_layer_activity_all_active(self):
+        from qg_layer20 import check_layer_activity
+        import json
+        lines = []
+        for layer in ['layer2', 'layer5', 'layer7']:
+            lines.append(json.dumps({"layer": layer}) + '\n')
+        mon_path = self._write_file('monitor.jsonl', ''.join(lines))
+        issues, seen = check_layer_activity(mon_path)
+        self.assertEqual(issues, [])
+        self.assertIn('layer2', seen)
+        self.assertIn('layer5', seen)
+        self.assertIn('layer7', seen)
+
+    def test_layer_activity_gaps(self):
+        from qg_layer20 import check_layer_activity
+        mon_path = self._write_file('monitor.jsonl', '')
+        issues, seen = check_layer_activity(mon_path)
+        self.assertEqual(len(seen), 0)
+
+    # --- check_log_sizes ---
+
+    def test_log_sizes_normal(self):
+        from qg_layer20 import check_log_sizes
+        self._write_file('quality-gate.log', 'x' * 100)
+        issues = check_log_sizes(self.tmpdir)
+        self.assertEqual(issues, [])
+
+    def test_log_sizes_large(self):
+        from qg_layer20 import check_log_sizes
+        self._write_file('quality-gate.log', 'x' * (3 * 1024 * 1024))
+        issues = check_log_sizes(self.tmpdir)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('LOG_SIZE', issues[0][1])
+
+    # --- run_health_check integration ---
+
+    def test_run_health_check_clean(self):
+        from qg_layer20 import run_health_check
+        import json
+        hooks_dir = os.path.join(self.tmpdir, 'hooks')
+        os.makedirs(hooks_dir, exist_ok=True)
+        py_path = self._write_file('hooks/good.py', 'x = 1\n')
+        settings = self._write_settings(['python ' + py_path])
+        state_path = self._write_file('state.json', json.dumps({"schema_version": 1}))
+        mon_lines = [json.dumps({"layer": "layer2"}) + '\n'] * 5
+        mon_path = self._write_file('monitor.jsonl', ''.join(mon_lines))
+        q_path = self._write_file('quarantine.jsonl', '')
+        report = run_health_check(
+            settings_path=settings, hooks_dir=hooks_dir, state_path=state_path,
+            monitor_path=mon_path, quarantine_path=q_path, claude_dir=self.tmpdir,
+        )
+        self.assertEqual(report['status'], 'ok')
+        self.assertEqual(report['stats']['hook_files'], 1)
+
+    def test_run_health_check_issues(self):
+        from qg_layer20 import run_health_check
+        settings = self._write_settings(['python /nonexistent/bad.py'])
+        hooks_dir = os.path.join(self.tmpdir, 'hooks')
+        os.makedirs(hooks_dir, exist_ok=True)
+        report = run_health_check(
+            settings_path=settings, hooks_dir=hooks_dir, state_path='/nope/state.json',
+            monitor_path='/nope/monitor.jsonl', quarantine_path='/nope/q.jsonl',
+            claude_dir=self.tmpdir,
+        )
+        self.assertEqual(report['status'], 'critical')
+        self.assertGreater(len(report['issues']), 0)
+
+    # --- main ---
+
+    def test_main_json_output(self):
+        from qg_layer20 import run_health_check
+        import json
+        hooks_dir = os.path.join(self.tmpdir, 'hooks')
+        os.makedirs(hooks_dir, exist_ok=True)
+        py_path = self._write_file('hooks/good.py', 'x = 1\n')
+        settings = self._write_settings(['python ' + py_path])
+        state_path = self._write_file('state.json', json.dumps({"schema_version": 1}))
+        mon_path = self._write_file('monitor.jsonl', json.dumps({"layer": "layer2"}) + '\n')
+        report = run_health_check(
+            settings_path=settings, hooks_dir=hooks_dir, state_path=state_path,
+            monitor_path=mon_path, quarantine_path='/nope', claude_dir=self.tmpdir,
+        )
+        self.assertIn('status', report)
+        self.assertIn('stats', report)
+        self.assertIn('issues', report)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -359,6 +359,15 @@
             "command": "python C:/Users/Matt1/.claude/hooks/verify-reminder.py"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer28.py"
+          }
+        ]
       }
     ],
     "PostToolUseFailure": [
@@ -393,7 +402,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell.exe -WindowStyle Hidden -File C:/Users/Matt1/.claude/hooks/notify.ps1 -Title 'Claude Code \u2014 Session Failed' -Message 'Rate limit or billing error. Check your Anthropic dashboard.' -Level Error -Duration 8000 2>/dev/null || true"
+            "command": "powershell.exe -WindowStyle Hidden -File C:/Users/Matt1/.claude/hooks/notify.ps1 -Title 'Claude Code — Session Failed' -Message 'Rate limit or billing error. Check your Anthropic dashboard.' -Level Error -Duration 8000 2>/dev/null || true"
           }
         ]
       }
@@ -516,6 +525,14 @@
             "command": "python C:/Users/Matt1/.claude/hooks/qg_layer_env.py"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer20.py"
+          }
+        ]
       }
     ],
     "SessionEnd": [
@@ -601,7 +618,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'PLAN=$(find /c/Users/Matt1/.claude/plans/ -maxdepth 1 -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); CTX=\"Memory index: ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md. RULE: Never assume or guess \u2014 verify by reading code, or escalate to the user.\"; if [ -n \"$PLAN\" ]; then CTX=\"$CTX. Active plan: $PLAN\"; fi; jq -n --arg ctx \"$CTX\" \"{hookSpecificOutput:{hookEventName:\\\"SubagentStart\\\",additionalContext:\\$ctx}}\"'",
+            "command": "bash -c 'PLAN=$(find /c/Users/Matt1/.claude/plans/ -maxdepth 1 -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); CTX=\"Memory index: ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md. RULE: Never assume or guess — verify by reading code, or escalate to the user.\"; if [ -n \"$PLAN\" ]; then CTX=\"$CTX. Active plan: $PLAN\"; fi; jq -n --arg ctx \"$CTX\" \"{hookSpecificOutput:{hookEventName:\\\"SubagentStart\\\",additionalContext:\\$ctx}}\"'",
             "async": false
           }
         ]
@@ -635,7 +652,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'INPUT=$(cat); SUMMARY=$(echo \"$INPUT\" | jq -r \".compact_summary // empty\" 2>/dev/null); PLAN=$(find /c/Users/Matt1/.claude/plans/ -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); if [ -n \"$PLAN\" ]; then echo \"[post-compact] Active plan: $PLAN \u2014 re-read it to resume work.\"; fi; echo \"[post-compact] Memory at ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md\"; if [ -n \"$SUMMARY\" ]; then echo \"[post-compact] Summary: $SUMMARY\"; fi'"
+            "command": "bash -c 'INPUT=$(cat); SUMMARY=$(echo \"$INPUT\" | jq -r \".compact_summary // empty\" 2>/dev/null); PLAN=$(find /c/Users/Matt1/.claude/plans/ -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); if [ -n \"$PLAN\" ]; then echo \"[post-compact] Active plan: $PLAN — re-read it to resume work.\"; fi; echo \"[post-compact] Memory at ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md\"; if [ -n \"$SUMMARY\" ]; then echo \"[post-compact] Summary: $SUMMARY\"; fi'"
           }
         ]
       },
