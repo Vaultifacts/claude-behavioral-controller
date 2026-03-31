@@ -6242,5 +6242,182 @@ class TestLayer29SemanticCorrectness(unittest.TestCase):
         self.assertEqual(report['status'], 'ok')
 
 
+
+
+# ============================================================================
+# qg_layer19_cross.py -- Cross-Project Learning tests
+# ============================================================================
+
+
+class TestLayer19CrossProject(unittest.TestCase):
+    """group_by_project, find_cross_project_patterns, etc."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_monitor(self, events):
+        import json
+        path = os.path.join(self.tmpdir, 'monitor.jsonl')
+        with open(path, 'w') as f:
+            for e in events:
+                f.write(json.dumps(e) + '\n')
+        return path
+
+    # --- _normalize_project ---
+
+    def test_normalize_home(self):
+        from qg_layer19_cross import _normalize_project
+        home = os.path.expanduser('~').replace('\\', '/')
+        self.assertEqual(_normalize_project(home), '~')
+
+    def test_normalize_subdir(self):
+        from qg_layer19_cross import _normalize_project
+        home = os.path.expanduser('~').replace('\\', '/')
+        result = _normalize_project(home + '/projects/myapp')
+        self.assertEqual(result, '~/projects/myapp')
+
+    def test_normalize_empty(self):
+        from qg_layer19_cross import _normalize_project
+        self.assertEqual(_normalize_project(''), 'unknown')
+
+    # --- group_by_project ---
+
+    def test_group_basic(self):
+        from qg_layer19_cross import group_by_project
+        events = [
+            {'working_dir': '/a/proj1', 'category': 'X'},
+            {'working_dir': '/a/proj2', 'category': 'Y'},
+            {'working_dir': '/a/proj1', 'category': 'Z'},
+        ]
+        groups = group_by_project(events)
+        self.assertEqual(len(groups), 2)
+
+    def test_group_no_working_dir(self):
+        from qg_layer19_cross import group_by_project
+        events = [{'category': 'X'}, {'working_dir': '', 'category': 'Y'}]
+        groups = group_by_project(events)
+        self.assertEqual(len(groups), 0)
+
+    # --- find_cross_project_patterns ---
+
+    def test_cross_project_found(self):
+        from qg_layer19_cross import find_cross_project_patterns
+        groups = {
+            'projA': [{'category': 'ERROR'}, {'category': 'ERROR'}, {'category': 'WARN'}],
+            'projB': [{'category': 'ERROR'}, {'category': 'OTHER'}],
+        }
+        patterns = find_cross_project_patterns(groups)
+        cats = [p['category'] for p in patterns]
+        self.assertIn('ERROR', cats)
+
+    def test_cross_project_single_project_excluded(self):
+        from qg_layer19_cross import find_cross_project_patterns
+        groups = {
+            'projA': [{'category': 'UNIQUE'}, {'category': 'UNIQUE'}, {'category': 'UNIQUE'}],
+            'projB': [{'category': 'OTHER'}],
+        }
+        patterns = find_cross_project_patterns(groups)
+        cats = [p['category'] for p in patterns]
+        self.assertNotIn('UNIQUE', cats)
+
+    def test_cross_project_below_threshold(self):
+        from qg_layer19_cross import find_cross_project_patterns
+        groups = {
+            'projA': [{'category': 'RARE'}],
+            'projB': [{'category': 'RARE'}],
+        }
+        patterns = find_cross_project_patterns(groups)
+        # Only 2 events total, below MIN_EVENTS=3
+        cats = [p['category'] for p in patterns]
+        self.assertNotIn('RARE', cats)
+
+    def test_cross_project_empty(self):
+        from qg_layer19_cross import find_cross_project_patterns
+        self.assertEqual(find_cross_project_patterns({}), [])
+
+    # --- find_project_specific_patterns ---
+
+    def test_project_specific_found(self):
+        from qg_layer19_cross import find_project_specific_patterns
+        groups = {
+            'projA': [{'category': 'ONLY_A'}, {'category': 'ONLY_A'}, {'category': 'ONLY_A'}],
+            'projB': [{'category': 'ONLY_B'}, {'category': 'ONLY_B'}, {'category': 'ONLY_B'}],
+        }
+        patterns = find_project_specific_patterns(groups)
+        cats = [p['category'] for p in patterns]
+        self.assertIn('ONLY_A', cats)
+        self.assertIn('ONLY_B', cats)
+
+    def test_project_specific_shared_excluded(self):
+        from qg_layer19_cross import find_project_specific_patterns
+        groups = {
+            'projA': [{'category': 'SHARED'}, {'category': 'SHARED'}, {'category': 'SHARED'}],
+            'projB': [{'category': 'SHARED'}],
+        }
+        patterns = find_project_specific_patterns(groups)
+        cats = [p['category'] for p in patterns]
+        self.assertNotIn('SHARED', cats)
+
+    # --- load_events ---
+
+    def test_load_events_basic(self):
+        from qg_layer19_cross import load_events
+        import json
+        path = self._write_monitor([
+            {'working_dir': '/a', 'category': 'X'},
+            {'working_dir': '/b', 'category': 'Y'},
+        ])
+        events = load_events(path)
+        self.assertEqual(len(events), 2)
+
+    def test_load_events_missing_file(self):
+        from qg_layer19_cross import load_events
+        self.assertEqual(load_events('/nonexistent/monitor.jsonl'), [])
+
+    def test_load_events_tail(self):
+        from qg_layer19_cross import load_events
+        events_data = [{'working_dir': '/a', 'category': 'X', 'idx': i} for i in range(20)]
+        path = self._write_monitor(events_data)
+        events = load_events(path, tail_lines=5)
+        self.assertEqual(len(events), 5)
+
+    # --- analyze_cross_project ---
+
+    def test_analyze_full(self):
+        from qg_layer19_cross import analyze_cross_project
+        events = []
+        for i in range(5):
+            events.append({'working_dir': '/proj/a', 'category': 'ERROR'})
+        for i in range(3):
+            events.append({'working_dir': '/proj/b', 'category': 'ERROR'})
+        events.append({'working_dir': '/proj/a', 'category': 'UNIQUE_A'})
+        path = self._write_monitor(events)
+        report = analyze_cross_project(path)
+        self.assertEqual(report['status'], 'ok')
+        self.assertEqual(report['project_count'], 2)
+        global_cats = [p['category'] for p in report['global_patterns']]
+        self.assertIn('ERROR', global_cats)
+
+    def test_analyze_no_data(self):
+        from qg_layer19_cross import analyze_cross_project
+        report = analyze_cross_project('/nonexistent/file.jsonl')
+        self.assertEqual(report['status'], 'no_data')
+
+    # --- save_report ---
+
+    def test_save_report(self):
+        from qg_layer19_cross import save_report
+        import json
+        out_path = os.path.join(self.tmpdir, 'report.json')
+        save_report({'status': 'ok', 'global_patterns': []}, out_path)
+        with open(out_path) as f:
+            data = json.load(f)
+        self.assertEqual(data['status'], 'ok')
+        self.assertIn('ts', data)
+
+
 if __name__ == '__main__':
     unittest.main()
