@@ -494,6 +494,14 @@
             "command": "python /c/Users/Matt1/.claude/hooks/qg_layer14.py"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer29.py"
+          }
+        ]
       }
     ],
     "SessionStart": [

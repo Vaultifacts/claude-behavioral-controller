@@ -6092,5 +6092,155 @@ class TestLayer14ResponseEfficiency(unittest.TestCase):
         self.assertEqual(tools, [])
 
 
+
+
+# ============================================================================
+# qg_layer29.py -- Semantic Correctness Verification tests
+# ============================================================================
+
+
+class TestLayer29SemanticCorrectness(unittest.TestCase):
+    """check_claim_action, check_direction, check_count_claims, analyze_semantics."""
+    def setUp(self):
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    # --- check_claim_action ---
+
+    def test_claim_error_handling_present(self):
+        from qg_layer29 import check_claim_action
+        resp = "I added error handling to the function"
+        edit = "try:\n    do_stuff()\nexcept ValueError:\n    pass\n"
+        self.assertEqual(check_claim_action(resp, edit), [])
+
+    def test_claim_error_handling_missing(self):
+        from qg_layer29 import check_claim_action
+        resp = "I added error handling to the function"
+        edit = "def foo():\n    return 42\n"
+        issues = check_claim_action(resp, edit)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('CLAIM_MISMATCH', issues[0][1])
+
+    def test_claim_tests_present(self):
+        from qg_layer29 import check_claim_action
+        resp = "I added tests for the login module"
+        edit = "def test_login():\n    assert True\n"
+        self.assertEqual(check_claim_action(resp, edit), [])
+
+    def test_claim_tests_missing(self):
+        from qg_layer29 import check_claim_action
+        resp = "I added tests for the login module"
+        edit = "def login():\n    pass\n"
+        issues = check_claim_action(resp, edit)
+        self.assertGreaterEqual(len(issues), 1)
+
+    def test_claim_logging_present(self):
+        from qg_layer29 import check_claim_action
+        resp = "I implemented logging throughout"
+        edit = "import logging\nlogger = logging.getLogger(__name__)\nlogger.info('started')\n"
+        self.assertEqual(check_claim_action(resp, edit), [])
+
+    def test_claim_logging_missing(self):
+        from qg_layer29 import check_claim_action
+        resp = "I implemented logging throughout"
+        edit = "def process():\n    return data\n"
+        issues = check_claim_action(resp, edit)
+        self.assertGreaterEqual(len(issues), 1)
+
+    def test_claim_validation_present(self):
+        from qg_layer29 import check_claim_action
+        resp = "I added input validation"
+        edit = "if not data:\n    raise ValueError('empty')\n"
+        self.assertEqual(check_claim_action(resp, edit), [])
+
+    def test_no_claims_no_issues(self):
+        from qg_layer29 import check_claim_action
+        resp = "Here is the implementation"
+        edit = "def foo(): pass\n"
+        self.assertEqual(check_claim_action(resp, edit), [])
+
+    def test_empty_inputs(self):
+        from qg_layer29 import check_claim_action
+        self.assertEqual(check_claim_action("", "code"), [])
+        self.assertEqual(check_claim_action("claim", ""), [])
+
+    # --- check_direction ---
+
+    def test_direction_descending_present(self):
+        from qg_layer29 import check_direction
+        resp = "Sorted the results in descending order"
+        edit = "data.sort(reverse=True)\n"
+        self.assertEqual(check_direction(resp, edit), [])
+
+    def test_direction_descending_missing(self):
+        from qg_layer29 import check_direction
+        resp = "Sorted the results in descending order"
+        edit = "data = sorted(data)\n"
+        issues = check_direction(resp, edit)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('DIRECTION_CHECK', issues[0][1])
+
+    def test_direction_case_insensitive_present(self):
+        from qg_layer29 import check_direction
+        resp = "Made the search case-insensitive"
+        edit = "result = re.search(pattern, text, re.IGNORECASE)\n"
+        self.assertEqual(check_direction(resp, edit), [])
+
+    def test_direction_no_keywords(self):
+        from qg_layer29 import check_direction
+        resp = "Updated the function"
+        edit = "def foo(): pass\n"
+        self.assertEqual(check_direction(resp, edit), [])
+
+    # --- check_count_claims ---
+
+    def test_count_tests_match(self):
+        from qg_layer29 import check_count_claims
+        resp = "I added 3 tests"
+        edit = "def test_a(): pass\ndef test_b(): pass\ndef test_c(): pass\n"
+        self.assertEqual(check_count_claims(resp, edit), [])
+
+    def test_count_tests_mismatch(self):
+        from qg_layer29 import check_count_claims
+        resp = "I added 5 tests"
+        edit = "def test_a(): pass\ndef test_b(): pass\n"
+        issues = check_count_claims(resp, edit)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('COUNT_MISMATCH', issues[0][1])
+
+    def test_count_no_claims(self):
+        from qg_layer29 import check_count_claims
+        resp = "Here are the changes"
+        edit = "def test_a(): pass\n"
+        self.assertEqual(check_count_claims(resp, edit), [])
+
+    def test_count_close_enough(self):
+        from qg_layer29 import check_count_claims
+        resp = "I added 3 tests"
+        edit = "def test_a(): pass\ndef test_b(): pass\n"
+        # Off by 1 is tolerated
+        self.assertEqual(check_count_claims(resp, edit), [])
+
+    # --- analyze_semantics ---
+
+    def test_analyze_clean(self):
+        from qg_layer29 import analyze_semantics
+        report = analyze_semantics("Updated the module", "def foo(): pass\n")
+        self.assertEqual(report['status'], 'ok')
+
+    def test_analyze_with_issues(self):
+        from qg_layer29 import analyze_semantics
+        report = analyze_semantics(
+            "I added error handling and 10 tests",
+            "def foo(): pass\ndef test_one(): pass\n",
+        )
+        self.assertEqual(report['status'], 'warning')
+        self.assertGreater(len(report['issues']), 0)
+
+    def test_analyze_empty(self):
+        from qg_layer29 import analyze_semantics
+        report = analyze_semantics("", "")
+        self.assertEqual(report['status'], 'ok')
+
+
 if __name__ == '__main__':
     unittest.main()
