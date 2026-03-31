@@ -583,6 +583,14 @@
             "command": "python C:/Users/Matt1/.claude/hooks/qg_layer19_cross.py"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer17_adv.py"
+          }
+        ]
       }
     ],
     "SessionEnd": [
