@@ -6419,5 +6419,155 @@ class TestLayer19CrossProject(unittest.TestCase):
         self.assertIn('ts', data)
 
 
+
+# ============================================================================
+# qg_layer15_mem.py -- Memory & State Integrity tests
+# ============================================================================
+
+
+class TestLayer15MemoryIntegrity(unittest.TestCase):
+    """extract_references, check_references, check_staleness, etc."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.mem_dir = os.path.join(self.tmpdir, 'memory')
+        os.makedirs(self.mem_dir, exist_ok=True)
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_file(self, name, content):
+        path = os.path.join(self.mem_dir, name)
+        with open(path, 'w') as f:
+            f.write(content)
+        return path
+
+    # --- extract_references ---
+
+    def test_extract_refs_basic(self):
+        from qg_layer15_mem import extract_references
+        idx = self._write_file('MEMORY.md', '- [Profile](memory/profile.md)\n- [Notes](memory/notes.md)\n')
+        refs = extract_references(idx)
+        self.assertEqual(len(refs), 2)
+        self.assertEqual(refs[0]['name'], 'Profile')
+
+    def test_extract_refs_empty(self):
+        from qg_layer15_mem import extract_references
+        idx = self._write_file('MEMORY.md', '# Empty index\nNo links here.\n')
+        self.assertEqual(extract_references(idx), [])
+
+    def test_extract_refs_missing_file(self):
+        from qg_layer15_mem import extract_references
+        self.assertEqual(extract_references('/nonexistent/MEMORY.md'), [])
+
+    # --- check_references ---
+
+    def test_check_refs_all_exist(self):
+        from qg_layer15_mem import check_references, _resolve_path
+        self._write_file('MEMORY.md', '- [A](memory/a.md)\n')
+        self._write_file('a.md', 'content\n')
+        # Need to monkey-patch _resolve_path for test
+        import qg_layer15_mem as mod
+        orig = mod._resolve_path
+        mod._resolve_path = lambda p: os.path.join(self.mem_dir, os.path.basename(p))
+        try:
+            issues, count = check_references(os.path.join(self.mem_dir, 'MEMORY.md'))
+            self.assertEqual(issues, [])
+            self.assertEqual(count, 1)
+        finally:
+            mod._resolve_path = orig
+
+    def test_check_refs_missing(self):
+        from qg_layer15_mem import check_references
+        import qg_layer15_mem as mod
+        self._write_file('MEMORY.md', '- [A](memory/missing.md)\n')
+        orig = mod._resolve_path
+        mod._resolve_path = lambda p: os.path.join(self.mem_dir, 'DOES_NOT_EXIST.md')
+        try:
+            issues, count = check_references(os.path.join(self.mem_dir, 'MEMORY.md'))
+            self.assertGreaterEqual(len(issues), 1)
+            self.assertIn('MISSING_REF', issues[0][1])
+        finally:
+            mod._resolve_path = orig
+
+    # --- check_staleness ---
+
+    def test_staleness_fresh(self):
+        from qg_layer15_mem import check_staleness
+        self._write_file('fresh.md', 'content\n')
+        issues, total, stale = check_staleness(self.mem_dir, stale_days=14)
+        self.assertEqual(stale, 0)
+        self.assertEqual(total, 1)
+
+    def test_staleness_old(self):
+        from qg_layer15_mem import check_staleness
+        import time as t
+        p = self._write_file('old.md', 'content\n')
+        os.utime(p, (t.time() - 86400 * 30, t.time() - 86400 * 30))
+        issues, total, stale = check_staleness(self.mem_dir, stale_days=14)
+        self.assertEqual(stale, 1)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('STALE', issues[0][1])
+
+    def test_staleness_empty_dir(self):
+        from qg_layer15_mem import check_staleness
+        empty = os.path.join(self.tmpdir, 'empty')
+        os.makedirs(empty)
+        issues, total, stale = check_staleness(empty)
+        self.assertEqual(total, 0)
+
+    # --- check_file_sizes ---
+
+    def test_file_sizes_normal(self):
+        from qg_layer15_mem import check_file_sizes
+        self._write_file('small.md', 'x' * 100)
+        self.assertEqual(check_file_sizes(self.mem_dir), [])
+
+    def test_file_sizes_oversized(self):
+        from qg_layer15_mem import check_file_sizes
+        self._write_file('big.md', 'x' * (200 * 1024))
+        issues = check_file_sizes(self.mem_dir)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('OVERSIZED', issues[0][1])
+
+    # --- check_duplicates ---
+
+    def test_duplicates_none(self):
+        from qg_layer15_mem import check_duplicates
+        self._write_file('a.md', '# Unique A\ncontent\n')
+        self._write_file('b.md', '# Unique B\ncontent\n')
+        self.assertEqual(check_duplicates(self.mem_dir), [])
+
+    def test_duplicates_found(self):
+        from qg_layer15_mem import check_duplicates
+        self._write_file('a.md', '# Same Heading\ncontent a\n')
+        self._write_file('b.md', '# Same Heading\ncontent b\n')
+        issues = check_duplicates(self.mem_dir)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('DUPLICATE_HEADING', issues[0][1])
+
+    # --- analyze_memory_integrity ---
+
+    def test_analyze_clean(self):
+        from qg_layer15_mem import analyze_memory_integrity
+        self._write_file('MEMORY.md', '# Index\n')
+        self._write_file('notes.md', '# Notes\n')
+        report = analyze_memory_integrity(
+            index_path=os.path.join(self.mem_dir, 'MEMORY.md'),
+            memory_dir=self.mem_dir,
+        )
+        self.assertEqual(report['status'], 'ok')
+
+    def test_analyze_with_issues(self):
+        from qg_layer15_mem import analyze_memory_integrity
+        self._write_file('MEMORY.md', '# Index\n')
+        self._write_file('big.md', 'x' * (200 * 1024))
+        report = analyze_memory_integrity(
+            index_path=os.path.join(self.mem_dir, 'MEMORY.md'),
+            memory_dir=self.mem_dir,
+        )
+        self.assertEqual(report['status'], 'warning')
+
+
 if __name__ == '__main__':
     unittest.main()

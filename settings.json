@@ -591,6 +591,14 @@
             "command": "python C:/Users/Matt1/.claude/hooks/qg_layer17_adv.py"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer15_mem.py"
+          }
+        ]
       }
     ],
     "SessionEnd": [
