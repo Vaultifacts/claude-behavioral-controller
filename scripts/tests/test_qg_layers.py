@@ -5038,5 +5038,140 @@ class TestQGComputeConfidenceINP(unittest.TestCase):
         self.assertEqual(score, score_empty)  # No unresolved in layer2, just layer35
 
 
+
+
+# ============================================================================
+# qg_layer28.py -- Security Vulnerability Detection tests
+# ============================================================================
+
+
+class TestLayer28SecurityDetection(unittest.TestCase):
+    """check_security -- detects OWASP vulnerability patterns."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_file(self, name, content):
+        path = os.path.join(self.tmpdir, name)
+        with open(path, 'w') as f:
+            f.write(content)
+        return path
+
+    def test_sql_injection_fstring(self):
+        from qg_layer28 import check_security
+        p = self._write_file('vuln.py', 'cursor.execute(f"SELECT * FROM users WHERE id={uid}")\n')
+        r = check_security(p)
+        self.assertGreaterEqual(len(r), 1)
+        self.assertEqual(r[0][0], 'SQL_INJECTION')
+
+    def test_sql_parameterized_clean(self):
+        from qg_layer28 import check_security
+        p = self._write_file('safe.py', 'cursor.execute("SELECT * FROM users WHERE id=%s", (uid,))\n')
+        self.assertEqual(check_security(p), [])
+
+    def test_command_injection_eval_variable(self):
+        from qg_layer28 import check_security
+        # Test detects eval with a variable argument (security risk)
+        p = self._write_file('vuln.py', 'result = eval(user_input)\n')
+        r = check_security(p)
+        self.assertGreaterEqual(len(r), 1)
+        self.assertEqual(r[0][0], 'COMMAND_INJECTION')
+
+    def test_eval_literal_clean(self):
+        from qg_layer28 import check_security
+        # eval with string literal is safe (no variable injection)
+        p = self._write_file('safe.py', 'result = eval("2+2")\n')
+        self.assertEqual(check_security(p), [])
+
+    def test_eval_in_test_file_relaxed(self):
+        from qg_layer28 import check_security
+        # Test files get relaxed rules for eval/exec
+        p = self._write_file('test_vuln.py', 'result = eval(expr)\n')
+        self.assertEqual(check_security(p), [])
+
+    def test_innerhtml_xss(self):
+        from qg_layer28 import check_security
+        p = self._write_file('app.js', 'el.innerHTML = userInput\n')
+        r = check_security(p)
+        self.assertGreaterEqual(len(r), 1)
+        self.assertEqual(r[0][0], 'XSS')
+
+    def test_innerhtml_literal_clean(self):
+        from qg_layer28 import check_security
+        p = self._write_file('app.js', 'el.innerHTML = "<div>safe</div>"\n')
+        self.assertEqual(check_security(p), [])
+
+    def test_weak_hash_detected(self):
+        from qg_layer28 import check_security
+        p = self._write_file('auth.py', 'h = hashlib.md5(pw.encode())\n')
+        r = check_security(p)
+        self.assertGreaterEqual(len(r), 1)
+        self.assertEqual(r[0][0], 'INSECURE_CRYPTO')
+
+    def test_sha256_clean(self):
+        from qg_layer28 import check_security
+        p = self._write_file('safe.py', 'h = hashlib.sha256(data)\n')
+        self.assertEqual(check_security(p), [])
+
+    def test_os_system_detected(self):
+        from qg_layer28 import check_security
+        p = self._write_file('vuln.py', 'os.system(cmd)\n')
+        r = check_security(p)
+        self.assertGreaterEqual(len(r), 1)
+        self.assertEqual(r[0][0], 'COMMAND_INJECTION')
+
+    def test_clean_code_no_findings(self):
+        from qg_layer28 import check_security
+        p = self._write_file('clean.py', 'def hello():\n    return "world"\n')
+        self.assertEqual(check_security(p), [])
+
+    def test_non_code_file_skipped(self):
+        from qg_layer28 import check_security
+        # Security patterns in markdown should not trigger
+        p = self._write_file('readme.md', 'eval(user_input)\n')
+        self.assertEqual(check_security(p), [])
+
+    def test_comment_skipped(self):
+        from qg_layer28 import check_security
+        p = self._write_file('safe.py', '# eval(user_input)\ndef safe(): pass\n')
+        self.assertEqual(check_security(p), [])
+
+    def test_dangerously_set_inner_html(self):
+        from qg_layer28 import check_security
+        p = self._write_file('comp.tsx', 'return <div dangerouslySetInnerHTML={{ __html: data }} />\n')
+        r = check_security(p)
+        self.assertGreaterEqual(len(r), 1)
+        self.assertEqual(r[0][0], 'XSS')
+
+    def test_pickle_loads_detected(self):
+        from qg_layer28 import check_security
+        p = self._write_file('vuln.py', 'obj = pickle.loads(data)\n')
+        r = check_security(p)
+        self.assertGreaterEqual(len(r), 1)
+        self.assertEqual(r[0][0], 'INSECURE_DESERIALIZATION')
+
+    def test_content_parameter_works(self):
+        from qg_layer28 import check_security
+        r = check_security('/fake/path.py', content='os.system(cmd)\n')
+        self.assertGreaterEqual(len(r), 1)
+
+    def test_sql_concat_detected(self):
+        from qg_layer28 import check_security
+        p = self._write_file('vuln.py', 'q = "SELECT * FROM users WHERE id=" + uid\n')
+        r = check_security(p)
+        self.assertGreaterEqual(len(r), 1)
+        self.assertEqual(r[0][0], 'SQL_INJECTION')
+
+    def test_shell_true_warning(self):
+        from qg_layer28 import check_security
+        p = self._write_file('run.py', 'subprocess.run(cmd, shell=True)\n')
+        r = check_security(p)
+        self.assertGreaterEqual(len(r), 1)
+        self.assertEqual(r[0][1], 'warning')
+
+
 if __name__ == '__main__':
     unittest.main()
