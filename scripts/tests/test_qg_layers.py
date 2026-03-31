@@ -5645,5 +5645,188 @@ class TestLayer11CommitQualityGate(unittest.TestCase):
         self.assertEqual(report['status'], 'block')
 
 
+
+
+# ============================================================================
+# qg_layer16.py -- Rollback & Undo Capability tests
+# ============================================================================
+
+
+class TestLayer16RollbackUndo(unittest.TestCase):
+    """capture_snapshot, restore_snapshot, prune_snapshots, etc."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.snap_dir = os.path.join(self.tmpdir, 'snapshots')
+        os.makedirs(self.snap_dir, exist_ok=True)
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_file(self, name, content):
+        path = os.path.join(self.tmpdir, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w') as f:
+            f.write(content)
+        return path
+
+    # --- capture_snapshot ---
+
+    def test_capture_snapshot_basic(self):
+        from qg_layer16 import capture_snapshot
+        p = self._write_file('test.py', 'x = 1\n')
+        meta = capture_snapshot(p, self.snap_dir)
+        self.assertIsNotNone(meta)
+        self.assertEqual(meta['file_path'], p)
+        self.assertGreater(meta['size'], 0)
+        self.assertTrue(os.path.exists(meta['snapshot_path']))
+
+    def test_capture_snapshot_content_preserved(self):
+        from qg_layer16 import capture_snapshot
+        original = 'def hello():\n    return "world"\n'
+        p = self._write_file('test.py', original)
+        meta = capture_snapshot(p, self.snap_dir)
+        with open(meta['snapshot_path'], 'r') as f:
+            saved = f.read()
+        self.assertEqual(saved, original)
+
+    def test_capture_snapshot_nonexistent_file(self):
+        from qg_layer16 import capture_snapshot
+        meta = capture_snapshot('/nonexistent/file.py', self.snap_dir)
+        self.assertIsNone(meta)
+
+    def test_capture_snapshot_empty_file(self):
+        from qg_layer16 import capture_snapshot
+        p = self._write_file('empty.py', '')
+        meta = capture_snapshot(p, self.snap_dir)
+        self.assertIsNone(meta)
+
+    def test_capture_snapshot_large_file_skipped(self):
+        from qg_layer16 import capture_snapshot
+        p = self._write_file('big.py', 'x' * (600 * 1024))
+        meta = capture_snapshot(p, self.snap_dir)
+        self.assertIsNone(meta)
+
+    def test_capture_snapshot_no_path(self):
+        from qg_layer16 import capture_snapshot
+        self.assertIsNone(capture_snapshot('', self.snap_dir))
+        self.assertIsNone(capture_snapshot(None, self.snap_dir))
+
+    # --- restore_snapshot ---
+
+    def test_restore_snapshot_basic(self):
+        from qg_layer16 import capture_snapshot, restore_snapshot
+        original = 'x = 1\n'
+        p = self._write_file('test.py', original)
+        meta = capture_snapshot(p, self.snap_dir)
+        # Modify the file
+        with open(p, 'w') as f:
+            f.write('x = 999\n')
+        # Restore
+        result = restore_snapshot(meta)
+        self.assertTrue(result)
+        with open(p, 'r') as f:
+            restored = f.read()
+        self.assertEqual(restored, original)
+
+    def test_restore_snapshot_missing_snap(self):
+        from qg_layer16 import restore_snapshot
+        meta = {'snapshot_path': '/nonexistent/snap', 'file_path': '/tmp/test.py'}
+        self.assertFalse(restore_snapshot(meta))
+
+    def test_restore_snapshot_empty_meta(self):
+        from qg_layer16 import restore_snapshot
+        self.assertFalse(restore_snapshot({}))
+
+    # --- prune_snapshots ---
+
+    def test_prune_under_limit(self):
+        from qg_layer16 import prune_snapshots
+        snaps = [{'snapshot_path': 'a', 'ts': i} for i in range(5)]
+        result = prune_snapshots({'layer16_snapshots': snaps})
+        self.assertEqual(len(result), 5)
+
+    def test_prune_over_limit(self):
+        from qg_layer16 import prune_snapshots, MAX_SNAPSHOTS
+        snaps = []
+        for i in range(MAX_SNAPSHOTS + 5):
+            p = self._write_file('snap_{}.snap'.format(i), 'content')
+            snaps.append({'snapshot_path': p, 'ts': i})
+        result = prune_snapshots({'layer16_snapshots': snaps})
+        self.assertEqual(len(result), MAX_SNAPSHOTS)
+        # Old files should be removed
+        self.assertFalse(os.path.exists(snaps[0]['snapshot_path']))
+
+    # --- get_snapshots_for_file ---
+
+    def test_get_snapshots_for_file_matches(self):
+        from qg_layer16 import get_snapshots_for_file
+        state = {'layer16_snapshots': [
+            {'file_path': '/a/test.py', 'ts': 1},
+            {'file_path': '/a/other.py', 'ts': 2},
+            {'file_path': '/a/test.py', 'ts': 3},
+        ]}
+        matches = get_snapshots_for_file('/a/test.py', state)
+        self.assertEqual(len(matches), 2)
+        self.assertEqual(matches[0]['ts'], 3)  # newest first
+
+    def test_get_snapshots_for_file_none(self):
+        from qg_layer16 import get_snapshots_for_file
+        state = {'layer16_snapshots': [
+            {'file_path': '/a/other.py', 'ts': 1},
+        ]}
+        self.assertEqual(get_snapshots_for_file('/a/test.py', state), [])
+
+    # --- cleanup_session_snapshots ---
+
+    def test_cleanup_removes_snaps(self):
+        from qg_layer16 import cleanup_session_snapshots
+        self._write_file('snapshots/a.snap', 'x')
+        self._write_file('snapshots/b.snap', 'y')
+        self._write_file('snapshots/keep.txt', 'z')
+        count = cleanup_session_snapshots(self.snap_dir)
+        self.assertEqual(count, 2)
+        self.assertTrue(os.path.exists(os.path.join(self.snap_dir, 'keep.txt')))
+
+    def test_cleanup_empty_dir(self):
+        from qg_layer16 import cleanup_session_snapshots
+        count = cleanup_session_snapshots(self.snap_dir)
+        self.assertEqual(count, 0)
+
+    def test_cleanup_nonexistent_dir(self):
+        from qg_layer16 import cleanup_session_snapshots
+        count = cleanup_session_snapshots('/nonexistent/dir')
+        self.assertEqual(count, 0)
+
+    # --- end-to-end ---
+
+    def test_capture_modify_restore_cycle(self):
+        from qg_layer16 import capture_snapshot, restore_snapshot
+        v1 = 'version 1\n'
+        v2 = 'version 2\n'
+        p = self._write_file('test.py', v1)
+        snap1 = capture_snapshot(p, self.snap_dir)
+        with open(p, 'w') as f:
+            f.write(v2)
+        snap2 = capture_snapshot(p, self.snap_dir)
+        # File is now v2
+        with open(p, 'r') as f:
+            self.assertEqual(f.read(), v2)
+        # Restore to v1
+        restore_snapshot(snap1)
+        with open(p, 'r') as f:
+            self.assertEqual(f.read(), v1)
+
+    def test_multiple_files_tracked(self):
+        from qg_layer16 import capture_snapshot, get_snapshots_for_file
+        p1 = self._write_file('a.py', 'a\n')
+        p2 = self._write_file('b.py', 'b\n')
+        m1 = capture_snapshot(p1, self.snap_dir)
+        m2 = capture_snapshot(p2, self.snap_dir)
+        state = {'layer16_snapshots': [m1, m2]}
+        self.assertEqual(len(get_snapshots_for_file(p1, state)), 1)
+        self.assertEqual(len(get_snapshots_for_file(p2, state)), 1)
+
+
 if __name__ == '__main__':
     unittest.main()

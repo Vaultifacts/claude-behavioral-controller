@@ -145,6 +145,7 @@ def main():
         layer19_last_impact_level='LOW',
         layer19_last_impact_file='',
         layer19_impact_cache={},
+        layer16_snapshots=[],
         layer11_last_commit_check={},
         layer20_last_health_ts=0,
         layer5_subagents={},
