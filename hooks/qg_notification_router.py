@@ -67,7 +67,8 @@ def notify(priority, layer, category, file_path, message, hook_context):
 
     # CRITICAL
     if hook_context in ('pretooluse', 'posttooluse'):
-        if _turn_critical_count >= MAX_CRITICALS_PER_TURN:
+        turn_count = state.get('notification_turn_critical_count', 0)
+        if turn_count >= MAX_CRITICALS_PER_TURN:
             state.setdefault('notification_pending_criticals', []).append({
                 'layer': layer, 'category': category, 'file': file_path,
                 'message': message, 'ts': time.time(), 'status': 'queued',
@@ -75,7 +76,7 @@ def notify(priority, layer, category, file_path, message, hook_context):
             _record(state, layer, category, file_path, message, 'queued', 'CRITICAL')
             ss.write_state(state)
             return None
-        _turn_critical_count += 1
+        state['notification_turn_critical_count'] = turn_count + 1
         _record(state, layer, category, file_path, message, 'delivered', 'CRITICAL')
         ss.write_state(state)
         return {'additionalContext': f'[monitor:CRITICAL:{layer}:{category}] {message}'}
@@ -120,5 +121,6 @@ def flush_warnings():
 
 
 def reset_turn_counter():
-    global _turn_critical_count
-    _turn_critical_count = 0
+    state = ss.read_state()
+    state['notification_turn_critical_count'] = 0
+    ss.write_state(state)
