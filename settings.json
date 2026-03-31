@@ -608,6 +608,14 @@
             "command": "python C:/Users/Matt1/.claude/hooks/qg_layer15_mem.py"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer18_ab.py"
+          }
+        ]
       }
     ],
     "SessionEnd": [

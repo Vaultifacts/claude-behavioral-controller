@@ -6678,5 +6678,136 @@ class TestLayer13KnowledgeFreshness(unittest.TestCase):
         self.assertEqual(check_imports(p), [])
 
 
+
+# ============================================================================
+# qg_layer18_ab.py -- A/B Rule Testing tests
+# ============================================================================
+
+
+class TestLayer18ABRuleTesting(unittest.TestCase):
+    """evaluate_rules, compare_rules, run_ab_test."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_file(self, name, content):
+        path = os.path.join(self.tmpdir, name)
+        with open(path, 'w') as f:
+            f.write(content)
+        return path
+
+    def _write_events(self, events):
+        import json
+        path = os.path.join(self.tmpdir, 'monitor.jsonl')
+        with open(path, 'w') as f:
+            for e in events:
+                f.write(json.dumps(e) + '\n')
+        return path
+
+    # --- load_rules ---
+
+    def test_load_rules_valid(self):
+        from qg_layer18_ab import load_rules
+        import json
+        path = self._write_file('rules.json', json.dumps({"layer2": {"events_per_turn_limit": 10}}))
+        rules = load_rules(path)
+        self.assertEqual(rules["layer2"]["events_per_turn_limit"], 10)
+
+    def test_load_rules_missing(self):
+        from qg_layer18_ab import load_rules
+        self.assertEqual(load_rules('/nonexistent/rules.json'), {})
+
+    # --- evaluate_rules ---
+
+    def test_evaluate_basic(self):
+        from qg_layer18_ab import evaluate_rules
+        events = [
+            {"severity": "critical", "category": "ERROR", "layer": "layer2"},
+            {"severity": "info", "category": "INCORRECT_TOOL", "layer": "layer2"},
+            {"severity": "info", "category": "NEUTRAL", "layer": "layer5"},
+        ]
+        metrics = evaluate_rules(events, {})
+        self.assertEqual(metrics["total_events"], 3)
+        self.assertEqual(metrics["events_by_severity"]["critical"], 1)
+        self.assertEqual(metrics["events_by_layer"]["layer2"], 2)
+
+    def test_evaluate_empty(self):
+        from qg_layer18_ab import evaluate_rules
+        metrics = evaluate_rules([], {})
+        self.assertEqual(metrics["total_events"], 0)
+        self.assertEqual(metrics["would_fire"], 0)
+
+    # --- compare_rules ---
+
+    def test_compare_equivalent(self):
+        from qg_layer18_ab import compare_rules
+        events = [{"severity": "warning", "category": "X", "layer": "l1"}]
+        rules = {"layer2": {"events_per_turn_limit": 5}}
+        result = compare_rules(rules, rules, events)
+        self.assertEqual(result["comparison"]["recommendation"], "equivalent")
+
+    def test_compare_different(self):
+        from qg_layer18_ab import compare_rules
+        events = [
+            {"severity": "warning", "category": "X", "layer": "l1"},
+            {"severity": "info", "category": "Y", "layer": "l2"},
+        ]
+        result = compare_rules({}, {}, events)
+        self.assertIn("recommendation", result["comparison"])
+        self.assertEqual(result["events_analyzed"], 2)
+
+    # --- load_events ---
+
+    def test_load_events_basic(self):
+        from qg_layer18_ab import load_events
+        import json
+        path = self._write_events([{"severity": "info", "category": "X"}])
+        events = load_events(path)
+        self.assertEqual(len(events), 1)
+
+    def test_load_events_missing(self):
+        from qg_layer18_ab import load_events
+        self.assertEqual(load_events('/nonexistent/monitor.jsonl'), [])
+
+    def test_load_events_tail(self):
+        from qg_layer18_ab import load_events
+        events_data = [{"severity": "info", "idx": i} for i in range(20)]
+        path = self._write_events(events_data)
+        events = load_events(path, tail=5)
+        self.assertEqual(len(events), 5)
+
+    # --- run_ab_test ---
+
+    def test_run_ab_test_no_data(self):
+        from qg_layer18_ab import run_ab_test
+        report = run_ab_test(monitor_path='/nonexistent/file.jsonl')
+        self.assertEqual(report["status"], "no_data")
+
+    def test_run_ab_test_with_data(self):
+        from qg_layer18_ab import run_ab_test
+        import json
+        path = self._write_events([
+            {"severity": "warning", "category": "X", "layer": "l1"},
+            {"severity": "info", "category": "Y", "layer": "l2"},
+        ])
+        report = run_ab_test(monitor_path=path)
+        self.assertEqual(report["status"], "ok")
+        self.assertEqual(report["events_analyzed"], 2)
+
+    # --- save_results ---
+
+    def test_save_results(self):
+        from qg_layer18_ab import save_results
+        import json
+        path = os.path.join(self.tmpdir, 'results.json')
+        save_results({"status": "ok"}, path)
+        with open(path) as f:
+            data = json.load(f)
+        self.assertIn("ts", data)
+
+
 if __name__ == '__main__':
     unittest.main()
