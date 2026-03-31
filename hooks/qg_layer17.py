@@ -20,9 +20,9 @@ _CREATE_RE = re.compile(
     re.IGNORECASE)
 
 _UNCERTAINTY_HIGH = re.compile(
-    r'(not sure|unsure|unclear|confused)', re.IGNORECASE)
+    r'\b(not sure|unsure|unclear|confused)\b', re.IGNORECASE)
 _UNCERTAINTY_MED = re.compile(
-    r'(maybe|might|probably|perhaps|possibly|I think|I believe|seems?)',
+    r'\b(maybe|might|probably|perhaps|possibly|I think|I believe|seems?)\b',
     re.IGNORECASE)
 
 

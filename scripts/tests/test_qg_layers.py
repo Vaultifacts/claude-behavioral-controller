@@ -7231,11 +7231,11 @@ class TestLayer17AdditionalCoverage(unittest.TestCase):
 
     def test_uncertainty_high(self):
         from qg_layer17 import _get_uncertainty_level
-        self.assertEqual(_get_uncertainty_level("I'm not sure about this approach"), "LOW")  # NOTE:  is  bug in regex
+        self.assertEqual(_get_uncertainty_level("I'm not sure about this approach"), "HIGH")
 
     def test_uncertainty_medium(self):
         from qg_layer17 import _get_uncertainty_level
-        self.assertEqual(_get_uncertainty_level("Maybe we should use React"), "LOW")  # NOTE:  is  bug
+        self.assertEqual(_get_uncertainty_level("Maybe we should use React"), "MEDIUM")
 
     def test_uncertainty_low(self):
         from qg_layer17 import _get_uncertainty_level
@@ -7243,11 +7243,11 @@ class TestLayer17AdditionalCoverage(unittest.TestCase):
 
     def test_uncertainty_probably(self):
         from qg_layer17 import _get_uncertainty_level
-        self.assertEqual(_get_uncertainty_level("This probably needs refactoring"), "LOW")  # NOTE:  is  bug
+        self.assertEqual(_get_uncertainty_level("This probably needs refactoring"), "MEDIUM")
 
     def test_uncertainty_confused(self):
         from qg_layer17 import _get_uncertainty_level
-        self.assertEqual(_get_uncertainty_level("I'm confused about the architecture"), "LOW")  # NOTE:  is  bug
+        self.assertEqual(_get_uncertainty_level("I'm confused about the architecture"), "HIGH")
 
     # --- _load_config ---
 
