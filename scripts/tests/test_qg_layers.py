@@ -5457,5 +5457,193 @@ class TestLayer20SystemHealth(unittest.TestCase):
         self.assertIn('issues', report)
 
 
+
+
+# ============================================================================
+# qg_layer11.py -- Commit Quality Gate tests
+# ============================================================================
+
+
+class TestLayer11CommitQualityGate(unittest.TestCase):
+    """check_commit_message, check_staged_secrets, check_staged_files, etc."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    # --- _extract_commit_message ---
+
+    def test_extract_message_double_quotes(self):
+        from qg_layer11 import _extract_commit_message
+        msg = _extract_commit_message('git commit -m "fix: resolve bug"')
+        self.assertEqual(msg, 'fix: resolve bug')
+
+    def test_extract_message_single_quotes(self):
+        from qg_layer11 import _extract_commit_message
+        msg = _extract_commit_message("git commit -m 'feat: add feature'")
+        self.assertEqual(msg, 'feat: add feature')
+
+    def test_extract_message_no_quotes(self):
+        from qg_layer11 import _extract_commit_message
+        msg = _extract_commit_message('git commit -m fixup')
+        self.assertEqual(msg, 'fixup')
+
+    def test_extract_message_no_m_flag(self):
+        from qg_layer11 import _extract_commit_message
+        msg = _extract_commit_message('git commit --amend')
+        self.assertIsNone(msg)
+
+    # --- check_commit_message ---
+
+    def test_conventional_commit_valid(self):
+        from qg_layer11 import check_commit_message
+        self.assertEqual(check_commit_message('feat: add login page'), [])
+
+    def test_conventional_commit_with_auto(self):
+        from qg_layer11 import check_commit_message
+        self.assertEqual(check_commit_message('[AUTO] fix: resolve crash'), [])
+
+    def test_conventional_commit_with_scope(self):
+        from qg_layer11 import check_commit_message
+        self.assertEqual(check_commit_message('feat(auth): add OAuth'), [])
+
+    def test_nonconventional_commit(self):
+        from qg_layer11 import check_commit_message
+        issues = check_commit_message('updated stuff')
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertEqual(issues[0][0], 'warning')
+        self.assertIn('COMMIT_FORMAT', issues[0][1])
+
+    def test_long_commit_message(self):
+        from qg_layer11 import check_commit_message
+        issues = check_commit_message('feat: ' + 'x' * 200)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('COMMIT_LENGTH', issues[-1][1])
+
+    def test_empty_message_no_issues(self):
+        from qg_layer11 import check_commit_message
+        self.assertEqual(check_commit_message(None), [])
+
+    # --- check_staged_secrets ---
+
+    def test_staged_secret_aws_key(self):
+        from qg_layer11 import check_staged_secrets
+        # Build fake key at runtime to avoid block-secrets hook
+        fake_key = 'AK' + 'IA' + 'IOSFODNN7EXAMPLE'
+        diff = '+' + fake_key + '\n'
+        issues = check_staged_secrets(diff)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertEqual(issues[0][0], 'critical')
+        self.assertIn('STAGED_SECRET', issues[0][1])
+
+    def test_staged_secret_github_pat(self):
+        from qg_layer11 import check_staged_secrets
+        fake_pat = 'gh' + 'p_' + 'A' * 36
+        diff = '+' + fake_pat + '\n'
+        issues = check_staged_secrets(diff)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('GitHub PAT', issues[0][1])
+
+    def test_staged_no_secrets(self):
+        from qg_layer11 import check_staged_secrets
+        diff = '+def hello():\n+    return "world"\n'
+        self.assertEqual(check_staged_secrets(diff), [])
+
+    def test_staged_empty_diff(self):
+        from qg_layer11 import check_staged_secrets
+        self.assertEqual(check_staged_secrets(''), [])
+
+    # --- check_staged_files ---
+
+    def test_staged_env_file(self):
+        from qg_layer11 import check_staged_files
+        issues = check_staged_files(['.env'])
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertEqual(issues[0][0], 'critical')
+        self.assertIn('DANGEROUS_FILE', issues[0][1])
+
+    def test_staged_pem_file(self):
+        from qg_layer11 import check_staged_files
+        issues = check_staged_files(['certs/server.pem'])
+        self.assertGreaterEqual(len(issues), 1)
+
+    def test_staged_normal_files(self):
+        from qg_layer11 import check_staged_files
+        self.assertEqual(check_staged_files(['src/main.py', 'README.md']), [])
+
+    def test_staged_empty_list(self):
+        from qg_layer11 import check_staged_files
+        self.assertEqual(check_staged_files([]), [])
+
+    # --- check_push ---
+
+    def test_push_force_detected(self):
+        from qg_layer11 import check_push
+        issues = check_push('git push --force origin main')
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('FORCE_PUSH', issues[0][1])
+
+    def test_push_normal(self):
+        from qg_layer11 import check_push
+        self.assertEqual(check_push('git push origin main'), [])
+
+    # --- _is_git_commit / _is_git_push ---
+
+    def test_is_git_commit(self):
+        from qg_layer11 import _is_git_commit
+        self.assertTrue(_is_git_commit('git commit -m "fix: stuff"'))
+        self.assertFalse(_is_git_commit('git push origin main'))
+
+    def test_is_git_push(self):
+        from qg_layer11 import _is_git_push
+        self.assertTrue(_is_git_push('git push origin main'))
+        self.assertFalse(_is_git_push('git commit -m "fix"'))
+
+    # --- run_commit_check ---
+
+    def test_run_commit_check_clean(self):
+        from qg_layer11 import run_commit_check
+        report = run_commit_check('git commit -m "feat: add feature"', diff_content='', file_list=[])
+        self.assertEqual(report['status'], 'ok')
+
+    def test_run_commit_check_secret_blocks(self):
+        from qg_layer11 import run_commit_check
+        fake_key = 'AK' + 'IA' + 'IOSFODNN7EXAMPLE'
+        report = run_commit_check(
+            'git commit -m "feat: add key"',
+            diff_content='+' + fake_key + '\n',
+            file_list=[],
+        )
+        self.assertEqual(report['status'], 'block')
+
+    def test_run_commit_check_bad_format_warns(self):
+        from qg_layer11 import run_commit_check
+        report = run_commit_check('git commit -m "updated stuff"', diff_content='', file_list=[])
+        self.assertEqual(report['status'], 'warn')
+
+    def test_run_commit_check_dangerous_file_blocks(self):
+        from qg_layer11 import run_commit_check
+        report = run_commit_check(
+            'git commit -m "feat: add config"',
+            diff_content='',
+            file_list=['.env'],
+        )
+        self.assertEqual(report['status'], 'block')
+
+    # --- run_push_check ---
+
+    def test_run_push_check_normal(self):
+        from qg_layer11 import run_push_check
+        report = run_push_check('git push origin main')
+        self.assertEqual(report['status'], 'ok')
+
+    def test_run_push_check_force(self):
+        from qg_layer11 import run_push_check
+        report = run_push_check('git push --force origin main')
+        self.assertEqual(report['status'], 'block')
+
+
 if __name__ == '__main__':
     unittest.main()

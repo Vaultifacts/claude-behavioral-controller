@@ -253,6 +253,15 @@
             "command": "python /c/Users/Matt1/.claude/hooks/qg_layer5.py"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer11.py"
+          }
+        ]
       }
     ],
     "PostToolUse": [
