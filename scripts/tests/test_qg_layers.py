@@ -5964,5 +5964,133 @@ class TestLayer12UserSatisfaction(unittest.TestCase):
         self.assertEqual(cat, "frustration")
 
 
+
+
+# ============================================================================
+# qg_layer14.py -- Response Efficiency Analysis tests
+# ============================================================================
+
+
+class TestLayer14ResponseEfficiency(unittest.TestCase):
+    """detect_redundant_reads, check_tool_count, analyze_efficiency, etc."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    # --- detect_redundant_reads ---
+
+    def test_no_redundant_reads(self):
+        from qg_layer14 import detect_redundant_reads
+        result = detect_redundant_reads(['/a/file1.py', '/a/file2.py', '/a/file3.py'])
+        self.assertEqual(result, [])
+
+    def test_redundant_reads_detected(self):
+        from qg_layer14 import detect_redundant_reads
+        result = detect_redundant_reads(['/a/file1.py', '/a/file2.py', '/a/file1.py'])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0][1], 2)
+
+    def test_redundant_reads_multiple(self):
+        from qg_layer14 import detect_redundant_reads
+        result = detect_redundant_reads(['/a/f.py', '/a/f.py', '/a/f.py', '/b/g.py', '/b/g.py'])
+        self.assertEqual(len(result), 2)
+
+    def test_redundant_reads_empty(self):
+        from qg_layer14 import detect_redundant_reads
+        self.assertEqual(detect_redundant_reads([]), [])
+
+    def test_redundant_reads_path_normalization(self):
+        from qg_layer14 import detect_redundant_reads
+        result = detect_redundant_reads(['C:\\Users\\test\\f.py', 'C:/Users/test/f.py'])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0][1], 2)
+
+    # --- check_tool_count ---
+
+    def test_tool_count_under_threshold(self):
+        from qg_layer14 import check_tool_count
+        result = check_tool_count(['Read', 'Grep', 'Edit'], 'TRIVIAL')
+        self.assertIsNone(result)
+
+    def test_tool_count_over_threshold(self):
+        from qg_layer14 import check_tool_count
+        tools = ['Read'] * 25
+        result = check_tool_count(tools, 'MODERATE')
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'warning')
+        self.assertIn('EXCESSIVE_TOOLS', result[1])
+
+    def test_tool_count_trivial_exceeded(self):
+        from qg_layer14 import check_tool_count
+        tools = ['Read'] * 6
+        result = check_tool_count(tools, 'TRIVIAL')
+        self.assertIsNotNone(result)
+        self.assertIn('TRIVIAL', result[1])
+
+    def test_tool_count_no_complexity(self):
+        from qg_layer14 import check_tool_count
+        result = check_tool_count(['Read'] * 100, None)
+        self.assertIsNone(result)
+
+    def test_tool_count_unknown_complexity(self):
+        from qg_layer14 import check_tool_count
+        result = check_tool_count(['Read'] * 100, 'UNKNOWN')
+        self.assertIsNone(result)
+
+    # --- analyze_efficiency ---
+
+    def test_analyze_clean(self):
+        from qg_layer14 import analyze_efficiency
+        report = analyze_efficiency(['Read', 'Edit'], ['/a/f.py'], 'MODERATE')
+        self.assertEqual(report['status'], 'ok')
+        self.assertEqual(report['stats']['total_tool_calls'], 2)
+
+    def test_analyze_redundant_reads(self):
+        from qg_layer14 import analyze_efficiency
+        report = analyze_efficiency(
+            ['Read', 'Read', 'Edit'],
+            ['/a/f.py', '/a/f.py'],
+            'MODERATE',
+        )
+        self.assertEqual(report['status'], 'info')
+        self.assertGreaterEqual(len(report['issues']), 1)
+        self.assertIn('REDUNDANT_READ', report['issues'][0][1])
+
+    def test_analyze_excessive_tools(self):
+        from qg_layer14 import analyze_efficiency
+        tools = ['Read'] * 25
+        reads = ['/a/{}.py'.format(i) for i in range(25)]
+        report = analyze_efficiency(tools, reads, 'MODERATE')
+        self.assertEqual(report['status'], 'warning')
+
+    def test_analyze_no_tools(self):
+        from qg_layer14 import analyze_efficiency
+        report = analyze_efficiency([], [], 'TRIVIAL')
+        self.assertEqual(report['status'], 'ok')
+
+    def test_analyze_deep_task_high_count_ok(self):
+        from qg_layer14 import analyze_efficiency
+        tools = ['Read'] * 50
+        reads = ['/a/{}.py'.format(i) for i in range(50)]
+        report = analyze_efficiency(tools, reads, 'DEEP')
+        self.assertEqual(report['status'], 'ok')
+
+    # --- parse_tool_calls ---
+
+    def test_parse_tool_calls_empty(self):
+        from qg_layer14 import parse_tool_calls
+        tools, reads = parse_tool_calls('/nonexistent/transcript.jsonl')
+        self.assertEqual(tools, [])
+        self.assertEqual(reads, [])
+
+    def test_parse_tool_calls_none(self):
+        from qg_layer14 import parse_tool_calls
+        tools, reads = parse_tool_calls(None)
+        self.assertEqual(tools, [])
+
+
 if __name__ == '__main__':
     unittest.main()
