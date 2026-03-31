@@ -6,34 +6,29 @@ Standards: [README.md](README.md)
 
 ## System-Level Summary
 
-| Metric | Baseline (2026-03-30) | Current (2026-03-30) | Change |
-|--------|----------------------|---------------------|--------|
-| Total unit tests | 402 | **455** | +53 |
-| Total smoke tests | 583 | **585** | +2 |
-| Total live events | 2,885 | **~3,600** | +715 |
-| quality-gate.py coverage | **83%** | 83% | — |
-| Layers with monitor events | 15 of 20 | **16 of 23** | +1 new layer |
-| Bugs fixed (cumulative) | 2 | 2 | — |
-| Layers deployed | 20 | **23** | +3 (2.8, 20, 11) |
+| Metric | Baseline (start of session) | Current | Change |
+|--------|---------------------------|---------|--------|
+| Total unit tests | 402 | **512** | +110 |
+| Total smoke tests | 583 | **588** | +5 |
+| quality-gate.py coverage | 83% | 83% | — |
+| Layers deployed | 20 | **27** | +7 new layers |
+| Layers with monitor events | 15 of 20 | **19 of 27** | +4 |
+| Bugs fixed (cumulative) | 2 | **3** (+Layer 11 multiline fix) | +1 |
 
 ---
 
-## New This Session
+## New Layers This Session (7 built)
 
-### Layer 2.8 — Security Vulnerability Detection (DEPLOYED)
-- `qg_layer28.py` (157 LOC) — PostToolUse on Write/Edit
-- 18 unit tests, 63% coverage, 16 live events
-- Scorecard: [layer-2.8.md](layer-2.8.md)
+| Layer | File | LOC | Hook Event | Tests | Cov | Events |
+|-------|------|-----|-----------|-------|-----|--------|
+| [2.8](layer-2.8.md) | qg_layer28.py | 157 | PostToolUse Write/Edit | 18 | 63% | 16 |
+| [11](layer-11.md) | qg_layer11.py | 205 | PreToolUse Bash | 28 | 58% | 8 |
+| [12](layer-12.md) | qg_layer12.py | 160 | UserPromptSubmit | 22 | 58% | 4 |
+| [14](layer-14.md) | qg_layer14.py | 160 | Stop | 17 | 37% | 0 |
+| [16](layer-16.md) | qg_layer16.py | 173 | PreToolUse Edit/Write | 18 | 61% | 7 |
+| [20](layer-20.md) | qg_layer20.py | 299 | SessionStart | 25 | 79% | 3 |
 
-### Layer 20 — System Health Dashboard (DEPLOYED)
-- `qg_layer20.py` (299 LOC) — SessionStart
-- 25 unit tests, 79% coverage, 3 live events
-- Scorecard: [layer-20.md](layer-20.md)
-
-### Layer 11 — Commit Quality Gate (DEPLOYED)
-- `qg_layer11.py` (205 LOC) — PreToolUse on Bash (git commit/push)
-- 28 unit tests, validates conventional commits, blocks secrets/dangerous files
-- Scorecard: pending
+Layer 2.8 was built in a prior session; Layers 11, 12, 14, 16, 20 built this session.
 
 ---
 
@@ -43,80 +38,81 @@ Standards: [README.md](README.md)
 |-------|------|-----------|-------------|-------|-------------|
 | [Layer 0](layer-0.md) | qg_layer0.py | 54% | 169 | 7 | UUID matching may target wrong session |
 | [Layer ENV](layer-env.md) | qg_layer_env.py | 59% | logging | 12 | Test baseline capture untested |
-| [Layer 1/3/4](quality-gate-main.md) | quality-gate.py | **83%** | 0* | **101** | Remaining 17%: edge branches in transcript parsing |
+| [Layer 1/3/4](quality-gate-main.md) | quality-gate.py | **83%** | 0* | **101** | Remaining 17%: edge branches |
 | [Layer 1.5](layer-1.5.md) | qg_layer15.py | 82% | 93 | 15 | Override token untested |
 | [Layer 1.7](layer-1.7.md) | qg_layer17.py | 54% | 10 | 13 | Uncertainty regex overlap |
-| [Layer 1.8](layer-1.8.md) | qg_layer18.py | 64% | 36 | 13 | Function check uses substring match (FP risk) |
-| [Layer 1.9](layer-1.9.md) | qg_layer19.py | 63% | 34 | 11 | grep regex too broad for import matching |
-| [Layer 2](layer-2.md) | qg_layer2.py | **93%** | **2131** | **25** | Path normalization added |
-| [Layer 2.5](layer-2.5.md) | qg_layer25.py | 81% | 2 | 9 | YAML validation silently skipped if pyyaml missing |
-| [Layer 2.6](layer-2.6.md) | qg_layer26.py | 86% | 36 | 9 | Mixed-import files produce no baseline |
+| [Layer 1.8](layer-1.8.md) | qg_layer18.py | 64% | 36 | 13 | Substring match FP risk |
+| [Layer 1.9](layer-1.9.md) | qg_layer19.py | 63% | 34 | 11 | grep regex too broad |
+| [Layer 2](layer-2.md) | qg_layer2.py | **93%** | **2131** | **25** | — |
+| [Layer 2.5](layer-2.5.md) | qg_layer25.py | 81% | 2 | 9 | YAML skipped if pyyaml missing |
+| [Layer 2.6](layer-2.6.md) | qg_layer26.py | 86% | 36 | 9 | Mixed-import no baseline |
 | [Layer 2.7](layer-2.7.md) | qg_layer27.py | **92%** | 12 | **17** | os.walk no depth limit |
-| [Layer **2.8**](layer-2.8.md) | qg_layer28.py | 63% | **16** | **18** | **NEW** — main() untested |
-| [Layer 3.5](layer-3.5.md) | qg_layer35.py | 64% | 55 | 13 | introduces_new_problem now consumed |
-| [Layer 4.5](layer-4.5.md) | qg_layer45.py | 83% | 134 | 10 | Hash only covers 5/16 preserved keys |
-| [Layer 5](layer-5.md) | qg_layer5.py | 73% | 111 | 13 | ID correlation breaks if task_id changes mid-agent |
-| [Layer 6](layer-6.md) | qg_layer6.py | 76% | 0** | 10 | Filter bug fixed |
+| [Layer 2.8](layer-2.8.md) | qg_layer28.py | 63% | 16 | 18 | main() untested |
+| [Layer 3.5](layer-3.5.md) | qg_layer35.py | 64% | 55 | 13 | — |
+| [Layer 4.5](layer-4.5.md) | qg_layer45.py | 83% | 134 | 10 | Hash covers 5/16 keys |
+| [Layer 5](layer-5.md) | qg_layer5.py | 73% | 111 | 13 | ID correlation breaks mid-agent |
+| [Layer 6](layer-6.md) | qg_layer6.py | 76% | 0** | 10 | — |
 | [Layer 7](layer-7.md) | qg_layer7.py | **84%** | 3 | **21** | Needs more feedback data |
-| [Layer 8](layer-8.md) | qg_layer8.py | 85% | 10 | 9 | Baseline never updates within session |
-| [Layer 9](layer-9.md) | qg_layer9.py | **85%** | logging | **22** | Insufficient calibration data |
-| [Layer 10](layer-10.md) | qg_layer10.py | 89% | 0 | 8 | 7-day throttle means it rarely runs |
-| [Layer **11**](pending) | qg_layer11.py | new | **0** | **28** | **NEW** — just deployed |
-| [Layer **20**](layer-20.md) | qg_layer20.py | 79% | **3** | **25** | **NEW** — needs more sessions |
-| [Precheck](precheck.md) | precheck-hook.py | 49% | 49 | 17 | Ollama classification accuracy unmeasured |
-| [Session State](session-state.md) | qg_session_state.py | 87% | N/A | 14 | Atomic writes now implemented |
-| [Notification Router](notification-router.md) | qg_notification_router.py | **97%** | N/A | 15 | Per-turn counter now uses session state |
+| [Layer 8](layer-8.md) | qg_layer8.py | 85% | 10 | 9 | Baseline never updates in session |
+| [Layer 9](layer-9.md) | qg_layer9.py | **85%** | logging | **22** | Calibration data insufficient |
+| [Layer 10](layer-10.md) | qg_layer10.py | 89% | 0 | 8 | 7-day throttle |
+| [Layer 11](layer-11.md) | qg_layer11.py | 58% | 8 | 28 | Push branch validation missing |
+| [Layer 12](layer-12.md) | qg_layer12.py | 58% | 4 | 22 | Sarcasm/emoji undetected |
+| [Layer 14](layer-14.md) | qg_layer14.py | 37% | 0 | 17 | Transcript parsing untested |
+| [Layer 16](layer-16.md) | qg_layer16.py | 61% | 7 | 18 | main() untested |
+| [Layer 20](layer-20.md) | qg_layer20.py | 79% | 3 | 25 | main() untested |
+| [Precheck](precheck.md) | precheck-hook.py | 49% | 49 | 17 | Ollama accuracy unmeasured |
+| [Session State](session-state.md) | qg_session_state.py | 87% | N/A | 14 | — |
+| [Notification Router](notification-router.md) | qg_notification_router.py | **97%** | N/A | 15 | — |
 
 `*` = operates through quality-gate.py; decisions logged in quality-gate.log
 `**` = writes to qg-cross-session.json; confirmed working via Layer 0 output
 
 ---
 
-## Critical Findings — Status Update
-
-### Previously Resolved
-1. ~~quality-gate.py has 9% test coverage~~ → **83%**
-2. ~~13 of 20 layers never logged monitor events~~ → **16 of 23 now visible**
-3. ~~Layer 7 has 23% coverage~~ → **84%**
-4. ~~Layer 2 rate limiter bug~~ → **RESOLVED** (precheck resets it)
-5. ~~Path normalization issues~~ → **RESOLVED** (3 layers patched)
+## Previously Resolved Issues
+1. ~~quality-gate.py 9% coverage~~ → **83%**
+2. ~~13/20 layers no monitor events~~ → **19/27 visible**
+3. ~~Layer 7 23% coverage~~ → **84%**
+4. ~~Layer 2 rate limiter bug~~ → **RESOLVED**
+5. ~~Path normalization~~ → **RESOLVED** (3 layers)
 6. ~~Layer 6 filter bug~~ → **RESOLVED**
-7. ~~Dead code candidates~~ → **MOSTLY RESOLVED** (SCOPE_CREEP/INCOMPLETE_COVERAGE confirmed live)
-8. ~~introduces_new_problem not consumed~~ → **RESOLVED** (consumed in _compute_confidence)
-9. ~~Non-atomic session state writes~~ → **RESOLVED** (temp file + os.replace)
-10. ~~Notification router per-turn counter~~ → **RESOLVED** (moved to session state)
+7. ~~Dead code candidates~~ → **RESOLVED**
+8. ~~introduces_new_problem~~ → **RESOLVED**
+9. ~~Non-atomic state writes~~ → **RESOLVED**
+10. ~~Notification router counter~~ → **RESOLVED**
+11. ~~Layer 11 multiline commit regex~~ → **RESOLVED**
 
 ---
 
 ## Remaining Priority Improvements
 
-1. **Layer 11 scorecard** — create `layer-11.md` with coverage data after more sessions
-2. **Layer 2.8 main() tests** — coverage 63%, main() path untested
-3. **Layer 20 main() tests** — coverage 79%, main() path untested
-4. **Improve Layer 1.7 coverage** (54%) — among lowest
-5. **Improve precheck coverage** (49%) — lowest overall
-6. **Tune Haiku OVERCONFIDENCE prompt** — 76% of shadow disagreements
-7. **Measure precheck Ollama accuracy** — need 50+ labeled classifications
+1. **Layer 14 coverage** (37%) — lowest of all layers, transcript parsing needs tests
+2. **Precheck coverage** (49%) — second lowest
+3. **Layer 1.7 coverage** (54%) — third lowest
+4. **main() tests** for new layers (2.8, 11, 12, 14, 16, 20) — all ~60% coverage
+5. **Tune Haiku OVERCONFIDENCE prompt** — 76% of shadow disagreements
+6. **Measure precheck Ollama accuracy** — need 50+ labeled classifications
 
 ---
 
 ## Future Layers
 
-See **[FUTURE-LAYERS.md](FUTURE-LAYERS.md)** for remaining proposed layers:
+See **[FUTURE-LAYERS.md](FUTURE-LAYERS.md)** — 5 of 12 remaining:
 
 | Layer | Name | Value | Complexity | Status |
 |-------|------|-------|------------|--------|
-| ~~2.8~~ | ~~Security Vulnerability Detection~~ | ~~CRITICAL~~ | ~~MEDIUM~~ | **DEPLOYED** |
+| ~~2.8~~ | ~~Security Vulnerability Detection~~ | — | — | **DEPLOYED** |
 | 2.9 | Semantic Correctness Verification | HIGH | HIGH | planned |
-| ~~11~~ | ~~Commit Quality Gate~~ | ~~HIGH~~ | ~~LOW~~ | **DEPLOYED** |
-| 12 | User Satisfaction Tracking | HIGH | MEDIUM | planned |
+| ~~11~~ | ~~Commit Quality Gate~~ | — | — | **DEPLOYED** |
+| ~~12~~ | ~~User Satisfaction Tracking~~ | — | — | **DEPLOYED** |
 | 13 | Knowledge Freshness Verification | MEDIUM | HIGH | planned |
-| 14 | Response Efficiency Analysis | MEDIUM | LOW | planned |
+| ~~14~~ | ~~Response Efficiency Analysis~~ | — | — | **DEPLOYED** |
 | 15 | Memory & State Integrity | MEDIUM | MEDIUM | planned |
-| 16 | Rollback & Undo Capability | HIGH | MEDIUM | planned |
+| ~~16~~ | ~~Rollback & Undo Capability~~ | — | — | **DEPLOYED** |
 | 17 | Adversarial Self-Testing | CRITICAL | HIGH | planned |
 | 18 | A/B Rule Testing | MEDIUM | HIGH | planned |
 | 19 | Cross-Project Learning | MEDIUM | MEDIUM | planned |
-| ~~20~~ | ~~System Health Dashboard~~ | ~~HIGH~~ | ~~LOW~~ | **DEPLOYED** |
+| ~~20~~ | ~~System Health Dashboard~~ | — | — | **DEPLOYED** |
 
-**Next build priority:** 16 (Rollback) → 12 (Satisfaction) → 14 (Efficiency) → 17 (Adversarial)
+**Next build priority:** 2.9 (Semantic) → 17 (Adversarial) → 19 (Cross-Project) → 15 (Memory) → 13 (Freshness) → 18 (A/B)
