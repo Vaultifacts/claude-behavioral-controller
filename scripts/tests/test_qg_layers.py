@@ -6809,5 +6809,140 @@ class TestLayer18ABRuleTesting(unittest.TestCase):
         self.assertIn("ts", data)
 
 
+
+# ============================================================================
+# qg_layer14.py -- Additional coverage tests (parse_tool_calls, main)
+# ============================================================================
+
+
+class TestLayer14TranscriptParsing(unittest.TestCase):
+    """Tests for parse_tool_calls with mock transcript data."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_transcript(self, lines_data):
+        import json
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w') as f:
+            for d in lines_data:
+                f.write(json.dumps(d) + '\n')
+        return path
+
+    def test_parse_single_tool_call(self):
+        from qg_layer14 import parse_tool_calls
+        transcript = self._write_transcript([
+            {"role": "user", "message": {"content": "hello"}},
+            {"role": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Read", "input": {"file_path": "/a/test.py"}}
+            ]}},
+            {"role": "user", "message": {"content": [
+                {"type": "tool_result", "content": "file contents"}
+            ]}},
+        ])
+        tools, reads = parse_tool_calls(transcript)
+        self.assertIn("Read", tools)
+        self.assertIn("/a/test.py", reads)
+
+    def test_parse_multiple_tools(self):
+        from qg_layer14 import parse_tool_calls
+        transcript = self._write_transcript([
+            {"role": "user", "message": {"content": "do stuff"}},
+            {"role": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Read", "input": {"file_path": "/a.py"}},
+                {"type": "tool_use", "name": "Edit", "input": {"file_path": "/a.py"}},
+                {"type": "tool_use", "name": "Bash", "input": {"command": "ls"}},
+            ]}},
+            {"role": "user", "message": {"content": [
+                {"type": "tool_result", "content": "ok"}
+            ]}},
+        ])
+        tools, reads = parse_tool_calls(transcript)
+        self.assertEqual(len(tools), 3)
+        self.assertEqual(reads, ["/a.py"])
+
+    def test_parse_stops_at_real_user_list_message(self):
+        from qg_layer14 import parse_tool_calls
+        transcript = self._write_transcript([
+            {"role": "user", "message": {"content": [{"type": "text", "text": "first task"}]}},
+            {"role": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Grep", "input": {}}
+            ]}},
+            {"role": "user", "message": {"content": [
+                {"type": "tool_result", "content": "result"}
+            ]}},
+            {"role": "user", "message": {"content": [{"type": "text", "text": "second task"}]}},
+            {"role": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Read", "input": {"file_path": "/b.py"}}
+            ]}},
+            {"role": "user", "message": {"content": [
+                {"type": "tool_result", "content": "result2"}
+            ]}},
+        ])
+        tools, reads = parse_tool_calls(transcript)
+        # Stops at list-type user message without tool_result
+        self.assertIn("Read", tools)
+        self.assertNotIn("Grep", tools)
+
+    def test_parse_no_tool_calls(self):
+        from qg_layer14 import parse_tool_calls
+        transcript = self._write_transcript([
+            {"role": "user", "message": {"content": "hello"}},
+            {"role": "assistant", "message": {"content": [
+                {"type": "text", "text": "Hi there!"}
+            ]}},
+        ])
+        tools, reads = parse_tool_calls(transcript)
+        self.assertEqual(tools, [])
+        self.assertEqual(reads, [])
+
+    def test_parse_text_and_tools_mixed(self):
+        from qg_layer14 import parse_tool_calls
+        transcript = self._write_transcript([
+            {"role": "user", "message": {"content": "task"}},
+            {"role": "assistant", "message": {"content": [
+                {"type": "text", "text": "Let me check"},
+                {"type": "tool_use", "name": "Glob", "input": {"pattern": "*.py"}},
+                {"type": "text", "text": "Found files"},
+            ]}},
+            {"role": "user", "message": {"content": [
+                {"type": "tool_result", "content": "files"}
+            ]}},
+        ])
+        tools, reads = parse_tool_calls(transcript)
+        self.assertEqual(tools, ["Glob"])
+
+    def test_parse_invalid_json_lines_skipped(self):
+        from qg_layer14 import parse_tool_calls
+        path = os.path.join(self.tmpdir, 'bad.jsonl')
+        import json
+        with open(path, 'w') as f:
+            f.write('not json\n')
+            f.write(json.dumps({"role": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Read", "input": {"file_path": "/x.py"}}
+            ]}}) + '\n')
+        tools, reads = parse_tool_calls(path)
+        self.assertIn("Read", tools)
+
+    def test_analyze_with_transcript(self):
+        from qg_layer14 import parse_tool_calls, analyze_efficiency
+        transcript = self._write_transcript([
+            {"role": "user", "message": {"content": "task"}},
+            {"role": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Read", "input": {"file_path": "/a.py"}},
+                {"type": "tool_use", "name": "Read", "input": {"file_path": "/a.py"}},
+                {"type": "tool_use", "name": "Edit", "input": {"file_path": "/a.py"}},
+            ]}},
+            {"role": "user", "message": {"content": [{"type": "tool_result", "content": "ok"}]}},
+        ])
+        tools, reads = parse_tool_calls(transcript)
+        report = analyze_efficiency(tools, reads, "MODERATE")
+        self.assertEqual(report["stats"]["total_tool_calls"], 3)
+        self.assertEqual(report["stats"]["redundant_reads"], 1)
+
+
 if __name__ == '__main__':
     unittest.main()
