@@ -64,6 +64,58 @@ def get_tool_summary(transcript_path, max_lines=200):
     return list(reversed(tool_names)), edited_paths, bash_commands
 
 
+def get_failed_commands(transcript_path, max_lines=300):
+    """Detect Bash commands that failed (non-zero exit or error patterns in results)."""
+    if not transcript_path or not os.path.isfile(transcript_path):
+        return []
+    failed = []
+    try:
+        with open(transcript_path, 'r', encoding='utf-8', errors='replace') as f:
+            lines = f.readlines()
+        # Pair tool_use (Bash) with their tool_result
+        pending_bash = []
+        in_last_turn = False
+        for line in lines[-max_lines:]:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if d.get('type') == 'assistant':
+                in_last_turn = True
+                for block in d.get('message', {}).get('content', []):
+                    if isinstance(block, dict) and block.get('type') == 'tool_use' and block.get('name') == 'Bash':
+                        cmd = block.get('input', {}).get('command', '')
+                        tool_use_id = block.get('id', '')
+                        if cmd:
+                            pending_bash.append((tool_use_id, cmd))
+            elif d.get('type') == 'user' and in_last_turn:
+                content = d.get('message', {}).get('content', [])
+                if isinstance(content, list):
+                    for item in content:
+                        if isinstance(item, dict) and item.get('type') == 'tool_result':
+                            is_error = item.get('is_error', False)
+                            result_id = item.get('tool_use_id', '')
+                            result_text = ''
+                            rc = item.get('content', '')
+                            if isinstance(rc, str):
+                                result_text = rc
+                            elif isinstance(rc, list):
+                                result_text = ' '.join(
+                                    s.get('text', '') for s in rc if isinstance(s, dict)
+                                )
+                            # Match to pending bash command
+                            for tid, cmd in pending_bash:
+                                if tid == result_id and is_error:
+                                    failed.append((cmd[:100], result_text[:200]))
+                                    break
+    except Exception:
+        pass
+    return failed
+
+
 def get_last_response(transcript_path, max_lines=200):
     """Extract the final assistant text response from the transcript."""
     if not transcript_path or not os.path.isfile(transcript_path):
@@ -120,6 +172,7 @@ def main():
     agent_type = data.get('agent_type', '?')
     transcript_path = data.get('agent_transcript_path', '')
     tool_names, edited_paths, bash_commands = get_tool_summary(transcript_path)
+    failed_commands = get_failed_commands(transcript_path) if tool_names else []
     response = data.get('last_assistant_message', '') or get_last_response(transcript_path)
 
     has_code_edit = any(n in ("Edit", "Write") for n in tool_names)
@@ -142,6 +195,12 @@ def main():
             print(json.dumps({"decision": "block", "reason": f"QUALITY GATE: {reason}"}))
             return
 
+    if has_code_edit and has_verification and tool_names and tool_names[-1] in ('Edit', 'Write'):
+        reason = "Subagent's last action was editing, not verification. Run a check after all edits."
+        log_decision('BLOCK', reason, agent_type, response)
+        print(json.dumps({'decision': 'block', 'reason': f'QUALITY GATE: {reason}'}))
+        return
+
     # Check: cites test counts without running verification
     if response and not has_verification:
         _bare_count_re = re.compile(
@@ -154,6 +213,18 @@ def main():
             log_decision('BLOCK', reason, agent_type, response)
             print(json.dumps({"decision": "block", "reason": f"QUALITY GATE: {reason}"}))
             return
+
+    # Check: Bash command failed but response doesn't address the failure
+    if failed_commands and response:
+        response_lower = response.lower()
+        for cmd, err in failed_commands:
+            error_keywords = re.findall(r'\w{4,}', err.lower())[:5]
+            mentioned = any(kw in response_lower for kw in error_keywords if len(kw) > 4)
+            if not mentioned and 'error' not in response_lower and 'fail' not in response_lower:
+                reason = f"Subagent command failed but response doesn't address the error. Command: {cmd[:60]}"
+                log_decision('BLOCK', reason, agent_type, response)
+                print(json.dumps({'decision': 'block', 'reason': f'QUALITY GATE: {reason}'}))
+                return
 
     # LLM evaluation for assumption and quality issues
     genuine = True

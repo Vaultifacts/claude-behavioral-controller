@@ -87,6 +87,12 @@ Substitute evidence (e.g., "smoke test passes") does NOT address specific contra
 - Read project CLAUDE.md first — it overrides everything here
 - Always check file existence before writing to avoid overwrites of unknown files
 - When blocked, ask rather than brute-force
+## Agent-First Execution
+- **Prefer dispatching agents** for tasks involving Edit, Write, or multi-step Bash execution
+- Main session should orchestrate: plan, summarize, interact with user, dispatch agents
+- Agents start with fresh context (~5K tokens) vs main session (potentially 500K+)
+- At high context (40%+), ALWAYS dispatch agents for execution — never edit files directly
+- Exceptions: single Read/Grep calls, trivial responses, user interaction
 - **After completing any task**, always provide ranked next step suggestions — #1 is the best/most impactful choice, descending from there. **Before listing next steps**: verify each candidate item is not already implemented with a targeted Grep or Bash check. Never suggest items sourced from plan files, session summaries, or memory without confirming they are not already in the code.
 - **Quote verification output inline**: When running verification tools (tests, grep, git status, file reads), paste the key output directly in your response text — do NOT just state the conclusion. The quality gate evaluates response text only and cannot see tool call results. Bad: "All tests pass." Good: "Tests pass — `=== Results: 150 passed, 0 failed ===`"
 - **Quality gate compliance**: When a Stop hook blocks you with a `decision: "block"` reason:

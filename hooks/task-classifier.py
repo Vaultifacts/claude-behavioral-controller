@@ -109,6 +109,22 @@ TIERS = [
 label, model, mode, guidance = TIERS[score]
 print(f'[task-classifier] Complexity: {label} | mode: {mode} | agent model: {model} | {guidance}')
 
+# Agent-first orchestrator: suggest agent dispatch based on context level
+_ctx_pct = 0
+try:
+    with open(os.path.expanduser('~/.claude/statusline-state.json')) as _f:
+        _ctx_pct = int(json.load(_f).get('pct', 0))
+except Exception:
+    pass
+
+if score >= 2:  # MODERATE+
+    if _ctx_pct >= 40:
+        print(f'[orchestrator] Context at {_ctx_pct}% — dispatch agents for execution '
+              f'(edits, tests, research). Keep main session for orchestration only.')
+    elif _ctx_pct >= 20:
+        print(f'[orchestrator] Context at {_ctx_pct}% — prefer dispatching agents for '
+              f'multi-step tasks to keep main session context low.')
+
 # Log classification for tuning analysis
 LOG_PATH = os.path.expanduser('~/.claude/task-classifier.log')
 try:
