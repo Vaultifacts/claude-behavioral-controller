@@ -7066,5 +7066,151 @@ class TestLayer29TranscriptParsing(unittest.TestCase):
         self.assertIn("response here", resp)
 
 
+
+# ============================================================================
+# precheck-hook.py -- Additional coverage tests
+# ============================================================================
+
+
+class TestPrecheckAdditionalCoverage(unittest.TestCase):
+    """extract_message, detect_subtasks, _run_layer1 coverage."""
+    def setUp(self):
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+        # Import using importlib since filename has hyphen
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            'precheck_hook',
+            os.path.expanduser('~/.claude/hooks/precheck-hook.py'))
+        self.mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.mod)
+
+    # --- extract_message ---
+
+    def test_extract_string_message(self):
+        self.assertEqual(self.mod.extract_message({"message": "hello"}), "hello")
+
+    def test_extract_dict_message(self):
+        self.assertEqual(self.mod.extract_message({"message": {"content": "hi"}}), "hi")
+
+    def test_extract_list_message(self):
+        msg = self.mod.extract_message({"message": [{"type": "text", "text": "yo"}]})
+        self.assertEqual(msg, "yo")
+
+    def test_extract_prompt_fallback(self):
+        self.assertEqual(self.mod.extract_message({"prompt": "test"}), "test")
+
+    def test_extract_empty(self):
+        self.assertEqual(self.mod.extract_message({}), "")
+
+    def test_extract_non_string(self):
+        self.assertEqual(self.mod.extract_message({"message": 42}), "")
+
+    # --- detect_subtasks ---
+
+    def test_detect_numbered_list(self):
+        msg = "1. Add login page\n2. Fix the bug\n3. Write tests"
+        subs = self.mod.detect_subtasks(msg)
+        self.assertEqual(len(subs), 3)
+
+    def test_detect_conjunction_split(self):
+        msg = "Add the authentication module and also implement the logout flow"
+        subs = self.mod.detect_subtasks(msg)
+        self.assertGreaterEqual(len(subs), 2)
+
+    def test_detect_no_subtasks(self):
+        self.assertEqual(self.mod.detect_subtasks("Fix the login bug"), [])
+
+    def test_detect_single_numbered_item(self):
+        self.assertEqual(self.mod.detect_subtasks("1. Just one item"), [])
+
+    # --- _run_layer1 ---
+
+    def test_run_layer1_basic(self):
+        state = {
+            'active_task_description': '',
+            'layer1_scope_files': [],
+            'layer2_unresolved_events': [],
+            'layer3_pending_fn_alert': None,
+            'layer15_session_reads': ['some_file'],
+            'layer19_last_impact_level': 'LOW',
+        }
+        extra, new_state = self.mod._run_layer1("Fix the login bug", "MECHANICAL", state)
+        self.assertEqual(new_state['active_task_description'], "Fix the login bug")
+        self.assertEqual(new_state['layer1_task_category'], "MECHANICAL")
+        self.assertIsInstance(new_state['task_success_criteria'], list)
+
+    def test_run_layer1_fn_alert_delivered(self):
+        state = {
+            'active_task_description': '',
+            'layer1_scope_files': [],
+            'layer2_unresolved_events': [],
+            'layer3_pending_fn_alert': '[FN] Previous response had issue',
+            'layer15_session_reads': ['x'],
+            'layer19_last_impact_level': 'LOW',
+        }
+        extra, new_state = self.mod._run_layer1("next task", "NONE", state)
+        self.assertIn('[FN] Previous response had issue', extra)
+        self.assertIsNone(new_state['layer3_pending_fn_alert'])
+
+    def test_run_layer1_scope_creep_cleared(self):
+        state = {
+            'active_task_description': '',
+            'layer1_scope_files': [],
+            'layer2_unresolved_events': [
+                {'category': 'SCOPE_CREEP'},
+                {'category': 'OTHER'},
+            ],
+            'layer3_pending_fn_alert': None,
+            'layer15_session_reads': ['x'],
+            'layer19_last_impact_level': 'LOW',
+        }
+        extra, new_state = self.mod._run_layer1("go ahead and proceed", "NONE", state)
+        remaining = [e['category'] for e in new_state['layer2_unresolved_events']]
+        self.assertNotIn('SCOPE_CREEP', remaining)
+        self.assertIn('OTHER', remaining)
+
+    def test_run_layer1_deep_gate(self):
+        state = {
+            'active_task_description': '',
+            'layer1_scope_files': [],
+            'layer2_unresolved_events': [],
+            'layer3_pending_fn_alert': None,
+            'layer15_session_reads': [],
+            'layer19_last_impact_level': 'LOW',
+        }
+        extra, new_state = self.mod._run_layer1("redesign the entire auth system", "DEEP", state)
+        deep_msgs = [e for e in extra if 'DEEP' in e]
+        self.assertGreaterEqual(len(deep_msgs), 1)
+
+    def test_run_layer1_subtasks_detected(self):
+        state = {
+            'active_task_description': '',
+            'layer1_scope_files': [],
+            'layer2_unresolved_events': [],
+            'layer3_pending_fn_alert': None,
+            'layer15_session_reads': ['x'],
+            'layer19_last_impact_level': 'LOW',
+        }
+        msg = "1. Add login page\n2. Fix the auth bug\n3. Write unit tests"
+        extra, new_state = self.mod._run_layer1(msg, "MECHANICAL", state)
+        self.assertEqual(new_state['layer1_subtask_count'], 3)
+        multi_msgs = [e for e in extra if 'Multi-task' in e]
+        self.assertGreaterEqual(len(multi_msgs), 1)
+
+    def test_run_layer1_high_impact_criteria(self):
+        state = {
+            'active_task_description': '',
+            'layer1_scope_files': [],
+            'layer2_unresolved_events': [],
+            'layer3_pending_fn_alert': None,
+            'layer15_session_reads': ['x'],
+            'layer19_last_impact_level': 'HIGH',
+        }
+        extra, new_state = self.mod._run_layer1("Edit config.py", "MECHANICAL", state)
+        criteria = new_state['task_success_criteria']
+        high_impact = [c for c in criteria if 'Read tool' in c]
+        self.assertGreaterEqual(len(high_impact), 1)
+
+
 if __name__ == '__main__':
     unittest.main()
