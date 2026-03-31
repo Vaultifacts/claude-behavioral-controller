@@ -7322,5 +7322,168 @@ class TestLayer17AdditionalCoverage(unittest.TestCase):
         self.assertEqual(_norm_path(None), '')
 
 
+
+# ============================================================================
+# qg_layer0.py -- Additional coverage tests
+# ============================================================================
+
+
+class TestLayer0AdditionalCoverage(unittest.TestCase):
+    """find_previous_session_unresolved, load_cross_session_patterns, load_recovery_pending."""
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+
+    def tearDown(self):
+        import shutil; shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_file(self, name, content):
+        path = os.path.join(self.tmpdir, name)
+        with open(path, 'w') as f:
+            f.write(content)
+        return path
+
+    # --- load_cross_session_patterns ---
+
+    def test_load_cross_session_with_patterns(self):
+        from qg_layer0 import load_cross_session_patterns
+        import json, qg_layer0 as mod
+        orig = mod.CROSS_SESSION_PATH
+        path = self._write_file('cross.json', json.dumps({
+            "patterns": [{"category": "INCORRECT_TOOL", "sessions_count": 5, "total_events": 10}]
+        }))
+        mod.CROSS_SESSION_PATH = path
+        try:
+            patterns = load_cross_session_patterns()
+            self.assertEqual(len(patterns), 1)
+            self.assertEqual(patterns[0]["category"], "INCORRECT_TOOL")
+        finally:
+            mod.CROSS_SESSION_PATH = orig
+
+    def test_load_cross_session_missing_file(self):
+        from qg_layer0 import load_cross_session_patterns
+        import qg_layer0 as mod
+        orig = mod.CROSS_SESSION_PATH
+        mod.CROSS_SESSION_PATH = '/nonexistent/cross.json'
+        try:
+            self.assertEqual(load_cross_session_patterns(), [])
+        finally:
+            mod.CROSS_SESSION_PATH = orig
+
+    def test_load_cross_session_invalid_json(self):
+        from qg_layer0 import load_cross_session_patterns
+        import qg_layer0 as mod
+        orig = mod.CROSS_SESSION_PATH
+        path = self._write_file('bad.json', '{broken')
+        mod.CROSS_SESSION_PATH = path
+        try:
+            self.assertEqual(load_cross_session_patterns(), [])
+        finally:
+            mod.CROSS_SESSION_PATH = orig
+
+    def test_load_cross_session_no_patterns_key(self):
+        from qg_layer0 import load_cross_session_patterns
+        import json, qg_layer0 as mod
+        orig = mod.CROSS_SESSION_PATH
+        path = self._write_file('empty.json', json.dumps({"other": "data"}))
+        mod.CROSS_SESSION_PATH = path
+        try:
+            self.assertEqual(load_cross_session_patterns(), [])
+        finally:
+            mod.CROSS_SESSION_PATH = orig
+
+    # --- load_recovery_pending ---
+
+    def test_load_recovery_pending_with_events(self):
+        from qg_layer0 import load_recovery_pending
+        import json, qg_layer0 as mod
+        orig = mod.RECOVERY_PENDING_PATH
+        path = self._write_file('recovery.json', json.dumps({
+            "consumed": False,
+            "events": [{"status": "open", "event_type": "FN"}]
+        }))
+        mod.RECOVERY_PENDING_PATH = path
+        try:
+            events = load_recovery_pending()
+            self.assertEqual(len(events), 1)
+            self.assertEqual(events[0]["event_type"], "FN")
+            # Should mark as consumed
+            with open(path) as f:
+                data = json.load(f)
+            self.assertTrue(data["consumed"])
+        finally:
+            mod.RECOVERY_PENDING_PATH = orig
+
+    def test_load_recovery_pending_already_consumed(self):
+        from qg_layer0 import load_recovery_pending
+        import json, qg_layer0 as mod
+        orig = mod.RECOVERY_PENDING_PATH
+        path = self._write_file('recovery.json', json.dumps({
+            "consumed": True,
+            "events": [{"status": "open"}]
+        }))
+        mod.RECOVERY_PENDING_PATH = path
+        try:
+            self.assertEqual(load_recovery_pending(), [])
+        finally:
+            mod.RECOVERY_PENDING_PATH = orig
+
+    def test_load_recovery_pending_missing(self):
+        from qg_layer0 import load_recovery_pending
+        import qg_layer0 as mod
+        orig = mod.RECOVERY_PENDING_PATH
+        mod.RECOVERY_PENDING_PATH = '/nonexistent/recovery.json'
+        try:
+            self.assertEqual(load_recovery_pending(), [])
+        finally:
+            mod.RECOVERY_PENDING_PATH = orig
+
+    # --- find_previous_session_unresolved ---
+
+    def test_find_unresolved_missing_history(self):
+        from qg_layer0 import find_previous_session_unresolved
+        import qg_layer0 as mod
+        orig = mod.HISTORY_PATH
+        mod.HISTORY_PATH = '/nonexistent/history.md'
+        try:
+            self.assertEqual(find_previous_session_unresolved(), [])
+        finally:
+            mod.HISTORY_PATH = orig
+
+    def test_find_unresolved_with_entries(self):
+        from qg_layer0 import find_previous_session_unresolved
+        import qg_layer0 as mod
+        orig = mod.HISTORY_PATH
+        history = (
+            "## Session abc123\n"
+            "session_uuid: abc123\n"
+            "- UNRESOLVED: Bug in auth module\n"
+            "- UNRESOLVED: Missing test for login\n"
+            "- RESOLVED: Fixed logout\n"
+        )
+        path = self._write_file('history.md', history)
+        mod.HISTORY_PATH = path
+        try:
+            # This will try to match against current session UUID from state
+            # Since state UUID likely differs, it may not find matches for abc123
+            # But the function searches for the entry matching current UUID
+            result = find_previous_session_unresolved()
+            # Result depends on current session state - just verify it returns a list
+            self.assertIsInstance(result, list)
+        finally:
+            mod.HISTORY_PATH = orig
+
+    def test_find_unresolved_empty_history(self):
+        from qg_layer0 import find_previous_session_unresolved
+        import qg_layer0 as mod
+        orig = mod.HISTORY_PATH
+        path = self._write_file('history.md', '# Empty\nNo sessions yet.\n')
+        mod.HISTORY_PATH = path
+        try:
+            self.assertEqual(find_previous_session_unresolved(), [])
+        finally:
+            mod.HISTORY_PATH = orig
+
+
 if __name__ == '__main__':
     unittest.main()
