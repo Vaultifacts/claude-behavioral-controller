@@ -1019,6 +1019,10 @@ def _compute_confidence(gate_blocked, block_category, state):
     _mismatches = state.get('layer17_mismatch_count', 0)
     if _mismatches:
         score -= min(_mismatches * 0.05, 0.15)
+    # Consume introduces_new_problem from Layer 3.5: fix-one-break-another cycle
+    _recovery = state.get('layer35_recovery_events', [])
+    if any(e.get('introduces_new_problem') for e in _recovery):
+        score -= 0.15
     return max(0.01, min(0.99, score))
 
 

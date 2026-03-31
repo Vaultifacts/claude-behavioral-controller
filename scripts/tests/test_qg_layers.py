@@ -5014,5 +5014,29 @@ class TestLayer27MainFlow(unittest.TestCase):
         self.assertEqual(output.strip(), '')
 
 
+
+
+class TestQGComputeConfidenceINP(unittest.TestCase):
+    """_compute_confidence consumes introduces_new_problem flag from Layer 3.5."""
+    def setUp(self):
+        self.qg = _load_qg()
+
+    def test_introduces_new_problem_lowers_confidence(self):
+        state_clean = {'layer35_recovery_events': [{'status': 'resolved'}]}
+        state_inp = {'layer35_recovery_events': [{'status': 'resolved', 'introduces_new_problem': True}]}
+        score_clean = self.qg._compute_confidence(False, None, state_clean)
+        score_inp = self.qg._compute_confidence(False, None, state_inp)
+        self.assertLess(score_inp, score_clean)
+        self.assertAlmostEqual(score_clean - score_inp, 0.15, places=2)
+
+    def test_no_flag_no_penalty(self):
+        state = {'layer35_recovery_events': [{'status': 'open'}]}
+        score = self.qg._compute_confidence(False, None, state)
+        score_empty = self.qg._compute_confidence(False, None, {})
+        # open event penalizes via unresolved count, not INP
+        # but INP itself should not fire
+        self.assertEqual(score, score_empty)  # No unresolved in layer2, just layer35
+
+
 if __name__ == '__main__':
     unittest.main()
