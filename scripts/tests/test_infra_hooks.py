@@ -1,0 +1,763 @@
+"""test_infra_hooks.py -- Unit tests for 13 standalone infrastructure hook files."""
+import sys, os, json, unittest, tempfile, io, time
+from unittest.mock import patch, MagicMock
+
+HOOKS_DIR = os.path.expanduser("~/.claude/hooks")
+sys.path.insert(0, HOOKS_DIR)
+
+class TestBlockSecrets(unittest.TestCase):
+    def _import(self):
+        if "block-secrets" not in sys.modules:
+            sys.modules["block-secrets"] = __import__("block-secrets")
+        return sys.modules["block-secrets"]
+
+    def test_allowlisted_env_example(self):
+        m = self._import()
+        self.assertTrue(m.is_allowlisted("/some/.env.example"))
+    def test_allowlisted_env_sample(self):
+        m = self._import()
+        self.assertTrue(m.is_allowlisted("/some/.env.sample"))
+    def test_allowlisted_test_file(self):
+        m = self._import()
+        self.assertTrue(m.is_allowlisted("/src/auth.test.js"))
+    def test_allowlisted_spec_file(self):
+        m = self._import()
+        self.assertTrue(m.is_allowlisted("/src/auth.spec.ts"))
+    def test_allowlisted_home_claude(self):
+        m = self._import()
+        h = os.path.expanduser("~").replace("\\", "/")
+        self.assertTrue(m.is_allowlisted(h + "/.claude/hooks/x.py"))
+    def test_allowlisted_github_workflows(self):
+        m = self._import()
+        self.assertTrue(m.is_allowlisted("/project/.github/workflows/ci.yml"))
+    def test_not_allowlisted_regular(self):
+        m = self._import()
+        self.assertFalse(m.is_allowlisted("/project/src/config.py"))
+    def test_not_allowlisted_empty(self):
+        m = self._import()
+        self.assertFalse(m.is_allowlisted(""))
+    def test_not_allowlisted_none(self):
+        m = self._import()
+        self.assertFalse(m.is_allowlisted(None))
+    def test_write_clean_exits_0(self):
+        m = self._import()
+        p = {"tool_name": "Write", "tool_input": {"file_path": "/p.py", "content": "print(1)"}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0)
+    _AWS = "AKIAIOSFODNN7EXAMPLE"
+    def test_write_aws_key_blocks(self):
+        m = self._import()
+        p = {"tool_name": "Write", "tool_input": {"file_path": "/c.py", "content": "k=" + chr(34) + self._AWS + chr(34)}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 2)
+    _OAI = "sk-aaaaaaaaaaaaaaaaaaaaaaaaa"
+    def test_write_openai_key_blocks(self):
+        m = self._import()
+        p = {"tool_name": "Write", "tool_input": {"file_path": "/c.py", "content": "api_key=" + chr(34) + self._OAI + chr(34)}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 2)
+    _GHP = "ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    def test_edit_github_token_blocks(self):
+        m = self._import()
+        p = {"tool_name": "Edit", "tool_input": {"file_path": "/a.py", "old_string": "x", "new_string": "t=" + chr(34) + self._GHP + chr(34)}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 2)
+    def test_allowlisted_path_skips(self):
+        m = self._import()
+        p = {"tool_name": "Write", "tool_input": {"file_path": "/.env.example", "content": "K=" + self._AWS}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0)
+    def test_non_write_exits_0(self):
+        m = self._import()
+        p = {"tool_name": "Read", "tool_input": {"file_path": "/f"}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0)
+    def test_bash_no_redirect_exits_0(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_input": {"command": "ls -la"}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0)
+    def test_bash_redirect_no_secret(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_input": {"command": "echo hello > out.txt"}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0)
+    def test_bash_redirect_aws_blocks(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_input": {"command": "echo " + self._AWS + " > k.txt"}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 2)
+    def test_invalid_json_exits_2(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO("not-json")):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 2)
+    def test_empty_content_exits_0(self):
+        m = self._import()
+        p = {"tool_name": "Write", "tool_input": {"file_path": "/p.py", "content": ""}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0)
+    _RSA = "-----BEGIN RSA PRIVATE KEY-----"
+    def test_private_key_blocks(self):
+        m = self._import()
+        p = {"tool_name": "Write", "tool_input": {"file_path": "/k.pem", "content": self._RSA + chr(10) + "MIIE"}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 2)
+    _PAT = "github_pat_11ABCDEFGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    def test_github_pat_blocks(self):
+        m = self._import()
+        p = {"tool_name": "Write", "tool_input": {"file_path": "/a.py", "content": "t=" + chr(34) + self._PAT + chr(34)}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 2)
+
+class TestContextWatch(unittest.TestCase):
+    HOOK_PATH = os.path.join(HOOKS_DIR, "context-watch.py")
+    def _run(self, payload):
+        import subprocess
+        env = os.environ.copy(); env["PYTHONIOENCODING"] = "utf-8"
+        r = subprocess.run([sys.executable, self.HOOK_PATH], input=json.dumps(payload).encode(), capture_output=True, env=env)
+        return r.stdout.decode(), r.stderr.decode(), r.returncode
+    def test_low_context(self):
+        _, _, c = self._run({"session_id": "s1", "context": {"tokens_used": 100, "context_window": 10000}})
+        self.assertEqual(c, 0)
+    def test_invalid_json(self):
+        import subprocess
+        env = os.environ.copy(); env["PYTHONIOENCODING"] = "utf-8"
+        r = subprocess.run([sys.executable, self.HOOK_PATH], input=b"bad", capture_output=True, env=env)
+        self.assertEqual(r.returncode, 0)
+    def test_empty_payload(self):
+        _, _, c = self._run({})
+        self.assertEqual(c, 0)
+    def test_zero_context(self):
+        _, _, c = self._run({"session_id": "s1", "context": {"tokens_used": 0, "context_window": 0}})
+        self.assertEqual(c, 0)
+    def test_90pct_context(self):
+        _, _, c = self._run({"session_id": "s90", "context": {"tokens_used": 900, "context_window": 1000}})
+        self.assertEqual(c, 0)
+
+class TestErrorDedup(unittest.TestCase):
+    def _import(self):
+        if "error-dedup" not in sys.modules:
+            # Module calls main() at import; main() calls sys.exit(0) which is not caught by except Exception
+            with patch("sys.stdin", io.StringIO("{}")), patch("sys.exit"):
+                sys.modules["error-dedup"] = __import__("error-dedup")
+        return sys.modules["error-dedup"]
+    def test_normalize_line_numbers(self):
+        m = self._import()
+        r = m.normalize_error("Error at line 42")
+        self.assertIn("line n", r); self.assertNotIn("42", r)
+    def test_normalize_timestamps(self):
+        m = self._import()
+        self.assertIn("datetime", m.normalize_error("Failed at 2024-01-15T09:30:00"))
+    def test_normalize_paths(self):
+        m = self._import()
+        self.assertIn("path", m.normalize_error("Error in /home/user/main.py").lower())
+    def test_normalize_lowercase(self):
+        m = self._import()
+        r = m.normalize_error("ModuleNotFoundError")
+        self.assertEqual(r, r.lower())
+    def test_hash_8chars(self):
+        m = self._import()
+        self.assertEqual(len(m.error_hash("err")), 8)
+    def test_hash_consistent(self):
+        m = self._import()
+        self.assertEqual(m.error_hash("err foo"), m.error_hash("err foo"))
+    def test_hash_normalized(self):
+        m = self._import()
+        self.assertEqual(m.error_hash("Error at line 10"), m.error_hash("Error at line 99"))
+    def test_new_state(self):
+        m = self._import()
+        s = m.new_state("abc")
+        self.assertEqual(s["session_id"], "abc"); self.assertFalse(s["alert"]["active"])
+    def test_main_no_error_exits_0(self):
+        m = self._import()
+        p = {"hook_event_name": "PostToolUse", "session_id": "s1", "tool_name": "Bash", "tool_response": "ok"}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0)
+    def test_main_bad_json_exits_0(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO("bad")):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0)
+    def test_tier1_writes_state(self):
+        m = self._import()
+        p = {"hook_event_name": "PostToolUseFailure", "session_id": "sn", "tool_name": "Bash", "error": "ModuleNotFoundError: x"}
+        with tempfile.TemporaryDirectory() as tmp:
+            sf = os.path.join(tmp, "s.json")
+            with patch.object(m, "STATE_FILE", sf), patch("sys.stdin", io.StringIO(json.dumps(p))):
+                try: m.main()
+                except SystemExit: pass
+            self.assertTrue(os.path.exists(sf))
+            st = json.load(open(sf, encoding="utf-8"))
+            self.assertEqual(st["session_id"], "sn"); self.assertEqual(len(st["errors"]), 1)
+    def test_alert_threshold(self):
+        m = self._import()
+        with tempfile.TemporaryDirectory() as tmp:
+            sf = os.path.join(tmp, "s.json")
+            err = "ModuleNotFoundError: x"
+            h = m.error_hash(err); now = int(time.time())
+            st = m.new_state("sa")
+            st["errors"][h] = {"hash": h, "canonical": err, "count": 2,
+                "first_seen_ts": now-100, "last_seen_ts": now-10, "tool": "Bash", "dismissed": False}
+            json.dump(st, open(sf, "w", encoding="utf-8"))
+            p = {"hook_event_name": "PostToolUseFailure", "session_id": "sa", "tool_name": "Bash", "error": err}
+            with patch.object(m, "STATE_FILE", sf), patch("sys.stdin", io.StringIO(json.dumps(p))):
+                try: m.main()
+                except SystemExit: pass
+            st2 = json.load(open(sf, encoding="utf-8"))
+            self.assertTrue(st2["alert"]["active"])
+            self.assertGreaterEqual(st2["errors"][h]["count"], 3)
+    def test_load_state_missing(self):
+        m = self._import()
+        with patch.object(m, "STATE_FILE", "/nope/s.json"):
+            self.assertIsNone(m.load_state())
+    def test_atomic_write(self):
+        m = self._import()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = os.path.join(tmp, "o.json")
+            m.atomic_write(p, {"k": "v"})
+            self.assertEqual(json.load(open(p))["k"], "v")
+    def test_throttle_skips(self):
+        m = self._import()
+        p = {"hook_event_name": "PostToolUse", "session_id": "st", "tool_name": "Bash",
+             "tool_response": "Exit code 1\nTraceback (most recent call last):\n  Error: x"}
+        with tempfile.TemporaryDirectory() as tmp:
+            sf = os.path.join(tmp, "s.json")
+            st = m.new_state("st"); st["ts"] = int(time.time())
+            json.dump(st, open(sf, "w", encoding="utf-8"))
+            with patch.object(m, "STATE_FILE", sf), patch("sys.stdin", io.StringIO(json.dumps(p))):
+                with self.assertRaises(SystemExit) as ctx: m.main()
+            self.assertEqual(ctx.exception.code, 0)
+
+class TestEventObserver(unittest.TestCase):
+    HOOK_PATH = os.path.join(HOOKS_DIR, "event-observer.py")
+    def _run(self, payload):
+        import subprocess
+        env = os.environ.copy(); env["PYTHONIOENCODING"] = "utf-8"
+        r = subprocess.run([sys.executable, self.HOOK_PATH], input=json.dumps(payload).encode(), capture_output=True, env=env)
+        return r.stdout.decode(), r.stderr.decode(), r.returncode
+    def test_instructions_loaded(self):
+        _, _, c = self._run({"hook_event_name": "InstructionsLoaded", "load_reason": "startup", "file_path": "/CLAUDE.md"})
+        self.assertEqual(c, 0)
+    def test_config_change(self):
+        _, _, c = self._run({"hook_event_name": "ConfigChange", "source": "user", "file_path": "/s.json"})
+        self.assertEqual(c, 0)
+    def test_session_start(self):
+        _, _, c = self._run({"hook_event_name": "SessionStart", "trigger": "new"})
+        self.assertEqual(c, 0)
+    def test_unknown_event(self):
+        _, _, c = self._run({"hook_event_name": "Unknown"})
+        self.assertEqual(c, 0)
+    def test_invalid_json(self):
+        import subprocess
+        env = os.environ.copy(); env["PYTHONIOENCODING"] = "utf-8"
+        r = subprocess.run([sys.executable, self.HOOK_PATH], input=b"bad", capture_output=True, env=env)
+        self.assertEqual(r.returncode, 0)
+    def test_config_change_stderr(self):
+        _, err, _ = self._run({"hook_event_name": "ConfigChange", "source": "u", "file_path": "/f"})
+        self.assertIn("config-change", err)
+
+class TestHookHealthFeed(unittest.TestCase):
+    def _import(self):
+        mod_name = "hook-health-feed"
+        if mod_name not in sys.modules:
+            # Module calls sys.exit(0) at top level after the try block
+            with patch("sys.stdin", io.StringIO("{}")), patch("sys.exit"):
+                sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+    def test_read_tail_missing(self):
+        m = self._import()
+        self.assertEqual(m.read_tail("/nope.log"), [])
+    def test_read_tail_limits(self):
+        m = self._import()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False, encoding="utf-8") as f:
+            [f.write(f"line {i}\n") for i in range(10)]; p = f.name
+        try: lines = m.read_tail(p, n=5); self.assertEqual(len(lines), 5)
+        finally: os.unlink(p)
+    def test_parse_ts_valid(self):
+        m = self._import()
+        ts = m.parse_ts("2024-01-15 09:30", "%Y-%m-%d %H:%M")
+        self.assertIsNotNone(ts); self.assertIsInstance(ts, float)
+    def test_parse_ts_invalid(self):
+        m = self._import()
+        self.assertIsNone(m.parse_ts("bad", "%Y-%m-%d %H:%M"))
+    def test_parse_audit_empty(self):
+        m = self._import()
+        self.assertEqual(m.parse_hook_audit([]), {})
+    def test_parse_audit_valid(self):
+        m = self._import()
+        r = m.parse_hook_audit(["2024-01-15 09:30 | SESSION_START | x\n"])
+        self.assertIn("SESSION_START", r)
+    def test_parse_qg_empty(self):
+        m = self._import()
+        self.assertEqual(m.parse_quality_gate([]), [])
+    def test_parse_qg_valid(self):
+        m = self._import()
+        r = m.parse_quality_gate(["2024-01-15 09:30:00 | PASS | ok\n"])
+        self.assertEqual(len(r), 1); self.assertEqual(r[0][1], "PASS")
+    def test_parse_tc_valid(self):
+        m = self._import()
+        r = m.parse_task_classifier(["2024-01-15 09:30:00 | TRIVIAL | x\n"])
+        self.assertEqual(len(r), 1)
+    def test_load_disabled_missing(self):
+        m = self._import()
+        with patch.object(m, "DISABLED_FILE", "/nope.json"): self.assertEqual(m.load_disabled(), set())
+    def test_load_disabled_list(self):
+        m = self._import()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
+            json.dump(["hook-a", "hook-b"], f); p = f.name
+        try:
+            with patch.object(m, "DISABLED_FILE", p): self.assertEqual(m.load_disabled(), {"hook-a", "hook-b"})
+        finally: os.unlink(p)
+    def test_session_active_missing(self):
+        m = self._import()
+        with patch.object(m, "STATE_FILE", "/nope.json"): self.assertFalse(m.is_session_active())
+    def test_session_active_recent(self):
+        m = self._import()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
+            json.dump({}, f); p = f.name
+        try:
+            with patch.object(m, "STATE_FILE", p): self.assertTrue(m.is_session_active())
+        finally: os.unlink(p)
+    def test_build_entry_muted(self):
+        m = self._import()
+        cfg = {"log": "hook-audit.log", "max_age": None}
+        ld = {"audit": {}, "quality_gate": [], "task_class": []}
+        e = m.build_hook_entry("quality-gate", cfg, ld, time.time(), True, {"quality-gate"})
+        self.assertEqual(e["status"], "muted")
+    def test_build_entry_unknown(self):
+        m = self._import()
+        cfg = {"log": "hook-audit.log", "max_age": None}
+        ld = {"audit": {}, "quality_gate": [], "task_class": []}
+        e = m.build_hook_entry("event-observer", cfg, ld, time.time(), True, set())
+        self.assertEqual(e["status"], "unknown")
+    def test_build_entry_stale(self):
+        m = self._import()
+        cfg = {"log": "task-classifier.log", "max_age": 300}
+        ld = {"audit": {}, "quality_gate": [], "task_class": [(time.time()-1000, "TRIVIAL|x")]}
+        e = m.build_hook_entry("task-classifier", cfg, ld, time.time(), True, set())
+        self.assertEqual(e["status"], "stale")
+    def test_build_entry_healthy(self):
+        m = self._import()
+        cfg = {"log": "task-classifier.log", "max_age": 300}
+        ld = {"audit": {}, "quality_gate": [], "task_class": [(time.time()-60, "TRIVIAL|x")]}
+        e = m.build_hook_entry("task-classifier", cfg, ld, time.time(), True, set())
+        self.assertEqual(e["status"], "healthy")
+    def test_atomic_write(self):
+        m = self._import()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = os.path.join(tmp, "h.json")
+            m.atomic_write(p, {"overall_status": "healthy"})
+            self.assertEqual(json.load(open(p))["overall_status"], "healthy")
+    def test_main_runs(self):
+        m = self._import()
+        with tempfile.TemporaryDirectory() as tmp:
+            hf = os.path.join(tmp, "hh.json")
+            with patch.object(m, "HEALTH_FILE", hf), \
+                 patch.object(m, "LOG_FILES", {"hook-audit.log": os.path.join(tmp,"a.log"), "quality-gate.log": os.path.join(tmp,"q.log"), "task-classifier.log": os.path.join(tmp,"t.log")}), \
+                 patch.object(m, "DISABLED_FILE", os.path.join(tmp,"d.json")), \
+                 patch.object(m, "STATE_FILE", os.path.join(tmp,"s.json")):\
+                m.main()
+            data = json.load(open(hf))
+            self.assertIn("overall_status", data); self.assertIn("hooks", data)
+    def test_get_entries_qg(self):
+        m = self._import()
+        cfg = {"log": "quality-gate.log", "max_age": None}
+        ld = {"audit": {}, "quality_gate": [(time.time(), "PASS", "ok")], "task_class": []}
+        self.assertEqual(len(m.get_entries_for("quality-gate", cfg, ld)), 1)
+    def test_get_entries_tc(self):
+        m = self._import()
+        cfg = {"log": "task-classifier.log", "max_age": 300}
+        ld = {"audit": {}, "quality_gate": [], "task_class": [(time.time(), "TRIVIAL|x")]}
+        self.assertEqual(len(m.get_entries_for("task-classifier", cfg, ld)), 1)
+
+class TestPermissionGuard(unittest.TestCase):
+    def _import(self):
+        mod_name = "permission-guard"
+        if mod_name not in sys.modules: sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+    _GH  = "http" + "s://" + "api.github.com"
+    _BAD = "http" + "s://" + "evil-site.xyz"
+    _LOC = "http://" + "localhost" + ":3000"
+    def test_extract_domain_https(self):
+        m = self._import()
+        self.assertEqual(m.extract_domain("curl " + self._GH + "/r"), "api.github.com")
+    def test_extract_domain_www_stripped(self):
+        m = self._import()
+        self.assertEqual(m.extract_domain("curl http" + "s://www.example.com/p"), "example.com")
+    def test_extract_domain_no_url(self):
+        m = self._import()
+        self.assertIsNone(m.extract_domain("ls -la"))
+    def test_allows_github(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_input": {"command": "curl " + self._GH + "/repos/a/b"}}
+        cap = io.StringIO()
+        with patch("sys.stdin", io.StringIO(json.dumps(p))), patch("sys.stdout", cap), patch("sys.stdin.isatty", return_value=False):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0)
+        out = cap.getvalue()
+        if out.strip(): self.assertNotEqual(json.loads(out).get("decision"), "block")
+    def test_blocks_unknown_domain(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_input": {"command": "curl " + self._BAD + "/x"}}
+        cap = io.StringIO()
+        with patch("sys.stdin", io.StringIO(json.dumps(p))), patch("sys.stdout", cap), patch("sys.stdin.isatty", return_value=False):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0); self.assertIn("block", cap.getvalue())
+    def test_blocks_force_push_main(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_input": {"command": "git push --force origin main"}}
+        cap = io.StringIO()
+        with patch("sys.stdin", io.StringIO(json.dumps(p))), patch("sys.stdout", cap), patch("sys.stdin.isatty", return_value=False):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0)
+        self.assertEqual(json.loads(cap.getvalue())["decision"], "block")
+    def test_blocks_force_push_master(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_input": {"command": "git push -f origin master"}}
+        cap = io.StringIO()
+        with patch("sys.stdin", io.StringIO(json.dumps(p))), patch("sys.stdout", cap), patch("sys.stdin.isatty", return_value=False):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0)
+        self.assertEqual(json.loads(cap.getvalue())["decision"], "block")
+    def test_allows_non_bash(self):
+        m = self._import()
+        p = {"tool_name": "Read", "tool_input": {"file_path": "/f"}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))), patch("sys.stdin.isatty", return_value=False):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0)
+    def test_bad_json_allows(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO("bad")), patch("sys.stdin.isatty", return_value=False):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0)
+    def test_allows_localhost(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_input": {"command": "curl " + self._LOC + "/api"}}
+        cap = io.StringIO()
+        with patch("sys.stdin", io.StringIO(json.dumps(p))), patch("sys.stdout", cap), patch("sys.stdin.isatty", return_value=False):
+            with self.assertRaises(SystemExit) as ctx: m.main()
+        self.assertEqual(ctx.exception.code, 0)
+        out = cap.getvalue()
+        if out.strip(): self.assertNotEqual(json.loads(out).get("decision"), "block")
+
+class TestPermissionRequestLog(unittest.TestCase):
+    HOOK_PATH = os.path.join(HOOKS_DIR, "permission-request-log.py")
+    def _run(self, payload):
+        import subprocess
+        env = os.environ.copy(); env["PYTHONIOENCODING"] = "utf-8"
+        r = subprocess.run([sys.executable, self.HOOK_PATH], input=json.dumps(payload).encode(), capture_output=True, env=env)
+        return r.stdout.decode(), r.stderr.decode(), r.returncode
+    def test_bash_cmd(self):
+        _, _, c = self._run({"tool_name": "Bash", "tool_input": {"command": "git status"}})
+        self.assertEqual(c, 0)
+    def test_file_path(self):
+        _, _, c = self._run({"tool_name": "Write", "tool_input": {"file_path": "/p.py"}})
+        self.assertEqual(c, 0)
+    def test_invalid_json(self):
+        import subprocess
+        env = os.environ.copy(); env["PYTHONIOENCODING"] = "utf-8"
+        r = subprocess.run([sys.executable, self.HOOK_PATH], input=b"bad", capture_output=True, env=env)
+        self.assertEqual(r.returncode, 0)
+    def test_empty_input(self):
+        _, _, c = self._run({"tool_name": "T", "tool_input": {}})
+        self.assertEqual(c, 0)
+    def test_non_dict_input(self):
+        _, _, c = self._run({"tool_name": "T", "tool_input": "s"})
+        self.assertEqual(c, 0)
+
+class TestPreCompactSnapshot(unittest.TestCase):
+    HOOK_PATH = os.path.join(HOOKS_DIR, "pre-compact-snapshot.py")
+    def _run(self, payload):
+        import subprocess
+        env = os.environ.copy(); env["PYTHONIOENCODING"] = "utf-8"
+        r = subprocess.run([sys.executable, self.HOOK_PATH], input=json.dumps(payload).encode(), capture_output=True, env=env)
+        return r.stdout.decode(), r.stderr.decode(), r.returncode
+    def test_no_transcript(self):
+        _, _, c = self._run({"session_id": "a", "trigger": "auto", "transcript_path": ""})
+        self.assertEqual(c, 0)
+    def test_missing_transcript(self):
+        _, _, c = self._run({"session_id": "a", "trigger": "auto", "transcript_path": "/nope.jsonl"})
+        self.assertEqual(c, 0)
+    def test_invalid_json(self):
+        import subprocess
+        env = os.environ.copy(); env["PYTHONIOENCODING"] = "utf-8"
+        r = subprocess.run([sys.executable, self.HOOK_PATH], input=b"bad", capture_output=True, env=env)
+        self.assertEqual(r.returncode, 0)
+    def test_manual_trigger(self):
+        _, _, c = self._run({"session_id": "a", "trigger": "manual", "transcript_path": ""})
+        self.assertEqual(c, 0)
+    def test_existing_transcript(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            open(tp, "w").write("{}\n")
+            import subprocess
+            env = os.environ.copy(); env["PYTHONIOENCODING"] = "utf-8"
+            r = subprocess.run([sys.executable, self.HOOK_PATH],
+                input=json.dumps({"session_id": "x", "trigger": "auto", "transcript_path": tp}).encode(),
+                capture_output=True, env=env)
+            self.assertEqual(r.returncode, 0)
+
+class TestPrunePermissions(unittest.TestCase):
+    def _import(self):
+        mod_name = "prune-permissions"
+        if mod_name not in sys.modules: sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+    def test_reusable_non_bash(self):
+        m = self._import()
+        self.assertTrue(m.is_reusable("Skill(*)"))
+        self.assertTrue(m.is_reusable("mcp__docker__run"))
+        self.assertTrue(m.is_reusable("WebFetch(*)"))
+    def test_reusable_bash_wildcard_short(self):
+        m = self._import()
+        self.assertTrue(m.is_reusable("Bash(gh pr:*)"))
+    def test_not_reusable_no_wildcard(self):
+        m = self._import()
+        self.assertFalse(m.is_reusable("Bash(git status --porcelain)"))
+    def test_not_reusable_long_wildcard(self):
+        m = self._import()
+        self.assertFalse(m.is_reusable("Bash(some very long command with * inside that exceeds 40 chars)"))
+    def test_prunes_oneoffs(self):
+        m = self._import()
+        s = {"permissions": {"allow": ["Skill(*)", "Bash(git status --porcelain)", "Bash(gh pr:*)"]}}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
+            json.dump(s, f); p = f.name
+        try:
+            with patch.object(m, "SETTINGS_PATH", p): m.main()
+            allow = json.load(open(p))["permissions"]["allow"]
+            self.assertIn("Skill(*)", allow); self.assertIn("Bash(gh pr:*)", allow)
+            self.assertNotIn("Bash(git status --porcelain)", allow)
+        finally: os.unlink(p)
+    def test_no_change_needed(self):
+        m = self._import()
+        s = {"permissions": {"allow": ["Skill(*)"]}}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
+            json.dump(s, f); p = f.name
+        try:
+            with patch.object(m, "SETTINGS_PATH", p): m.main()
+            self.assertEqual(len(json.load(open(p))["permissions"]["allow"]), 1)
+        finally: os.unlink(p)
+    def test_missing_file(self):
+        m = self._import()
+        with patch.object(m, "SETTINGS_PATH", "/nope.json"): m.main()
+    def test_bad_json(self):
+        m = self._import()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
+            f.write("bad"); p = f.name
+        try:
+            with patch.object(m, "SETTINGS_PATH", p): m.main()
+        finally: os.unlink(p)
+    def test_empty_allow(self):
+        m = self._import()
+        s = {"permissions": {"allow": []}}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
+            json.dump(s, f); p = f.name
+        try:
+            with patch.object(m, "SETTINGS_PATH", p): m.main()
+        finally: os.unlink(p)
+
+class TestQaScreenshotGate(unittest.TestCase):
+    def _import(self):
+        mod_name = "qa-screenshot-gate"
+        if mod_name not in sys.modules: sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+    def test_no_walkthrough_continues(self):
+        m = self._import()
+        p = {"assistant_response": "All tests Pass: verified", "tool_calls": []}
+        cap = io.StringIO()
+        with patch("sys.stdin", io.StringIO(json.dumps(p))), patch("sys.stdout", cap), patch("os.path.exists", return_value=False): m.main()
+        self.assertTrue(json.loads(cap.getvalue()).get("continue"))
+    def test_invalid_json_continues(self):
+        m = self._import()
+        cap = io.StringIO()
+        with patch("sys.stdin", io.StringIO("bad")), patch("sys.stdout", cap): m.main()
+        self.assertTrue(json.loads(cap.getvalue()).get("continue"))
+    def test_no_pass_claim_continues(self):
+        m = self._import()
+        p = {"assistant_response": "Tests done.", "tool_calls": []}
+        cap = io.StringIO()
+        with patch("sys.stdin", io.StringIO(json.dumps(p))), patch("sys.stdout", cap), patch("os.path.exists", return_value=True): m.main()
+        self.assertTrue(json.loads(cap.getvalue()).get("continue"))
+    def test_pass_no_screenshot_blocks(self):
+        m = self._import()
+        p = {"assistant_response": "All tests Pass: verified", "tool_calls": []}
+        cap = io.StringIO()
+        with patch("sys.stdin", io.StringIO(json.dumps(p))), patch("sys.stdout", cap), patch("os.path.exists", return_value=True): m.main()
+        self.assertEqual(json.loads(cap.getvalue()).get("decision"), "block")
+    def test_pass_with_screenshot_continues(self):
+        m = self._import()
+        p = {"assistant_response": "All tests Pass: verified",
+             "tool_calls": [{"tool_name": "mcp__claude-in-chrome__computer", "input": {"action": "screenshot"}}]}
+        cap = io.StringIO()
+        with patch("sys.stdin", io.StringIO(json.dumps(p))), patch("sys.stdout", cap), patch("os.path.exists", return_value=True): m.main()
+        self.assertTrue(json.loads(cap.getvalue()).get("continue"))
+    def test_pass_count_blocked(self):
+        m = self._import()
+        p = {"assistant_response": "5 Pass results", "tool_calls": []}
+        cap = io.StringIO()
+        with patch("sys.stdin", io.StringIO(json.dumps(p))), patch("sys.stdout", cap), patch("os.path.exists", return_value=True): m.main()
+        self.assertEqual(json.loads(cap.getvalue()).get("decision"), "block")
+    def test_confidence_blocked(self):
+        m = self._import()
+        p = {"assistant_response": "100% confidence all pass", "tool_calls": []}
+        cap = io.StringIO()
+        with patch("sys.stdin", io.StringIO(json.dumps(p))), patch("sys.stdout", cap), patch("os.path.exists", return_value=True): m.main()
+        self.assertEqual(json.loads(cap.getvalue()).get("decision"), "block")
+
+class TestQgGraceWriter(unittest.TestCase):
+    def _import(self):
+        mod_name = "qg-grace-writer"
+        if mod_name not in sys.modules: sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+    def test_non_bash_noop(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO(json.dumps({"tool_name": "Write", "tool_response": "x"}))): m.main()
+    def test_bash_no_count_noop(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO(json.dumps({"tool_name": "Bash", "tool_response": "ok"}))): m.main()
+    def test_bash_count_writes_grace(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_response": "=== Results: 42 passed, 0 failed, 42 total"}
+        with tempfile.TemporaryDirectory() as tmp:
+            gf = os.path.join(tmp, "g.json"); lf = os.path.join(tmp, "q.log")
+            with patch.object(m, "_GRACE_FILE", gf), patch.object(m, "_LOG_PATH", lf), \
+                 patch("sys.stdin", io.StringIO(json.dumps(p))): m.main()
+            self.assertEqual(json.load(open(gf))["key"], "42")
+    def test_invalid_json_noop(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO("bad")): m.main()
+    def test_dict_response(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_response": {"content": "100 passed, 0 failed, 100 total"}}
+        with tempfile.TemporaryDirectory() as tmp:
+            gf = os.path.join(tmp, "g.json"); lf = os.path.join(tmp, "q.log")
+            with patch.object(m, "_GRACE_FILE", gf), patch.object(m, "_LOG_PATH", lf), \
+                 patch("sys.stdin", io.StringIO(json.dumps(p))): m.main()
+            self.assertTrue(os.path.exists(gf))
+    def test_writes_log(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_response": "55 passed, 2 failed, 57 total"}
+        with tempfile.TemporaryDirectory() as tmp:
+            gf = os.path.join(tmp, "g.json"); lf = os.path.join(tmp, "q.log")
+            with patch.object(m, "_GRACE_FILE", gf), patch.object(m, "_LOG_PATH", lf), \
+                 patch("sys.stdin", io.StringIO(json.dumps(p))): m.main()
+            self.assertIn("GRACE-WRITE", open(lf, encoding="utf-8").read())
+    def test_bare_count_re(self):
+        m = self._import()
+        self.assertIsNotNone(m._BARE_COUNT_RE.search("=== Results: 10 passed"))
+        self.assertIsNotNone(m._BARE_COUNT_RE.search("5 passed, 0 failed, 5 total"))
+        self.assertIsNone(m._BARE_COUNT_RE.search("Build ok"))
+
+class TestQgSessionRecall(unittest.TestCase):
+    HOOK_PATH = os.path.join(HOOKS_DIR, "qg-session-recall.py")
+    def test_no_snapshot(self):
+        import subprocess
+        env = os.environ.copy(); env["PYTHONIOENCODING"] = "utf-8"
+        r = subprocess.run([sys.executable, self.HOOK_PATH], input=b"", capture_output=True, env=env)
+        self.assertEqual(r.returncode, 0)
+    def test_injects_message(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            snap = os.path.join(tmp, "last-session-qg-failures.txt")
+            open(snap, "w", encoding="utf-8").write("Block count: 3")
+            import subprocess
+            env = os.environ.copy(); env["PYTHONIOENCODING"] = "utf-8"
+            script = (
+                "import sys, os\n"
+                "orig = os.path.expanduser\n"
+                "os.path.expanduser = lambda p: p.replace('~/.claude', {!r}) if '~/.claude' in p else orig(p)\n"
+                "import importlib.util\n"
+                "spec = importlib.util.spec_from_file_location('m', {!r})\n"
+                "m = importlib.util.module_from_spec(spec)\n"
+                "spec.loader.exec_module(m)\n"
+            ).format(tmp, self.HOOK_PATH)
+            r = subprocess.run([sys.executable, "-c", script], input=b"", capture_output=True, env=env)
+            self.assertEqual(r.returncode, 0)
+            s = r.stdout.decode().strip()
+            if s: self.assertEqual(json.loads(s).get("type"), "system")
+    def test_stale_deleted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            snap = os.path.join(tmp, "last-session-qg-failures.txt")
+            open(snap, "w", encoding="utf-8").write("old")
+            os.utime(snap, (time.time()-90000, time.time()-90000))
+            import subprocess
+            env = os.environ.copy(); env["PYTHONIOENCODING"] = "utf-8"
+            script = (
+                "import sys, os\n"
+                "orig = os.path.expanduser\n"
+                "os.path.expanduser = lambda p: p.replace('~/.claude', {!r}) if '~/.claude' in p else orig(p)\n"
+                "import importlib.util\n"
+                "spec = importlib.util.spec_from_file_location('m', {!r})\n"
+                "m = importlib.util.module_from_spec(spec)\n"
+                "spec.loader.exec_module(m)\n"
+            ).format(tmp, self.HOOK_PATH)
+            r = subprocess.run([sys.executable, "-c", script], input=b"", capture_output=True, env=env)
+            self.assertEqual(r.returncode, 0); self.assertFalse(os.path.exists(snap))
+
+class TestQgShadowWorker(unittest.TestCase):
+    def _import(self):
+        mod_name = "qg-shadow-worker"
+        if mod_name not in sys.modules: sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+    def test_no_args(self):
+        m = self._import()
+        with patch("sys.argv", ["w"]): m.main()
+    def test_missing_file(self):
+        m = self._import()
+        with patch("sys.argv", ["w", "/nope.json"]): m.main()
+    def test_pick_model_no_net(self):
+        m = self._import()
+        with patch("urllib.request.urlopen", side_effect=Exception("x")):
+            self.assertEqual(m._pick_model(), m.MODEL_FULL)
+    def test_ollama_unavailable(self):
+        m = self._import()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
+            json.dump({"prompt": "x", "haiku_ok": True, "haiku_reason": ""}, f); p = f.name
+        with patch("sys.argv", ["w", p]), patch("urllib.request.urlopen", side_effect=Exception("x")):
+            m.main()
+        if os.path.exists(p): os.unlink(p)
+    def test_pass_logs(self):
+        m = self._import()
+        resp = json.dumps({"response": "{\"ok\": true, \"reason\": \"good\"}"})
+        with tempfile.TemporaryDirectory() as tmp:
+            sl = os.path.join(tmp, "s.log"); df = os.path.join(tmp, "i.json")
+            json.dump({"prompt": "x", "haiku_ok": True, "haiku_reason": ""}, open(df, "w"))
+            mr = MagicMock(); mr.read.return_value = resp.encode()
+            mr.__enter__ = lambda s: s; mr.__exit__ = MagicMock(return_value=False)
+            with patch("sys.argv", ["w", df]), patch("urllib.request.urlopen", return_value=mr), patch.object(m, "SHADOW_LOG", sl): m.main()
+            if os.path.exists(sl): self.assertIn("PASS", open(sl).read())
+    def test_block_disagree(self):
+        m = self._import()
+        resp = json.dumps({"response": "{\"ok\": false, \"reason\": \"bad\"}"})
+        with tempfile.TemporaryDirectory() as tmp:
+            sl = os.path.join(tmp, "s.log"); df = os.path.join(tmp, "i.json")
+            json.dump({"prompt": "x", "haiku_ok": True, "haiku_reason": ""}, open(df, "w"))
+            mr = MagicMock(); mr.read.return_value = resp.encode()
+            mr.__enter__ = lambda s: s; mr.__exit__ = MagicMock(return_value=False)
+            with patch("sys.argv", ["w", df]), patch("urllib.request.urlopen", return_value=mr), patch.object(m, "SHADOW_LOG", sl): m.main()
+            if os.path.exists(sl): self.assertIn("disagree", open(sl).read())
+    def test_phi4_note(self):
+        m = self._import()
+        self.assertGreater(len(m.PHI4_NOTE), 50)
+    def test_model_consts(self):
+        m = self._import()
+        self.assertIsInstance(m.MODEL_FULL, str); self.assertIsInstance(m.MODEL_LITE, str)
+        self.assertIsInstance(m.GAMING_VRAM_THRESHOLD_MB, (int, float))
+    def test_shadow_log_name(self):
+        m = self._import()
+        self.assertIn("qg-shadow.log", m.SHADOW_LOG)
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
