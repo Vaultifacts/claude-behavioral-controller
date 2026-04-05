@@ -2488,5 +2488,149 @@ class TestLayer6Coverage(_MainTestBase):
         self.assertIn('Analyzed', self._output())
 
 
+# ============================================================================
+# Layer 13: Knowledge Freshness — boost 70%→80%+
+# ============================================================================
+
+class TestLayer13Boost(_MainTestBase):
+    def test_check_imports_underscore_module_skipped(self):
+        """Line 108: top.startswith('_') → skip."""
+        from qg_layer13 import check_imports
+        f = self._write_file('priv.py', 'import _fake_private_mod\n')
+        issues = check_imports(f)
+        # _ prefixed modules are skipped — no issues
+        self.assertEqual(issues, [])
+
+    def test_check_imports_oversized_file(self):
+        """Line 92: file > SIZE_LIMIT returns []."""
+        from qg_layer13 import check_imports
+        f = self._write_file('huge.py', 'import os\n' + 'x = 1\n' * 20000)
+        issues = check_imports(f)
+        self.assertEqual(issues, [])
+
+    def test_check_imports_file_read_error(self):
+        """Lines 95-96: file read fails → returns []."""
+        from qg_layer13 import check_imports
+        issues = check_imports('/nonexistent/file.py')
+        self.assertEqual(issues, [])
+
+    def test_check_imports_empty_path(self):
+        """Line 85: empty file_path → returns []."""
+        from qg_layer13 import check_imports
+        self.assertEqual(check_imports(''), [])
+
+    def test_check_imports_attr_loop_with_real_module(self):
+        """Lines 121-131: attr checking for non-stdlib installed module."""
+        from qg_layer13 import check_imports
+        # pytest is installed — import a fake attr from it
+        f = self._write_file('attr_test.py', 'from pytest import zzz_nonexistent_attr_qg\n')
+        issues = check_imports(f)
+        self.assertTrue(any('ATTR_NOT_FOUND' in msg for _, msg in issues))
+
+    def test_check_imports_attr_exists(self):
+        """Lines 121-131: real attr → no issue."""
+        from qg_layer13 import check_imports
+        f = self._write_file('attr_ok.py', 'from pytest import fixture\n')
+        issues = check_imports(f)
+        self.assertFalse(any('ATTR_NOT_FOUND' in msg for _, msg in issues))
+
+    def test_check_imports_underscore_attr_skipped(self):
+        """Line 122: attr.startswith('_') → skip."""
+        from qg_layer13 import check_imports
+        f = self._write_file('priv_attr.py', 'from pytest import _fake_private\n')
+        issues = check_imports(f)
+        self.assertFalse(any('_fake_private' in msg for _, msg in issues))
+
+    def test_check_module_exists_value_error(self):
+        """Lines 71-72: find_spec raises ValueError → False."""
+        from qg_layer13 import check_module_exists
+        # Empty string triggers ValueError in find_spec
+        result = check_module_exists('')
+        self.assertFalse(result)
+
+    def test_main_with_issues_produces_output(self):
+        """Lines 151-160: main() prints JSON when issues found."""
+        import qg_layer13
+        orig_mp = qg_layer13.MONITOR_PATH
+        qg_layer13.MONITOR_PATH = self.monitor_path
+        f = self._write_file('bad_mod.py', 'import zzz_fake_qg_module_xyz\n')
+        self._set_stdin({"tool_name": "Write", "tool_input": {"file_path": f}})
+        self._capture_print()
+        try:
+            qg_layer13.main()
+        finally:
+            builtins.print = self._orig_print
+            qg_layer13.MONITOR_PATH = orig_mp
+        output = self._output()
+        self.assertIn('Layer 13', output)
+        self.assertIn('MODULE_NOT_FOUND', output)
+
+
+# ============================================================================
+# quality-gate.py — boost 82%→85%+
+# ============================================================================
+
+class TestQualityGateBoost(_MainTestBase):
+    def test_check_count_grace_expired(self):
+        """Lines 83-102: grace file exists but expired."""
+        sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
+        import importlib
+        qg = importlib.import_module('quality-gate')
+        grace = self._write_file('grace.json', json.dumps({"ts": 0, "key": "42"}))
+        orig = qg._GRACE_FILE
+        qg._GRACE_FILE = grace
+        try:
+            result = qg._check_count_grace('42 passed')
+        finally:
+            qg._GRACE_FILE = orig
+        self.assertFalse(result)
+
+    def test_check_count_grace_hit(self):
+        """Lines 83-102: grace file active and key matches."""
+        qg = __import__('quality-gate')
+        grace = self._write_file('grace2.json', json.dumps({"ts": time.time(), "key": "42"}))
+        orig_gf = qg._GRACE_FILE
+        orig_lp = qg.LOG_PATH
+        qg._GRACE_FILE = grace
+        qg.LOG_PATH = os.path.join(self.tmpdir, 'qg.log')
+        try:
+            result = qg._check_count_grace('42 passed, 0 failed')
+        finally:
+            qg._GRACE_FILE = orig_gf
+            qg.LOG_PATH = orig_lp
+        self.assertTrue(result)
+
+    def test_check_count_grace_missing_file(self):
+        """Line 101-102: grace file doesn't exist → False."""
+        qg = __import__('quality-gate')
+        orig = qg._GRACE_FILE
+        qg._GRACE_FILE = os.path.join(self.tmpdir, 'nonexistent.json')
+        try:
+            result = qg._check_count_grace('test')
+        finally:
+            qg._GRACE_FILE = orig
+        self.assertFalse(result)
+
+    def test_log_decision_writes(self):
+        """Lines 111-126: log_decision creates log entry."""
+        qg = __import__('quality-gate')
+        orig = qg.LOG_PATH
+        qg.LOG_PATH = os.path.join(self.tmpdir, 'qg.log')
+        try:
+            qg.log_decision('PASS', 'ok', 'fix bug', ['Read', 'Edit'], 'MODERATE', 'response text')
+        finally:
+            qg.LOG_PATH = orig
+        with open(os.path.join(self.tmpdir, 'qg.log')) as f:
+            content = f.read()
+        self.assertIn('PASS', content)
+        self.assertIn('MODERATE', content)
+
+    def test_qg_load_ss(self):
+        """Lines 980-987: _qg_load_ss returns state dict."""
+        qg = __import__('quality-gate')
+        state, ss_mod = qg._qg_load_ss()
+        self.assertIsInstance(state, dict)
+
+
 if __name__ == '__main__':
     unittest.main()
