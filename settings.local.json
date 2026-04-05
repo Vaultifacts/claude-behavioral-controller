@@ -19,10 +19,18 @@
       "WebFetch(domain:docs.pydantic.dev)",
       "mcp__plugin_context7_context7__resolve-library-id",
       "mcp__plugin_context7_context7__query-docs",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "mcp__plugin_github_github__create_repository",
+      "mcp__plugin_serena_serena__find_file",
+      "mcp__plugin_serena_serena__read_memory",
+      "mcp__plugin_serena_serena__replace_content",
+      "mcp__plugin_serena_serena__search_for_pattern",
+      "mcp__plugin_serena_serena__replace_symbol_body",
+      "mcp__plugin_serena_serena__insert_after_symbol",
+      "WebFetch(domain:blog.poshmark.com)"
     ]
   },
   "remote": {
-    "defaultEnvironmentId": "env_0188L1NEsQ1VgXcnmwtixkpQ"
+    "defaultEnvironmentId": "env_01JgJMSHvRKsiyRbe7NrC57f"
   }
 }

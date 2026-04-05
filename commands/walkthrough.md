@@ -1,165 +1,164 @@
-# QA Walkthrough — Systematic App Testing (v2)
+# /qa — Universal QA Testing Skill (v3)
 
-You are executing a 498-item QA walkthrough of VaultLister 3.0. Every item is tracked in a Notion database. You must update Notion after EVERY item — never batch.
+You are executing a comprehensive, visual QA test of a project. This skill auto-detects what to test, requires zero manual input from the user beyond "go", and produces screenshot-verified results.
 
-## Database Info
-- Database: https://www.notion.so/298e00f79d854a0fb97daabdfc199dbf
-- Data source ID: `878a764b-0614-4208-934f-bf13a5706f07`
-- Execution Protocol: https://www.notion.so/32b9f0c81de681ccb6fefc51644b411b
+## CRITICAL RULES — NON-NEGOTIABLE
+1. **SCREENSHOT EVERY PAGE.** Before any DOM check, before any grep. Take a screenshot and LOOK AT IT.
+2. **NEVER use `mcp__plugin_chrome-devtools-mcp`** — only use `mcp__claude-in-chrome__*` tools.
+3. **NEVER mark anything as Pass without a screenshot** showing it looks correct.
+4. **NEVER claim confidence without visual proof** shown to the user.
 
-## Known Corrections (from test batch)
-These override what the Notion test steps say:
-1. **URL prefix**: Always navigate to `localhost:3000/?app=1#route` — NOT `localhost:3000/#route`. Direct `/#route` serves the landing page.
-2. **Token storage**: Auth tokens are in `sessionStorage` (key: `vaultlister_state`), NOT `localStorage`. Check via `window.store.state.token`.
-3. **Error display**: Login errors appear as `toast.error()`, NOT in `#login-alert`. Only rate-limit lockout uses the inline alert with countdown.
-4. **Test step formatting**: Test steps from Notion contain `<br>` — read them as line breaks.
+## Phase 1: Auto-Detect Project Traits
 
-## Pre-Walkthrough Checklist
-Before testing item #1, verify ALL of these:
-- [ ] Server running: `curl localhost:3000/api/health`
-- [ ] Chrome automation connected: `tabs_context_mcp`
-- [ ] `.walkthrough-active` file created in repo root
-- [ ] Demo data exists: query DB for inventory/listings/sales/offers/orders counts
-- [ ] Demo user is admin: check `is_admin` flag in users table
-- [ ] ANTHROPIC_API_KEY in .env? If not, pre-skip AI items (#264-269)
-- [ ] Items already pre-skipped in Notion (camera, extension, OAuth items)
+Read the detection rules from `memory/qa-traits/00-detection-rules.md` (in the Claude project memory directory).
 
-## Your Loop
+Execute each detection rule by scanning the codebase:
+1. Read `package.json` for dependencies
+2. Use `Glob` to find files matching patterns
+3. Use `Grep` to search for code patterns
+4. Read `.env.example` for environment variables
+5. Read project CLAUDE.md for architecture notes
 
-### Step 1: Fetch next item
-Search the QA database for the next untested item (Result is empty, sorted by # ASC). Display:
+For each matched trait, log it:
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TESTING #[number]: [Item title]
-Section: [Section]  |  Priority: [Priority]  |  Pattern: [Test Pattern]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TEST STEPS:
-[Test Steps — replace <br> with newlines]
-
-EXPECTED RESULT:
-[Expected Result]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DETECTED: Trait 16 (Dark Mode) — found "dark-mode" in main.css, theme toggle in init.js
+DETECTED: Trait 20 (Auth) — found JWT handling in auth.js, login page in pages-core.js
+NOT DETECTED: Trait 52 (Mobile Native) — no react-native/expo/swift/kotlin found
 ```
 
-### Step 2: Pre-checks
-- First item of a new section → verify server health
-- First item overall → verify Chrome connection + inject toast interceptor
-- Before each item → adversarial mindset: "how would a user break this?"
+## Phase 2: Build Test Plan
 
-### Step 3: Navigate (applying corrections)
-- When test says `localhost:3000/#route`, navigate to `localhost:3000/?app=1#route`
-- After EVERY navigation, re-inject the toast interceptor:
-```js
-window.__capturedToasts = window.__capturedToasts || [];
-if (!window.__toastInterceptorActive) {
-  const orig = { s: toast.success, e: toast.error, i: toast.info, w: toast.warning };
-  toast.success = function(m) { window.__capturedToasts.push({type:'success',msg:m,ts:Date.now()}); return orig.s.apply(this,arguments); };
-  toast.error = function(m) { window.__capturedToasts.push({type:'error',msg:m,ts:Date.now()}); return orig.e.apply(this,arguments); };
-  toast.info = function(m) { window.__capturedToasts.push({type:'info',msg:m,ts:Date.now()}); return orig.i.apply(this,arguments); };
-  toast.warning = function(m) { window.__capturedToasts.push({type:'warning',msg:m,ts:Date.now()}); return orig.w.apply(this,arguments); };
-  window.__toastInterceptorActive = true;
-}
+1. Always include traits 01-14 (universal)
+2. Add all detected conditional traits (15-56)
+3. Load test items from each matched trait file in `memory/qa-traits/`
+4. Count total test items
+
+Present to user:
 ```
-- Clear console before testing: `read_console_messages` with `clear: true`
+━━━ QA TEST PLAN ━━━
+Project: [name from package.json]
+URL: [from CLAUDE.md or ask user]
 
-### Step 4: Execute the test
-By test pattern:
+Detected Traits: [N] of 56
+Total Test Items: [M]
 
-**PAGE_RENDER**: Use `javascript_tool` to query specific elements by ID/selector. Check `exists`, `textContent`, `getAttribute('aria-label')`, `getAttribute('role')`. Don't just visually inspect.
+Traits included:
+✅ 01 Functional (51 items)
+✅ 02 Visual/UI (44 items)
+...
+✅ 16 Dark Mode (32 items)
+...
+⬜ 52 Mobile Native (not detected)
+⬜ 53 Embedded/IoT (not detected)
 
-**FORM_SUBMIT**: Test FAILURE case FIRST (empty submit, invalid data), THEN success case.
+Estimated sessions: [M / 50] (approximately 50 items per session)
 
-**FORM_VALIDATE**: Submit empty/invalid data. Check error messages, required attributes, aria-describedby chains.
-
-**MODAL_OPEN**: Click trigger, verify modal visible (`role="dialog"`), check all fields exist, close via Escape (`dispatchEvent(new KeyboardEvent('keydown', {key:'Escape'}))`), verify focus restored.
-
-**TOGGLE**: Click toggle, verify state change, reload page, verify persistence.
-
-**FILTER_SORT**: Apply filter, verify list changes, clear filter, verify list restores.
-
-**DRAG_DROP**: Dispatch drag events via javascript_tool:
-```js
-const el = document.querySelector('[draggable]');
-el.dispatchEvent(new DragEvent('dragstart', {bubbles:true}));
-// ... target drop zone
-target.dispatchEvent(new DragEvent('drop', {bubbles:true}));
-el.dispatchEvent(new DragEvent('dragend', {bubbles:true}));
-```
-If drag dispatch doesn't work, mark as Issue with note.
-
-**KEYBOARD**: Dispatch keyboard events:
-```js
-document.dispatchEvent(new KeyboardEvent('keydown', {key:'k', ctrlKey:true, bubbles:true}));
+Ready to start? Say "go" or "skip [trait number]" to exclude a trait.
 ```
 
-**RESPONSIVE**: Use `resize_window` tool to set viewport. Then check:
-```js
-document.documentElement.scrollWidth > document.documentElement.clientWidth // overflow?
+Wait for user to say "go".
+
+## Phase 3: Execute Tests
+
+### Pre-Testing Setup
+1. Get Chrome tab: `mcp__claude-in-chrome__tabs_context_mcp` with `createIfEmpty: true`
+2. Navigate to the app URL
+3. Take initial screenshot — verify the app loads
+4. Log in if needed (ask user for credentials only if not found in CLAUDE.md/memory)
+5. Create screenshot directory: `data/qa-screenshots/[date]/`
+
+### Test Execution Loop
+
+For each trait, for each test item:
+
+**Step 1: Navigate**
+Navigate to the relevant page using `mcp__claude-in-chrome__navigate`
+
+**Step 2: Screenshot**
+Take screenshot using `mcp__claude-in-chrome__computer` with `action: "screenshot"`
+
+**Step 3: Visual Check**
+LOOK at the screenshot. Check for:
+- Page renders (not blank, not error)
+- Layout correct (not squished, not broken)
+- No error toasts
+- Content present and correct
+- No visual glitches
+
+**Step 4: Interact (for interactive items)**
+Click buttons, fill forms, etc. using `mcp__claude-in-chrome__computer`
+Take screenshot AFTER interaction to verify result
+
+**Step 5: Record Result**
+- **Pass**: Screenshot shows correct behavior
+- **Fail**: Screenshot shows broken behavior — note what's wrong
+- **Skip**: Can't test (needs credentials, hardware, etc.) — note why
+
+**Step 6: Report to User**
+Show screenshot inline. State what you found. Move to next item.
+
+### Per-Page Mandatory Checks
+On EVERY page visited, check ALL of these (from Trait 02):
+1. Layout not broken
+2. No error toasts in corners
+3. No invisible/missing elements
+4. Text readable, not truncated
+5. Consistent with other pages
+
+### Session Management
+- After every 50 items: pause, summarize progress, ask to continue
+- Save progress to `memory/QA-PROGRESS.md` periodically
+- If context gets heavy: compact, resume from saved progress
+
+## Phase 4: Generate Report
+
+After all items tested, generate:
+
+```markdown
+# QA Report — [Project Name]
+Date: [date]
+URL: [url]
+Traits Tested: [N]
+Items Tested: [M]
+Screenshots: data/qa-screenshots/[date]/
+
+## Summary
+- Pass: [count] ([%])
+- Fail: [count] ([%])
+- Skip: [count] ([%])
+
+## Failures (by severity)
+
+### Critical
+[list with screenshots]
+
+### High
+[list with screenshots]
+
+### Medium
+[list with screenshots]
+
+### Low
+[list with screenshots]
+
+## Skipped Items
+[list with reasons]
+
+## Pages Visited
+[list with screenshot filenames]
 ```
-Test at 1024px, 768px, 640px, 480px as needed.
 
-**ERROR_PATH**: Trigger the error condition (bad input, expired token, offline). Verify error UI appears.
+Save report to `data/qa-report-[date].md`
 
-**WIDGET**: Verify element EXISTS with non-zero dimensions. For SVG charts, check child elements (`<rect>`, `<path>`, `<circle>`) exist. For data displays, check values aren't "NaN", "undefined", or empty.
+## Phase 5: Offer Fixes
 
-**File uploads** (items #74, #208, #210, #211, #304): Test via file input click fallback, not drag-drop. Mark drag-specific items as Issue if only click fallback works.
+After report, ask:
+"I found [N] issues. Want me to fix them? I'll start with Critical, then High, then Medium."
 
-**Offline testing** (items #331-332, #490): Try `offlineManager.simulateOffline()` via javascript_tool. If not available, Skip with note.
+If yes: fix each issue, rebuild, deploy, then RETAKE THE SCREENSHOT to verify the fix.
 
-**Chart verification** (sparklines, heatmaps, gauges): Check SVG/canvas element exists, has width/height > 0, and contains child elements. Can't verify visual correctness.
+## What This Skill Replaced
 
-### Step 5: Check console + toasts
-- Read console errors: `read_console_messages` with `onlyErrors: true`
-- Check captured toasts: `window.__capturedToasts` via javascript_tool
-- Any unexpected console error → note in Notion
-
-### Step 6: Determine result
-- **Pass**: Everything matches Expected Result
-- **Fail**: Feature broken, crashes, wrong data, missing element
-- **Issue**: Works but not right — visual glitch, confusing UX, a11y gap, test step discrepancy
-- **Skipped**: Can't test (needs credentials, camera, extension, etc.)
-
-### Step 7: Update Notion IMMEDIATELY
-Update the item page:
-- `Result` = Pass / Fail / Issue / Skipped
-- `Severity` = Critical / High / Medium / Low (Fail/Issue only)
-- `Notes` = what you observed, console errors, toast messages, UX notes
-
-### Step 8: Section checkpoint
-After completing all items in a section:
-```
-━━━ SECTION [N] COMPLETE ━━━
-[Name]: [Pass]/[total] Pass, [Fail] Fail, [Issue] Issue, [Skip] Skipped
-```
-- Major page sections (3-12): dark mode toggle + 480px resize sweep
-- Every 5 sections: pause — "What surprised me? What did I NOT test?"
-- UX impression: "If I'd never seen this app, would I know what to do on this page?"
-
-## Context Management
-- After Section 2 (item 34): /compact
-- After Section 5 (item 108): /compact
-- After Section 8 (item 166): /compact
-- After Section 12 (item 245): /compact
-- After Section 20 (item 329): /compact
-- After Section 33 (item 457): /compact
-
-## Session Plan
-- Session 1: Sections 1-5 (items 1-108)
-- Session 2: Sections 6-12 (items 109-245)
-- Session 3: Sections 13-23 (items 246-361)
-- Session 4: Sections 24-40 (items 362-498)
-Each session resumes from next "To Do" item in Notion.
-
-## Rules
-1. NEVER fix bugs — only record them in Notion
-2. NEVER skip Notion updates — one per item, immediately
-3. NEVER mark Pass without DOM verification — use javascript_tool
-4. NEVER proceed without setting Result on current item
-5. Test step doesn't match reality → mark Issue, note discrepancy
-6. Server down → PAUSE, don't mark Fail for infra issues
-7. Browser disconnects → mark Skipped, reconnect
-8. Surprise behavior → record even if it "passes"
-9. First visit to major page → note UX impression
-
-## Activation
-Creates `.walkthrough-active` in repo root. Delete to deactivate.
+v1 (2026-03-22): Used DOM queries only. Missed 21 items.
+v2 (2026-03-30): Used DOM + grep. Passed 478 items without taking a single screenshot. Missed: broken settings layout, financials crash, error toast spam, wrong empty state text, missing shop cards.
+v3 (this version): Screenshot-first. Every page visually verified. Auto-detects traits from codebase. Zero manual input required.

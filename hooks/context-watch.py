@@ -72,7 +72,7 @@ if pct >= 85:
     level = 'Error'
 else:
     tip_title = 'Claude Code — Context Alert'
-    tip_msg = f'Context at {pct}% — consider /compact'
+    tip_msg = f'Context at {pct}% — /compact before switching topics'
     level = 'Info'
 
 notify_script = f'{STATE_DIR}/hooks/notify.ps1'

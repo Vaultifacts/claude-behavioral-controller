@@ -1,10 +1,17 @@
 {
   "schema_version": 1,
-  "_comment": "Layer ENV config. All keys optional — omit any section to skip that check.",
+  "_comment": "Layer ENV config. All keys optional \u2014 omit any section to skip that check.",
   "skip_git": false,
   "git_branch": null,
   "git_branch_severity": "warning",
-  "required_tools": ["python", "git", "jq"],
+  "required_tools": [
+    "python",
+    "git",
+    "jq"
+  ],
   "required_env_vars": [],
-  "working_dir": null
+  "working_dir": null,
+  "test_command": null,
+  "test_timeout_sec": 30,
+  "_comment2": "test_command: shell cmd to run at session start for Layer 8 baseline (e.g. \"python -m pytest -q\")"
 }

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "cleanupPeriodDays": 60,
+  "cleanupPeriodDays": 90,
   "env": {
     "PYTHONIOENCODING": "utf-8",
     "PYTHONUTF8": "1",
@@ -8,14 +8,12 @@
     "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "1",
     "MAX_MCP_OUTPUT_TOKENS": "25000",
     "CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS": "10000",
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "90",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "90"
   },
   "attribution": {
     "commit": "",
     "pr": ""
   },
-  "includeGitInstructions": false,
   "permissions": {
     "allow": [
       "Read",
@@ -43,51 +41,19 @@
       "WebFetch(domain:code.claude.com)",
       "WebFetch(domain:learn.microsoft.com)",
       "WebFetch(domain:docs.github.com)",
-      "mcp__claude_ai_Notion__notion-search",
-      "mcp__claude_ai_Notion__notion-fetch",
-      "mcp__claude_ai_Notion__notion-update-page",
-      "mcp__claude-in-chrome__navigate",
-      "mcp__claude-in-chrome__find",
-      "mcp__claude-in-chrome__read_page",
-      "mcp__claude-in-chrome__javascript_tool",
-      "mcp__claude-in-chrome__tabs_create_mcp",
-      "mcp__claude-in-chrome__tabs_context_mcp",
-      "mcp__claude-in-chrome__computer",
-      "mcp__claude-in-chrome__form_input",
-      "mcp__claude-in-chrome__read_console_messages",
-      "mcp__claude-in-chrome__gif_creator",
-      "mcp__claude_ai_Gmail__gmail_search_messages",
-      "mcp__claude_ai_Gmail__gmail_read_message",
-      "mcp__claude_ai_Notion__notion-create-pages",
-      "mcp__claude_ai_Notion__notion-create-database",
-      "mcp__claude_ai_Notion__notion-update-data-source",
-      "mcp__claude_ai_Notion__notion-move-pages",
-      "mcp__plugin_serena_serena__get_current_config",
-      "mcp__plugin_serena_serena__read_file",
-      "mcp__plugin_serena_serena__list_dir",
-      "mcp__plugin_serena_serena__activate_project",
-      "mcp__plugin_serena_serena__execute_shell_command",
-      "mcp__plugin_serena_serena__check_onboarding_performed",
-      "mcp__plugin_serena_serena__initial_instructions",
-      "mcp__plugin_serena_serena__create_text_file",
-      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__evaluate_script",
-      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__new_page",
-      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_screenshot",
-      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__navigate_page",
-      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__select_page",
-      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__list_pages",
       "WebFetch(domain:www.amazon.ca)",
       "WebFetch(domain:www.canada.ca)",
-      "mcp__claude_ai_Notion__notion-update-view",
-      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_snapshot",
-      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__click",
-      "mcp__plugin_github_github__list_issues",
-      "mcp__plugin_github_github__get_file_contents",
-      "mcp__plugin_github_github__search_code",
-      "mcp__plugin_github_github__list_commits",
-      "mcp__plugin_github_github__list_pull_requests",
-      "mcp__plugin_github_github__issue_read",
-      "mcp__plugin_github_github__pull_request_read"
+      "WebFetch(domain:vaultlister-app-production.up.railway.app)",
+      "WebFetch(domain:vaultlister.com)",
+      "WebFetch(domain:railway.app)",
+      "WebFetch(domain:stripe.com)",
+      "WebFetch(domain:easypost.com)",
+      "mcp__claude_ai_Stripe__*",
+      "mcp__claude-in-chrome__*",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__*",
+      "mcp__plugin_serena_serena__*",
+      "mcp__plugin_github_github__*",
+      "mcp__claude_ai_Gmail__*"
     ],
     "deny": [
       "Bash(rm -rf *)",
@@ -130,7 +96,7 @@
     "ask": [
       "Bash(git push *)"
     ],
-    "defaultMode": "default",
+    "defaultMode": "acceptEdits",
     "disableBypassPermissionsMode": "disable"
   },
   "enableAllProjectMcpServers": true,
@@ -168,7 +134,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash /c/Users/Matt1/.claude/hooks/validate-bash.sh"
+            "command": "bash C:/Users/Matt1/.claude/hooks/validate-bash.sh"
           }
         ]
       },
@@ -195,7 +161,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash /c/Users/Matt1/.claude/hooks/protect-files.sh"
+            "command": "bash C:/Users/Matt1/.claude/hooks/protect-files.sh"
           }
         ]
       },
@@ -222,7 +188,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer19.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer19.py"
           }
         ]
       },
@@ -231,7 +197,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer17.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer17.py"
           }
         ]
       },
@@ -240,7 +206,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer18.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer18.py"
           }
         ]
       },
@@ -249,7 +215,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer27.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer27.py"
           }
         ]
       },
@@ -258,7 +224,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer5.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer5.py"
           }
         ]
       },
@@ -317,16 +283,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python C:/Users/Matt1/.claude/hooks/notion-commit-reminder.py",
-            "statusMessage": "Checking Notion log..."
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
             "command": "python C:/Users/Matt1/.claude/hooks/smoke-count-updater.py",
             "async": true
           }
@@ -346,7 +302,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer5.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer5.py"
           }
         ]
       },
@@ -355,7 +311,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer25.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer25.py"
           }
         ]
       },
@@ -364,7 +320,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer26.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer26.py"
           }
         ]
       },
@@ -373,7 +329,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer8.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer8.py"
           }
         ]
       },
@@ -391,7 +347,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer28.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer28.py"
           }
         ]
       },
@@ -452,12 +408,6 @@
           },
           {
             "type": "command",
-            "command": "python C:/Users/Matt1/.claude/hooks/notion-capture.py",
-            "statusMessage": "Capturing to Notion...",
-            "async": true
-          },
-          {
-            "type": "command",
             "command": "python C:/Users/Matt1/.claude/hooks/todo-extractor.py",
             "async": true
           }
@@ -476,7 +426,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer6.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer6.py"
           }
         ]
       },
@@ -484,7 +434,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer7.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer7.py"
           }
         ]
       },
@@ -492,7 +442,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer9.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer9.py"
           }
         ]
       },
@@ -500,7 +450,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer14.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer14.py"
           }
         ]
       },
@@ -508,7 +458,16 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer29.py"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer29.py"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python C:/Users/Matt1/.claude/hooks/qa-screenshot-gate.py",
+            "statusMessage": "QA screenshot gate..."
           }
         ]
       }
@@ -519,14 +478,6 @@
           {
             "type": "command",
             "command": "python C:/Users/Matt1/.claude/hooks/prune-permissions.py"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python C:/Users/Matt1/.claude/hooks/notion-recall.py"
           }
         ]
       },
@@ -670,7 +621,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer45.py --pre"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer45.py --pre"
           }
         ]
       },
@@ -679,7 +630,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer45.py --pre"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer45.py --pre"
           }
         ]
       }
@@ -701,7 +652,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'PLAN=$(find /c/Users/Matt1/.claude/plans/ -maxdepth 1 -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); CTX=\"Memory index: ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md. RULE: Never assume or guess — verify by reading code, or escalate to the user.\"; if [ -n \"$PLAN\" ]; then CTX=\"$CTX. Active plan: $PLAN\"; fi; jq -n --arg ctx \"$CTX\" \"{hookSpecificOutput:{hookEventName:\\\"SubagentStart\\\",additionalContext:\\$ctx}}\"'",
+            "command": "bash -c 'PLAN=$(find C:/Users/Matt1/.claude/plans/ -maxdepth 1 -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); CTX=\"Memory index: ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md. RULE: Never assume or guess — verify by reading code, or escalate to the user.\"; if [ -n \"$PLAN\" ]; then CTX=\"$CTX. Active plan: $PLAN\"; fi; jq -n --arg ctx \"$CTX\" \"{hookSpecificOutput:{hookEventName:\\\"SubagentStart\\\",additionalContext:\\$ctx}}\"'",
             "async": false
           }
         ]
@@ -735,7 +686,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'INPUT=$(cat); SUMMARY=$(echo \"$INPUT\" | jq -r \".compact_summary // empty\" 2>/dev/null); PLAN=$(find /c/Users/Matt1/.claude/plans/ -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); if [ -n \"$PLAN\" ]; then echo \"[post-compact] Active plan: $PLAN — re-read it to resume work.\"; fi; echo \"[post-compact] Memory at ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md\"; if [ -n \"$SUMMARY\" ]; then echo \"[post-compact] Summary: $SUMMARY\"; fi'"
+            "command": "bash -c 'INPUT=$(cat); SUMMARY=$(echo \"$INPUT\" | jq -r \".compact_summary // empty\" 2>/dev/null); PLAN=$(find C:/Users/Matt1/.claude/plans/ -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); if [ -n \"$PLAN\" ]; then echo \"[post-compact] Active plan: $PLAN — re-read it to resume work.\"; fi; echo \"[post-compact] Memory at ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md\"; if [ -n \"$SUMMARY\" ]; then echo \"[post-compact] Summary: $SUMMARY\"; fi'"
           }
         ]
       },
@@ -744,7 +695,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer45.py --post"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer45.py --post"
           }
         ]
       },
@@ -753,7 +704,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python /c/Users/Matt1/.claude/hooks/qg_layer45.py --post"
+            "command": "python C:/Users/Matt1/.claude/hooks/qg_layer45.py --post"
           }
         ]
       }
@@ -761,7 +712,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash /c/Users/Matt1/.claude/statusline.sh"
+    "command": "bash C:/Users/Matt1/.claude/statusline.sh"
   },
   "enabledPlugins": {
     "chrome-devtools-mcp@claude-plugins-official": true,
@@ -774,7 +725,6 @@
     "frontend-design@claude-plugins-official": true,
     "learning-output-style@claude-plugins-official": false,
     "hookify@claude-plugins-official": true,
-    "notion@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
     "ralph-loop@claude-plugins-official": true,
@@ -828,5 +778,6 @@
     "_disabled_aws": "Re-enable when needed: AWS KB retrieval",
     "_disabled_code-search": "Re-enable when needed: Semantic code search (Voyage AI + Qdrant)",
     "_disabled_qdrant": "Re-enable when needed: Qdrant vector DB"
-  }
+  },
+  "model": "sonnet"
 }
