@@ -2632,5 +2632,269 @@ class TestQualityGateBoost(_MainTestBase):
         self.assertIsInstance(state, dict)
 
 
+# ============================================================================
+# Layer 15_mem: Memory Integrity — boost 75%→85%+
+# ============================================================================
+
+class TestLayer15MemBoost(_MainTestBase):
+    def _setup_memory_dir(self):
+        mem_dir = os.path.join(self.tmpdir, 'memory')
+        os.makedirs(mem_dir, exist_ok=True)
+        return mem_dir
+
+    def test_resolve_path_memory_prefix(self):
+        from qg_layer15_mem import _resolve_path
+        result = _resolve_path('memory/user_profile.md')
+        self.assertIn('user_profile.md', result)
+
+    def test_resolve_path_alt_memory_prefix(self):
+        from qg_layer15_mem import _resolve_path
+        result = _resolve_path('~/.claude/memory/notes.md')
+        self.assertIn('notes.md', result)
+
+    def test_resolve_path_claude_prefix(self):
+        from qg_layer15_mem import _resolve_path
+        result = _resolve_path('~/.claude/docs/cheat.md')
+        self.assertIn('cheat.md', result)
+
+    def test_resolve_path_bare_filename(self):
+        from qg_layer15_mem import _resolve_path
+        result = _resolve_path('plain.md')
+        self.assertIn('plain.md', result)
+
+    def test_extract_references_file_read_error(self):
+        from qg_layer15_mem import extract_references
+        # Directory as path triggers read error
+        refs = extract_references(self.tmpdir)
+        self.assertEqual(refs, [])
+
+    def test_check_staleness_non_md_skipped(self):
+        from qg_layer15_mem import check_staleness
+        mem_dir = self._setup_memory_dir()
+        with open(os.path.join(mem_dir, 'notes.txt'), 'w') as f:
+            f.write('not md')
+        issues, total, stale = check_staleness(mem_dir, stale_days=1)
+        self.assertEqual(total, 0)
+
+    def test_check_staleness_empty_dir(self):
+        from qg_layer15_mem import check_staleness
+        mem_dir = self._setup_memory_dir()
+        issues, total, stale = check_staleness(mem_dir, stale_days=30)
+        self.assertEqual(total, 0)
+        self.assertEqual(stale, 0)
+
+    def test_check_staleness_nonexistent_dir(self):
+        from qg_layer15_mem import check_staleness
+        issues, total, stale = check_staleness(os.path.join(self.tmpdir, 'nope'))
+        self.assertEqual(total, 0)
+
+    def test_check_file_sizes_nonexistent_dir(self):
+        from qg_layer15_mem import check_file_sizes
+        issues = check_file_sizes(os.path.join(self.tmpdir, 'nope'))
+        self.assertEqual(issues, [])
+
+    def test_check_file_sizes_non_md_skipped(self):
+        from qg_layer15_mem import check_file_sizes
+        mem_dir = self._setup_memory_dir()
+        with open(os.path.join(mem_dir, 'data.json'), 'w') as f:
+            f.write('{}')
+        issues = check_file_sizes(mem_dir)
+        self.assertEqual(issues, [])
+
+    def test_check_duplicates_nonexistent_dir(self):
+        from qg_layer15_mem import check_duplicates
+        issues = check_duplicates(os.path.join(self.tmpdir, 'nope'))
+        self.assertEqual(issues, [])
+
+    def test_check_duplicates_memory_md_skipped(self):
+        from qg_layer15_mem import check_duplicates
+        mem_dir = self._setup_memory_dir()
+        with open(os.path.join(mem_dir, 'MEMORY.md'), 'w') as f:
+            f.write('# Index\n')
+        issues = check_duplicates(mem_dir)
+        self.assertEqual(issues, [])
+
+    def test_main_with_issues_produces_output(self):
+        import qg_layer15_mem as mod, qg_session_state as ss
+        orig_mp = mod.MONITOR_PATH
+        orig_md = mod.MEMORY_DIR
+        orig_mi = mod.MEMORY_INDEX
+        orig_amd = mod.ALT_MEMORY_DIR
+        mem_dir = self._setup_memory_dir()
+        idx = os.path.join(mem_dir, 'MEMORY.md')
+        with open(idx, 'w') as f:
+            f.write('- [Ghost](ghost_missing.md) — missing file\n')
+        mod.MONITOR_PATH = self.monitor_path
+        mod.MEMORY_DIR = mem_dir
+        mod.MEMORY_INDEX = idx
+        mod.ALT_MEMORY_DIR = os.path.join(self.tmpdir, 'alt')
+        self._set_stdin({})
+        self._capture_print()
+        try:
+            mod.main()
+        finally:
+            builtins.print = self._orig_print
+            mod.MONITOR_PATH = orig_mp
+            mod.MEMORY_DIR = orig_md
+            mod.MEMORY_INDEX = orig_mi
+            mod.ALT_MEMORY_DIR = orig_amd
+        output = self._output()
+        self.assertIn('Layer 15m', output)
+
+
+# ============================================================================
+# quality-gate.py — boost 83%→85%+ (mechanical/transcript parsing paths)
+# ============================================================================
+
+class TestQualityGateMechanicalBoost(_MainTestBase):
+    def _write_transcript(self, entries):
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w', encoding='utf-8') as f:
+            for e in entries:
+                f.write(json.dumps(e) + '\n')
+        return path
+
+    def _qg(self):
+        return __import__('quality-gate')
+
+    def test_get_last_turn_lines_empty(self):
+        qg = self._qg()
+        result = qg._get_last_turn_lines('')
+        self.assertEqual(result, [])
+
+    def test_get_last_turn_lines_with_data(self):
+        qg = self._qg()
+        path = self._write_transcript([
+            {"type": "assistant", "message": {"content": [
+                {"type": "text", "text": "Hello"}
+            ]}}
+        ])
+        result = qg._get_last_turn_lines(path)
+        self.assertGreaterEqual(len(result), 1)
+
+    def test_get_last_turn_lines_non_json_skipped(self):
+        qg = self._qg()
+        path = self._write_file('mixed.jsonl', 'garbage\n{"type":"assistant","message":{"content":[]}}\n')
+        result = qg._get_last_turn_lines(path)
+        self.assertIsInstance(result, list)
+
+    def test_get_tool_summary_empty(self):
+        qg = self._qg()
+        names, paths, cmds = qg.get_tool_summary('')
+        self.assertEqual(names, [])
+
+    def test_get_tool_summary_with_tools(self):
+        qg = self._qg()
+        path = self._write_transcript([
+            {"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Grep", "input": {"pattern": "foo"}},
+                {"type": "tool_use", "name": "Edit", "input": {"file_path": "/a.py"}},
+            ]}}
+        ])
+        names, paths, cmds = qg.get_tool_summary(path)
+        self.assertIn('Grep', names)
+        self.assertIn('Edit', names)
+        self.assertEqual(paths, ['/a.py'])
+
+    def test_get_failed_commands_with_error(self):
+        qg = self._qg()
+        path = self._write_transcript([
+            {"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "id": "b1", "name": "Bash", "input": {"command": "npm test"}},
+            ]}},
+            {"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": "b1", "is_error": True, "content": "Error: failed"},
+            ]}},
+        ])
+        failed = qg.get_failed_commands(path)
+        self.assertGreaterEqual(len(failed), 1)
+
+    def test_get_failed_commands_list_content(self):
+        """Lines 433-434: tool_result content is a list."""
+        qg = self._qg()
+        path = self._write_transcript([
+            {"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "id": "b2", "name": "Bash", "input": {"command": "make"}},
+            ]}},
+            {"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": "b2", "is_error": True,
+                 "content": [{"type": "text", "text": "Build failed"}]},
+            ]}},
+        ])
+        failed = qg.get_failed_commands(path)
+        self.assertGreaterEqual(len(failed), 1)
+
+    def test_get_user_request_empty(self):
+        qg = self._qg()
+        result = qg.get_user_request('')
+        self.assertEqual(result, '')
+
+    def test_get_user_request_with_text(self):
+        qg = self._qg()
+        path = self._write_transcript([
+            {"type": "user", "message": {"content": "Fix the login bug"}},
+            {"type": "assistant", "message": {"content": [
+                {"type": "text", "text": "I'll fix it."}
+            ]}}
+        ])
+        result = qg.get_user_request(path)
+        self.assertIn('Fix the login bug', result)
+
+    def test_get_user_request_list_content(self):
+        qg = self._qg()
+        path = self._write_transcript([
+            {"type": "user", "message": {"content": [
+                {"type": "text", "text": "Update the docs"}
+            ]}},
+            {"type": "assistant", "message": {"content": [
+                {"type": "text", "text": "Done."}
+            ]}}
+        ])
+        result = qg.get_user_request(path)
+        self.assertIn('Update the docs', result)
+
+    def test_get_bash_results_empty(self):
+        qg = self._qg()
+        result = qg.get_bash_results('')
+        self.assertEqual(result, [])
+
+    def test_extract_stated_certainty(self):
+        qg = self._qg()
+        self.assertEqual(qg._extract_stated_certainty("I'm certain this works"), 'high')
+        self.assertEqual(qg._extract_stated_certainty("I believe it should work"), 'medium')
+        self.assertEqual(qg._extract_stated_certainty("This might work"), 'low')
+        self.assertEqual(qg._extract_stated_certainty("Here is the code"), 'none')
+
+    def test_compute_confidence(self):
+        qg = self._qg()
+        score = qg._compute_confidence(
+            gate_blocked=False, block_category='', state={}
+        )
+        self.assertIsInstance(score, (int, float))
+
+    def test_get_last_complexity(self):
+        qg = self._qg()
+        # get_last_complexity reads from session state — just verify it returns a string
+        result = qg.get_last_complexity()
+        self.assertIsInstance(result, str)
+
+    def test_count_user_items(self):
+        qg = self._qg()
+        count = qg._count_user_items("fix these 5 bugs in the auth module")
+        self.assertEqual(count, 5)
+
+    def test_write_monitor_event(self):
+        qg = self._qg()
+        orig = qg._QG_MONITOR
+        qg._QG_MONITOR = os.path.join(self.tmpdir, 'monitor.jsonl')
+        try:
+            qg._write_monitor_event({"test": True, "category": "TEST"})
+        finally:
+            qg._QG_MONITOR = orig
+        with open(os.path.join(self.tmpdir, 'monitor.jsonl')) as f:
+            content = f.read()
+        self.assertIn('TEST', content)
+
+
 if __name__ == '__main__':
     unittest.main()
