@@ -23,7 +23,6 @@ LOG_FILES = {
     'hook-audit.log':      os.path.join(LOG_DIR, 'hook-audit.log'),
     'quality-gate.log':    os.path.join(LOG_DIR, 'quality-gate.log'),
     'task-classifier.log': os.path.join(LOG_DIR, 'task-classifier.log'),
-    'notion-capture.log':  os.path.join(LOG_DIR, 'notion-capture.log'),
 }
 
 # 7 monitored hooks (context-watch has no log file — Tier C/unmonitored)
@@ -33,7 +32,6 @@ HOOK_STALENESS = {
     'tool-failure-log': {'log': 'hook-audit.log',      'max_age': None},
     'quality-gate':     {'log': 'quality-gate.log',    'max_age': None},
     'task-classifier':  {'log': 'task-classifier.log', 'max_age': 300},
-    'notion-capture':   {'log': 'notion-capture.log',  'max_age': None},
     'stop-failure-log': {'log': 'hook-audit.log',      'max_age': None},
     'session-end-log':  {'log': 'hook-audit.log',      'max_age': None},
     'event-observer':   {'log': 'hook-audit.log',      'max_age': 600},
@@ -42,7 +40,6 @@ HOOK_STALENESS = {
 RE_HOOK_AUDIT   = re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s*\|\s*(\w[\w_-]*)\s*\|(.*)')
 RE_QUALITY_GATE = re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s*\|\s*(PASS|BLOCK|WARN)\s*\|(.*)')
 RE_TASK_CLASS   = re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s*\|\s*(\w+)\s*\|(.*)')
-RE_NOTION_CAP   = re.compile(r'^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s*(.*)')
 RE_ERROR        = re.compile(r'\b(?:FAIL|ERROR|Exception|Traceback|exit code [1-9])\b', re.IGNORECASE)
 
 TAIL_LINES = 200
@@ -117,18 +114,6 @@ def parse_task_classifier(lines):
     return results
 
 
-def parse_notion_capture(lines):
-    results = []
-    for line in lines:
-        m = RE_NOTION_CAP.match(line.rstrip())
-        if not m:
-            continue
-        ts  = parse_ts(m.group(1), '%Y-%m-%d %H:%M:%S')
-        txt = m.group(2).strip()
-        results.append((ts, txt))
-    return results
-
-
 AUDIT_HOOK_MAP = {
     'tool-failure-log': ['FAIL'],
     'stop-failure-log': ['STOP_FAIL'],
@@ -149,8 +134,6 @@ def get_entries_for(hook_name, cfg, log_data):
         return [(ts, dec + ' | ' + txt) for ts, dec, txt in log_data['quality_gate']]
     elif log_key == 'task-classifier.log':
         return log_data['task_class']
-    elif log_key == 'notion-capture.log':
-        return log_data['notion_cap']
     return []
 
 
@@ -229,7 +212,6 @@ def main():
         'audit':       parse_hook_audit(read_tail(LOG_FILES['hook-audit.log'])),
         'quality_gate': parse_quality_gate(read_tail(LOG_FILES['quality-gate.log'])),
         'task_class':   parse_task_classifier(read_tail(LOG_FILES['task-classifier.log'])),
-        'notion_cap':   parse_notion_capture(read_tail(LOG_FILES['notion-capture.log'])),
     }
 
     hooks = {

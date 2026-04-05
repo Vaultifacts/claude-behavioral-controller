@@ -1,7 +1,7 @@
 """
 todo-extractor.py — P4: Intelligent Todo Extractor Stop hook
 Scans JSONL transcript at session end, extracts TODOs, writes todo-feed.json.
-Registers on: Stop (async, Group 1 alongside stop-log + notion-capture).
+Registers on: Stop (async, Group 1 alongside stop-log).
 Always exits 0.
 """
 import hashlib
@@ -17,10 +17,8 @@ CLAUDE_DIR = os.path.dirname(HOOKS_DIR)
 FEED_FILE   = os.path.join(CLAUDE_DIR, 'todo-feed.json')
 PROJECTS_DIR = os.path.join(CLAUDE_DIR, 'projects')
 
-# Import detect_project_name from _notion_shared (same pattern as notion-capture.py)
 try:
     sys.path.insert(0, HOOKS_DIR)
-    from _notion_shared import detect_project_name
 except ImportError:
     def detect_project_name(payload):
         cwd = payload.get('workspace', {}).get('current_dir', '') or payload.get('cwd', '')

@@ -14,7 +14,6 @@ ALLOWED_CURL_DOMAINS = {
     'npmjs.com', 'registry.npmjs.org',
     'pypi.org',
     'docs.anthropic.com', 'api.anthropic.com',
-    'api.notion.com',
     'nodejs.org',
     'localhost', '127.0.0.1', '0.0.0.0',
 }

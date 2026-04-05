@@ -4,28 +4,6 @@ Last updated: 2026-03-16
 Everything below is inherited automatically from `~/.claude/` globals.
 Use this to verify a new project is set up correctly and to activate optional features.
 
-**Default flow**: Every new project gets a Notion workspace automatically (opt-out, not opt-in).
-To skip Notion setup, explicitly say "no Notion" or "skip Notion" when creating the project.
-
----
-
-## Step 0 — Notion Workspace (automatic)
-
-Run `/new-project <name>` in Claude Code. This automatically:
-1. Duplicates the Project Template page (with all 5 global linked views + 13 per-project DBs)
-2. Renames the duplicate to the project name
-3. Registers the project in the Projects DB (Status: Planning, Start Date: today)
-4. Returns the Notion dashboard URL
-
-> This step runs automatically unless the user says "no Notion" or "skip Notion".
-> Uses browser automation (Notion API can't clone inline databases).
-> Command: `~/.claude/commands/new-project.md`
->
-> **Failsafe**: If Claude tries to set up Notion manually (creating databases via API, embedding
-> content inside a Projects DB row, etc.), STOP immediately and run `/new-project` instead.
-> The `task-classifier.py` hook will inject a `[project-detector]` warning when it detects
-> new-project intent. `~/.claude/CLAUDE.md` also has explicit "NEVER manually" rules.
-
 ---
 
 ## Step 1 — Local Project Setup

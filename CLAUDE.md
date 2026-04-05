@@ -74,14 +74,7 @@ Substitute evidence (e.g., "smoke test passes") does NOT address specific contra
 
 ## Language & Project Rules
 - Node.js and Python conventions are in `.claude/rules/` (path-scoped, load on demand)
-- New projects: `newproject <name>` (shell alias) or `/new-project <name>` (+ Notion dashboard)
-
-## Notion Project Setup
-- **EVERY new project gets a Notion dashboard automatically** — opt-out, not opt-in
-- The ONLY correct method is `/new-project <name>` — no exceptions
-- **NEVER** manually duplicate the template page or create project databases via API
-- If user asks to "set up a project" without `/new-project`, STOP and run `/new-project` instead
-- To skip Notion: user must explicitly say "no Notion" or "skip Notion"
+- New projects: `newproject <name>` (shell alias)
 
 ## Rules for Claude
 - Read project CLAUDE.md first — it overrides everything here
@@ -103,8 +96,8 @@ Substitute evidence (e.g., "smoke test passes") does NOT address specific contra
   **CRITICAL — retry failure**: Do NOT respond to a block with the same claim backed by general reasoning ("standard practice", "typically", "usually"). The gate sees this as a repeat ASSUMPTION. The only valid retry is tool output that directly addresses the blocked claim.
 
 ## Infrastructure (Auto-Managed)
-- **Hooks**: task-classifier (effort routing), validate-bash (destructive cmd blocker), block-secrets (credential leak prevention), context-watch (usage alerts), quality-gate (Stop verification), subagent-quality-gate (SubagentStop verification), stop-failure-log (StopFailure error logging), permission-guard (PermissionRequest dynamic validation), notion-capture/recall (knowledge persistence), pre-compact-snapshot, stop-log, tool-failure-log, session-end-log
-- **Plugins**: superpowers, hookify, feature-dev, frontend-design, chrome-devtools-mcp, pr-review-toolkit, figma, serena, notion, context7, + others (19 total)
+- **Hooks**: task-classifier (effort routing), validate-bash (destructive cmd blocker), block-secrets (credential leak prevention), context-watch (usage alerts), quality-gate (Stop verification), subagent-quality-gate (SubagentStop verification), stop-failure-log (StopFailure error logging), permission-guard (PermissionRequest dynamic validation), pre-compact-snapshot, stop-log, tool-failure-log, session-end-log
+- **Plugins**: superpowers, hookify, feature-dev, frontend-design, chrome-devtools-mcp, pr-review-toolkit, figma, serena, context7, + others (18 total)
 - **MCP**: Docker (active); Playwright, Postgres, AWS, code-search (disabled, re-enable as needed)
 - **Permissions**: `Bash(*)` allowed; `rm -rf`, `wget`, `sudo`, `gh repo delete`, `git push --force`, system commands denied. WebFetch allowlisted per-domain. Hooks dir and settings.json are write-protected.
 - **File exclusions**: `.env*`, `*.key`, `*.pem`, `*.pfx`, `credentials*`, `*.secret` excluded from suggestions

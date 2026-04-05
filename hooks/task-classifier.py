@@ -143,9 +143,7 @@ except Exception:
 NEW_PROJECT_PATTERNS = [
     r'\bnew project\b',
     r'\bnewproject\b',
-    r'set up\s+(a\s+)?notion\b',
     r'create\s+.*\bproject\s+workspace\b',
-    r'duplicate\s+.*\bnotion\s+template\b',
     r'spin up\s+.*\bproject\b',
     r'\bstart\s+a\s+new\s+project\b',
     r'\bset up\s+a\s+project\b',

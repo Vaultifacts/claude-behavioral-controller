@@ -3,9 +3,6 @@
 # Keep it under 150 lines. Claude reads this every session.
 # This file overrides ~/.claude/CLAUDE.md for this project only.
 
-## Notion Dashboard
-%%NOTION_URL%%
-
 ## Project Overview
 [One paragraph: what this project does and who uses it]
 

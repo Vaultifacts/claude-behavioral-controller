@@ -265,15 +265,6 @@ Group by category. End with:
 
 ### Step 6: Output
 
-**If the project has a Notion dashboard** (check CLAUDE.md for Notion URL):
-1. Search for the project page using `notion-search`
-2. Fetch the page to find existing content
-3. Add findings as checklist items under a new `## Audit — YYYY-MM-DD` section (use today's date)
-4. Do NOT duplicate items that already exist on the page — check first
-5. Use `update_content` with the checklist markdown
-6. **Batch large outputs** — if more than 50 items, split into multiple update_content calls (one per category) to avoid Notion API limits
-
-**If no Notion:**
 1. Write results to `audit-results.md` in the project root
 2. Print the summary table and top 5 to the console
 
@@ -286,7 +277,7 @@ On subsequent passes:
    - Interactions between layers already assessed
    - Edge cases in flows identified in previous passes
 3. Check existing findings for duplicates before adding new ones
-4. Append new findings to the same Notion section or file
+4. Append new findings to the same audit results file
 
 Stop when:
 - The requested number of passes is complete (default: 2), OR
@@ -308,5 +299,5 @@ If `$ARGUMENTS` is empty:
 ## Context management
 
 - If context usage exceeds 70%, **first update `.claude-audit-progress.md`** with all findings so far, then tell the user: "Context is getting full. Run `/compact` and then say 'continue audit' to resume."
-- After compaction, re-read `.claude-audit-progress.md` and the Notion page (if applicable) to recover state
+- After compaction, re-read `.claude-audit-progress.md` and the audit results file to recover state
 - The tracking file is the primary checkpoint that survives compaction — always update it BEFORE suggesting compact
