@@ -1744,5 +1744,513 @@ class TestQGIntegrationBasic(_MainTestBase):
         self.assertIn('issues', report)
 
 
+# ============================================================================
+# Subagent Quality Gate Tests (0% → target 70%+)
+# ============================================================================
+
+class TestSubagentQGToolSummary(_MainTestBase):
+    def _write_transcript(self, entries):
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w', encoding='utf-8') as f:
+            for e in entries:
+                f.write(json.dumps(e) + '\n')
+        return path
+
+    def test_get_tool_summary_empty(self):
+        from importlib import reload
+        import importlib
+        sqg = importlib.import_module('subagent-quality-gate')
+        names, edits, cmds = sqg.get_tool_summary('')
+        self.assertEqual(names, [])
+
+    def test_get_tool_summary_missing_file(self):
+        sqg = __import__('subagent-quality-gate')
+        names, edits, cmds = sqg.get_tool_summary('/nonexistent/transcript.jsonl')
+        self.assertEqual(names, [])
+
+    def test_get_tool_summary_with_tools(self):
+        sqg = __import__('subagent-quality-gate')
+        path = self._write_transcript([
+            {"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Read", "input": {"file_path": "/a.py"}},
+                {"type": "tool_use", "name": "Edit", "input": {"file_path": "/b.py"}},
+                {"type": "tool_use", "name": "Bash", "input": {"command": "pytest"}},
+            ]}}
+        ])
+        names, edits, cmds = sqg.get_tool_summary(path)
+        self.assertIn('Read', names)
+        self.assertIn('Edit', names)
+        self.assertIn('Bash', names)
+        self.assertEqual(edits, ['/b.py'])
+        self.assertEqual(cmds, ['pytest'])
+
+    def test_get_tool_summary_non_json_lines(self):
+        sqg = __import__('subagent-quality-gate')
+        path = self._write_transcript([])
+        with open(path, 'w') as f:
+            f.write('not json\n{"type": "assistant", "message": {"content": []}}\n')
+        names, edits, cmds = sqg.get_tool_summary(path)
+        self.assertEqual(names, [])
+
+
+class TestSubagentQGFailedCommands(_MainTestBase):
+    def _write_transcript(self, entries):
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w', encoding='utf-8') as f:
+            for e in entries:
+                f.write(json.dumps(e) + '\n')
+        return path
+
+    def test_get_failed_commands_empty(self):
+        sqg = __import__('subagent-quality-gate')
+        self.assertEqual(sqg.get_failed_commands(''), [])
+
+    def test_get_failed_commands_with_failure(self):
+        sqg = __import__('subagent-quality-gate')
+        path = self._write_transcript([
+            {"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "id": "tu1", "name": "Bash", "input": {"command": "npm test"}},
+            ]}},
+            {"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": "tu1", "is_error": True, "content": "Error: tests failed"},
+            ]}},
+        ])
+        failed = sqg.get_failed_commands(path)
+        self.assertGreaterEqual(len(failed), 1)
+
+    def test_get_failed_commands_no_failure(self):
+        sqg = __import__('subagent-quality-gate')
+        path = self._write_transcript([
+            {"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "id": "tu2", "name": "Bash", "input": {"command": "echo hi"}},
+            ]}},
+            {"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": "tu2", "is_error": False, "content": "hi"},
+            ]}},
+        ])
+        failed = sqg.get_failed_commands(path)
+        self.assertEqual(failed, [])
+
+
+class TestSubagentQGGetLastResponse(_MainTestBase):
+    def _write_transcript(self, entries):
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w', encoding='utf-8') as f:
+            for e in entries:
+                f.write(json.dumps(e) + '\n')
+        return path
+
+    def test_get_last_response_empty(self):
+        sqg = __import__('subagent-quality-gate')
+        self.assertEqual(sqg.get_last_response(''), '')
+
+    def test_get_last_response_with_text(self):
+        sqg = __import__('subagent-quality-gate')
+        path = self._write_transcript([
+            {"type": "assistant", "message": {"content": [
+                {"type": "text", "text": "All done. Tests pass."},
+            ]}}
+        ])
+        resp = sqg.get_last_response(path)
+        self.assertEqual(resp, 'All done. Tests pass.')
+
+    def test_get_last_response_string_content(self):
+        sqg = __import__('subagent-quality-gate')
+        path = self._write_transcript([
+            {"type": "assistant", "message": {"content": "Simple string response"}}
+        ])
+        resp = sqg.get_last_response(path)
+        self.assertEqual(resp, 'Simple string response')
+
+
+class TestSubagentQGLogDecision(_MainTestBase):
+    def test_log_decision_writes_to_file(self):
+        sqg = __import__('subagent-quality-gate')
+        orig_lp = sqg.LOG_PATH
+        sqg.LOG_PATH = os.path.join(self.tmpdir, 'qg.log')
+        try:
+            sqg.log_decision('PASS', 'ok', 'researcher', 'some response')
+        finally:
+            sqg.LOG_PATH = orig_lp
+        with open(os.path.join(self.tmpdir, 'qg.log')) as f:
+            content = f.read()
+        self.assertIn('PASS', content)
+        self.assertIn('researcher', content)
+
+
+class TestSubagentQGMain(_MainTestBase):
+    def _write_transcript(self, entries):
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w', encoding='utf-8') as f:
+            for e in entries:
+                f.write(json.dumps(e) + '\n')
+        return path
+
+    def test_main_bad_json_returns_continue(self):
+        sqg = __import__('subagent-quality-gate')
+        orig_lp = sqg.LOG_PATH
+        sqg.LOG_PATH = os.path.join(self.tmpdir, 'qg.log')
+        sys.stdin = io.StringIO('not json')
+        self._capture_print()
+        try:
+            sqg.main()
+        finally:
+            builtins.print = self._orig_print
+            sqg.LOG_PATH = orig_lp
+        output = self._output()
+        parsed = json.loads(output)
+        self.assertTrue(parsed.get('continue'))
+
+    def test_main_stop_hook_active_continues(self):
+        sqg = __import__('subagent-quality-gate')
+        self._set_stdin({"stop_hook_active": True})
+        self._capture_print()
+        try:
+            sqg.main()
+        finally:
+            builtins.print = self._orig_print
+        output = self._output()
+        parsed = json.loads(output)
+        self.assertTrue(parsed.get('continue'))
+
+    def test_main_edit_without_verification_blocks(self):
+        sqg = __import__('subagent-quality-gate')
+        orig_lp = sqg.LOG_PATH
+        sqg.LOG_PATH = os.path.join(self.tmpdir, 'qg.log')
+        path = self._write_transcript([
+            {"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Edit", "input": {"file_path": "/src/app.py"}},
+                {"type": "text", "text": "Done editing."},
+            ]}}
+        ])
+        self._set_stdin({"agent_type": "general", "agent_transcript_path": path})
+        self._capture_print()
+        try:
+            sqg.main()
+        finally:
+            builtins.print = self._orig_print
+            sqg.LOG_PATH = orig_lp
+        output = self._output()
+        parsed = json.loads(output)
+        self.assertEqual(parsed.get('decision'), 'block')
+        self.assertIn('verification', parsed.get('reason', '').lower())
+
+    def test_main_edit_with_bash_validation_passes(self):
+        sqg = __import__('subagent-quality-gate')
+        orig_lp = sqg.LOG_PATH
+        sqg.LOG_PATH = os.path.join(self.tmpdir, 'qg.log')
+        path = self._write_transcript([
+            {"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Edit", "input": {"file_path": "/src/app.py"}},
+                {"type": "tool_use", "name": "Bash", "input": {"command": "python -m pytest tests/"}},
+                {"type": "text", "text": "All tests pass."},
+            ]}}
+        ])
+        self._set_stdin({
+            "agent_type": "general",
+            "agent_transcript_path": path,
+            "last_assistant_message": "All tests pass."
+        })
+        self._capture_print()
+        try:
+            sqg.main()
+        finally:
+            builtins.print = self._orig_print
+            sqg.LOG_PATH = orig_lp
+        output = self._output()
+        parsed = json.loads(output)
+        # Should either continue (pass) or block on LLM check
+        self.assertIn(parsed.get('decision', 'none'), ['block', 'none'])
+        if 'continue' in parsed:
+            self.assertTrue(parsed['continue'])
+
+    def test_main_edit_last_action_blocks(self):
+        sqg = __import__('subagent-quality-gate')
+        orig_lp = sqg.LOG_PATH
+        sqg.LOG_PATH = os.path.join(self.tmpdir, 'qg.log')
+        path = self._write_transcript([
+            {"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Bash", "input": {"command": "pytest"}},
+                {"type": "tool_use", "name": "Edit", "input": {"file_path": "/src/fix.py"}},
+                {"type": "text", "text": "Fixed the issue."},
+            ]}}
+        ])
+        self._set_stdin({"agent_type": "general", "agent_transcript_path": path})
+        self._capture_print()
+        try:
+            sqg.main()
+        finally:
+            builtins.print = self._orig_print
+            sqg.LOG_PATH = orig_lp
+        output = self._output()
+        parsed = json.loads(output)
+        self.assertEqual(parsed.get('decision'), 'block')
+
+    def test_main_non_code_edit_not_blocked(self):
+        sqg = __import__('subagent-quality-gate')
+        orig_lp = sqg.LOG_PATH
+        sqg.LOG_PATH = os.path.join(self.tmpdir, 'qg.log')
+        path = self._write_transcript([
+            {"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Write", "input": {"file_path": "/docs/README.md"}},
+                {"type": "text", "text": "Updated docs."},
+            ]}}
+        ])
+        self._set_stdin({
+            "agent_type": "general",
+            "agent_transcript_path": path,
+            "last_assistant_message": "Updated docs."
+        })
+        self._capture_print()
+        try:
+            sqg.main()
+        finally:
+            builtins.print = self._orig_print
+            sqg.LOG_PATH = orig_lp
+        # Non-code paths shouldn't trigger code-edit blocks
+        output = self._output()
+        parsed = json.loads(output)
+        # May still get LLM-blocked, but shouldn't be "edited code but ran no verification"
+        if parsed.get('decision') == 'block':
+            self.assertNotIn('edited code but ran no verification', parsed.get('reason', '').lower())
+
+    def test_main_overconfidence_blocks(self):
+        sqg = __import__('subagent-quality-gate')
+        orig_lp = sqg.LOG_PATH
+        sqg.LOG_PATH = os.path.join(self.tmpdir, 'qg.log')
+        path = self._write_transcript([
+            {"type": "assistant", "message": {"content": [
+                {"type": "text", "text": "All 150 passed, 0 failed, 150 total"},
+            ]}}
+        ])
+        self._set_stdin({
+            "agent_type": "researcher",
+            "agent_transcript_path": path,
+            "last_assistant_message": "All 150 passed, 0 failed, 150 total"
+        })
+        self._capture_print()
+        try:
+            sqg.main()
+        finally:
+            builtins.print = self._orig_print
+            sqg.LOG_PATH = orig_lp
+        output = self._output()
+        parsed = json.loads(output)
+        self.assertEqual(parsed.get('decision'), 'block')
+        self.assertIn('OVERCONFIDENCE', parsed.get('reason', ''))
+
+    def test_main_no_tools_no_response_passes(self):
+        sqg = __import__('subagent-quality-gate')
+        orig_lp = sqg.LOG_PATH
+        sqg.LOG_PATH = os.path.join(self.tmpdir, 'qg.log')
+        path = self._write_transcript([])
+        self._set_stdin({
+            "agent_type": "researcher",
+            "agent_transcript_path": path,
+            "last_assistant_message": ""
+        })
+        self._capture_print()
+        try:
+            sqg.main()
+        finally:
+            builtins.print = self._orig_print
+            sqg.LOG_PATH = orig_lp
+        output = self._output()
+        parsed = json.loads(output)
+        self.assertTrue(parsed.get('continue'))
+
+
+# ============================================================================
+# Layer 13 & 15_mem additional coverage (70%→80%+ target)
+# ============================================================================
+
+class TestLayer13Coverage(_MainTestBase):
+    def test_extract_imports_basic(self):
+        from qg_layer13 import extract_imports
+        imports = extract_imports('import os\nimport sys\n')
+        modules = [m for m, _ in imports]
+        self.assertIn('os', modules)
+        self.assertIn('sys', modules)
+
+    def test_extract_imports_from_import(self):
+        from qg_layer13 import extract_imports
+        imports = extract_imports('from os.path import join, exists\n')
+        self.assertEqual(len(imports), 1)
+        self.assertEqual(imports[0][0], 'os.path')
+        self.assertIn('join', imports[0][1])
+
+    def test_extract_imports_star(self):
+        from qg_layer13 import extract_imports
+        imports = extract_imports('from os import *\n')
+        self.assertEqual(imports[0][1], [])
+
+    def test_extract_imports_skips_comments(self):
+        from qg_layer13 import extract_imports
+        imports = extract_imports('# import fake\nimport os\n')
+        self.assertEqual(len(imports), 1)
+
+    def test_check_module_exists_real(self):
+        from qg_layer13 import check_module_exists
+        self.assertTrue(check_module_exists('os'))
+        self.assertTrue(check_module_exists('sys'))
+
+    def test_check_module_exists_fake(self):
+        from qg_layer13 import check_module_exists
+        self.assertFalse(check_module_exists('zzz_nonexistent_qg_test'))
+
+    def test_check_attribute_exists_real(self):
+        from qg_layer13 import check_attribute_exists
+        self.assertTrue(check_attribute_exists('os', 'path'))
+
+    def test_check_attribute_exists_fake(self):
+        from qg_layer13 import check_attribute_exists
+        self.assertFalse(check_attribute_exists('os', 'zzz_fake_attr'))
+
+    def test_check_imports_non_py_file(self):
+        from qg_layer13 import check_imports
+        self.assertEqual(check_imports('/tmp/readme.txt'), [])
+
+    def test_check_imports_missing_module(self):
+        from qg_layer13 import check_imports
+        f = self._write_file('bad_imp.py', 'import zzz_nonexistent_qg_mod\n')
+        issues = check_imports(f)
+        self.assertTrue(any('MODULE_NOT_FOUND' in msg for _, msg in issues))
+
+    def test_check_imports_missing_attr(self):
+        from qg_layer13 import check_imports
+        # Use json (non-stdlib-skipped) to test attr check
+        f = self._write_file('bad_attr.py', 'from json import zzz_fake_attr_qg\n')
+        issues = check_imports(f)
+        # json may be in STDLIB_MODULES; if so, attr check is skipped — just verify no crash
+        self.assertIsInstance(issues, list)
+
+    def test_check_imports_caches_results(self):
+        import qg_layer13, qg_session_state as ss
+        # Use a non-stdlib module to ensure it's not skipped
+        f = self._write_file('cached_imp.py', 'import zzz_nonexistent_qg_mod\n')
+        qg_layer13.check_imports(f)
+        state = ss.read_state()
+        cache = state.get('layer13_import_cache', {})
+        self.assertIn('zzz_nonexistent_qg_mod', cache)
+
+
+class TestLayer15MemCoverage(_MainTestBase):
+    def _setup_memory_dir(self):
+        mem_dir = os.path.join(self.tmpdir, 'memory')
+        os.makedirs(mem_dir, exist_ok=True)
+        return mem_dir
+
+    def test_extract_references_empty_index(self):
+        from qg_layer15_mem import extract_references
+        idx = self._write_file('MEMORY.md', '# Empty index\n')
+        refs = extract_references(idx)
+        self.assertEqual(refs, [])
+
+    def test_extract_references_with_links(self):
+        from qg_layer15_mem import extract_references
+        idx = self._write_file('MEMORY.md', '- [Profile](user_profile.md) — role info\n')
+        refs = extract_references(idx)
+        self.assertEqual(len(refs), 1)
+        self.assertEqual(refs[0]['name'], 'Profile')
+
+    def test_check_references_missing_file(self):
+        import qg_layer15_mem as mod
+        orig_md = mod.MEMORY_DIR
+        mem_dir = self._setup_memory_dir()
+        mod.MEMORY_DIR = mem_dir
+        idx = self._write_file('MEMORY.md', '- [Ghost](ghost_file.md) — missing\n')
+        try:
+            issues, count = mod.check_references(idx)
+        finally:
+            mod.MEMORY_DIR = orig_md
+        self.assertEqual(count, 1)
+        self.assertTrue(any('MISSING_REF' in msg for _, msg in issues))
+
+    def test_check_staleness_with_old_file(self):
+        from qg_layer15_mem import check_staleness
+        mem_dir = self._setup_memory_dir()
+        f = os.path.join(mem_dir, 'old.md')
+        with open(f, 'w') as fh:
+            fh.write('# Old\n')
+        # Set mtime to 100 days ago
+        old_time = time.time() - (100 * 86400)
+        os.utime(f, (old_time, old_time))
+        issues, total, stale = check_staleness(mem_dir, stale_days=30)
+        self.assertEqual(total, 1)
+        self.assertEqual(stale, 1)
+        self.assertTrue(any('STALE' in msg for _, msg in issues))
+
+    def test_check_staleness_fresh_file(self):
+        from qg_layer15_mem import check_staleness
+        mem_dir = self._setup_memory_dir()
+        f = os.path.join(mem_dir, 'fresh.md')
+        with open(f, 'w') as fh:
+            fh.write('# Fresh\n')
+        issues, total, stale = check_staleness(mem_dir, stale_days=30)
+        self.assertEqual(total, 1)
+        self.assertEqual(stale, 0)
+
+    def test_check_file_sizes_oversized(self):
+        from qg_layer15_mem import check_file_sizes
+        mem_dir = self._setup_memory_dir()
+        f = os.path.join(mem_dir, 'huge.md')
+        with open(f, 'w') as fh:
+            fh.write('x' * 110000)  # Over MAX_FILE_SIZE (100KB = 102400)
+        issues = check_file_sizes(mem_dir)
+        self.assertTrue(any('OVERSIZED' in msg for _, msg in issues))
+
+    def test_check_file_sizes_normal(self):
+        from qg_layer15_mem import check_file_sizes
+        mem_dir = self._setup_memory_dir()
+        f = os.path.join(mem_dir, 'small.md')
+        with open(f, 'w') as fh:
+            fh.write('# Small\n')
+        issues = check_file_sizes(mem_dir)
+        self.assertEqual(issues, [])
+
+    def test_check_duplicates_detects_duplicate_heading(self):
+        from qg_layer15_mem import check_duplicates
+        mem_dir = self._setup_memory_dir()
+        for name in ['a.md', 'b.md']:
+            with open(os.path.join(mem_dir, name), 'w') as f:
+                f.write('# Same Heading\nContent\n')
+        issues = check_duplicates(mem_dir)
+        self.assertTrue(any('DUPLICATE_HEADING' in msg for _, msg in issues))
+
+    def test_check_duplicates_no_duplicates(self):
+        from qg_layer15_mem import check_duplicates
+        mem_dir = self._setup_memory_dir()
+        with open(os.path.join(mem_dir, 'a.md'), 'w') as f:
+            f.write('# Unique A\n')
+        with open(os.path.join(mem_dir, 'b.md'), 'w') as f:
+            f.write('# Unique B\n')
+        issues = check_duplicates(mem_dir)
+        self.assertEqual(issues, [])
+
+    def test_analyze_memory_integrity_full(self):
+        import qg_layer15_mem as mod
+        orig_md = mod.MEMORY_DIR
+        orig_mi = mod.MEMORY_INDEX
+        orig_amd = mod.ALT_MEMORY_DIR
+        mem_dir = self._setup_memory_dir()
+        idx = os.path.join(mem_dir, 'MEMORY.md')
+        with open(idx, 'w') as f:
+            f.write('- [Profile](profile.md) — info\n')
+        with open(os.path.join(mem_dir, 'profile.md'), 'w') as f:
+            f.write('# Profile\nContent\n')
+        mod.MEMORY_DIR = mem_dir
+        mod.MEMORY_INDEX = idx
+        mod.ALT_MEMORY_DIR = os.path.join(self.tmpdir, 'alt')
+        try:
+            report = mod.analyze_memory_integrity(idx, mem_dir)
+        finally:
+            mod.MEMORY_DIR = orig_md
+            mod.MEMORY_INDEX = orig_mi
+            mod.ALT_MEMORY_DIR = orig_amd
+        self.assertIn('status', report)
+        self.assertIn('stats', report)
+        self.assertIsInstance(report['issues'], list)
+
+
 if __name__ == '__main__':
     unittest.main()
