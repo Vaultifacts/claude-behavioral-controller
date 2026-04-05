@@ -12,7 +12,7 @@ def _norm_path(p):
     """Normalize path for comparison."""
     return os.path.normpath(p).replace('\\', '/') if p else ''
 
-BASH_TOOL_RE = re.compile(r'\b(grep|cat|find|head|tail)\b')
+BASH_TOOL_RE = re.compile(r'(?:^|&&\s*)\s*(grep|cat|find|head|tail)\b')
 ERROR_RE = re.compile(
     r'(error|exception|traceback|failed|exit code [1-9]|errno|not found|permission denied)',
     re.IGNORECASE)
