@@ -3190,5 +3190,267 @@ class TestQualityGatePriorContext(_MainTestBase):
         self.assertIn(result, [True, False, None])
 
 
+# ============================================================================
+# _hooks_shared.py — boost 46%→70%+
+# ============================================================================
+
+class TestHooksShared(_MainTestBase):
+    def _hs(self):
+        return __import__('_hooks_shared')
+
+    # --- rotate_log ---
+
+    def test_rotate_log_under_max(self):
+        hs = self._hs()
+        f = self._write_file('small.log', 'line1\nline2\nline3\n')
+        hs.rotate_log(f, 10)
+        with open(f) as fh:
+            self.assertEqual(len(fh.readlines()), 3)
+
+    def test_rotate_log_over_max(self):
+        hs = self._hs()
+        f = self._write_file('big.log', ''.join(f'line{i}\n' for i in range(20)))
+        hs.rotate_log(f, 5)
+        with open(f) as fh:
+            lines = fh.readlines()
+        self.assertEqual(len(lines), 5)
+        self.assertIn('line19', lines[-1])
+
+    def test_rotate_log_with_header(self):
+        hs = self._hs()
+        f = self._write_file('header.log', 'HEADER\n' + ''.join(f'line{i}\n' for i in range(20)))
+        hs.rotate_log(f, 5, header_lines=1)
+        with open(f) as fh:
+            lines = fh.readlines()
+        self.assertEqual(len(lines), 5)
+        self.assertIn('HEADER', lines[0])
+
+    def test_rotate_log_min_size_skip(self):
+        hs = self._hs()
+        f = self._write_file('tiny.log', 'x\n')
+        hs.rotate_log(f, 5, min_size=10000)
+        # File untouched — too small
+
+    def test_rotate_log_min_size_missing_file(self):
+        hs = self._hs()
+        hs.rotate_log(os.path.join(self.tmpdir, 'nope.log'), 5, min_size=100)
+        # No crash
+
+    # --- load_api_key ---
+
+    def test_load_api_key_from_env(self):
+        hs = self._hs()
+        import os as _os
+        orig = _os.environ.get('ANTHROPIC_API_KEY')
+        _os.environ['ANTHROPIC_API_KEY'] = 'test-key-123'
+        try:
+            key = hs.load_api_key()
+        finally:
+            if orig:
+                _os.environ['ANTHROPIC_API_KEY'] = orig
+            else:
+                _os.environ.pop('ANTHROPIC_API_KEY', None)
+        self.assertEqual(key, 'test-key-123')
+
+    def test_load_api_key_from_dotenv(self):
+        hs = self._hs()
+        import os as _os
+        orig = _os.environ.pop('ANTHROPIC_API_KEY', None)
+        # load_api_key reads from ~/.claude/.env — just test it doesn't crash
+        try:
+            key = hs.load_api_key()
+        finally:
+            if orig:
+                _os.environ['ANTHROPIC_API_KEY'] = orig
+        self.assertIsInstance(key, str)
+
+    # --- check_cache / write_cache ---
+
+    def test_write_and_check_cache(self):
+        hs = self._hs()
+        orig = hs.CACHE_PATH
+        hs.CACHE_PATH = os.path.join(self.tmpdir, 'cache.json')
+        try:
+            hs.write_cache('test response', True, 'ok')
+            result = hs.check_cache('test response')
+        finally:
+            hs.CACHE_PATH = orig
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], True)
+
+    def test_check_cache_missing_file(self):
+        hs = self._hs()
+        orig = hs.CACHE_PATH
+        hs.CACHE_PATH = os.path.join(self.tmpdir, 'nope.json')
+        try:
+            result = hs.check_cache('anything')
+        finally:
+            hs.CACHE_PATH = orig
+        self.assertIsNone(result)
+
+    def test_write_cache_overflow_prunes(self):
+        hs = self._hs()
+        orig = hs.CACHE_PATH
+        hs.CACHE_PATH = os.path.join(self.tmpdir, 'overflow.json')
+        try:
+            for i in range(210):
+                hs.write_cache(f'response_{i}', True, 'ok')
+            with open(hs.CACHE_PATH) as f:
+                cache = json.load(f)
+            self.assertLessEqual(len(cache), 200)
+        finally:
+            hs.CACHE_PATH = orig
+
+    # --- write_override ---
+
+    def test_write_override(self):
+        hs = self._hs()
+        orig = hs.OVERRIDES_PATH
+        hs.OVERRIDES_PATH = os.path.join(self.tmpdir, 'overrides.jsonl')
+        try:
+            hs.write_override({"reason": "test", "ts": time.time()})
+        finally:
+            hs.OVERRIDES_PATH = orig
+        with open(os.path.join(self.tmpdir, 'overrides.jsonl')) as f:
+            content = f.read()
+        self.assertIn('test', content)
+
+    # --- call_haiku_check (no API key path) ---
+
+    def test_call_haiku_no_api_key(self):
+        hs = self._hs()
+        import os as _os
+        orig = _os.environ.pop('ANTHROPIC_API_KEY', None)
+        try:
+            ok, reason, genuine = hs.call_haiku_check('test prompt')
+        finally:
+            if orig:
+                _os.environ['ANTHROPIC_API_KEY'] = orig
+        self.assertTrue(ok)
+        self.assertFalse(genuine)
+
+    # --- _log_degradation ---
+
+    def test_log_degradation(self):
+        hs = self._hs()
+        # Just verify it doesn't crash
+        hs._log_degradation('Test degradation message')
+
+    # --- _response_hash ---
+
+    def test_response_hash(self):
+        hs = self._hs()
+        h1 = hs._response_hash('hello')
+        h2 = hs._response_hash('hello')
+        h3 = hs._response_hash('world')
+        self.assertEqual(h1, h2)
+        self.assertNotEqual(h1, h3)
+
+    # --- regex constants ---
+
+    def test_non_code_path_re(self):
+        hs = self._hs()
+        self.assertTrue(hs.NON_CODE_PATH_RE.search('memory/user_profile.md'))
+        self.assertTrue(hs.NON_CODE_PATH_RE.search('CLAUDE.md'))
+        self.assertFalse(hs.NON_CODE_PATH_RE.search('src/app.py'))
+
+    def test_validation_command_re(self):
+        hs = self._hs()
+        self.assertTrue(hs.VALIDATION_COMMAND_RE.search('python -m pytest tests/'))
+        self.assertTrue(hs.VALIDATION_COMMAND_RE.search('npm test'))
+        self.assertTrue(hs.VALIDATION_COMMAND_RE.search('bash smoke-test.sh'))
+
+
+# ============================================================================
+# precheck-hook.py — boost 59%→75%+
+# ============================================================================
+
+class TestPrecheckHookBoost(_MainTestBase):
+    def _pc(self):
+        return __import__('precheck-hook')
+
+    def test_extract_message_string(self):
+        pc = self._pc()
+        self.assertEqual(pc.extract_message({"message": "hello"}), "hello")
+
+    def test_extract_message_dict(self):
+        pc = self._pc()
+        self.assertEqual(pc.extract_message({"message": {"content": "hello"}}), "hello")
+
+    def test_extract_message_list(self):
+        pc = self._pc()
+        result = pc.extract_message({"message": [{"type": "text", "text": "hello"}]})
+        self.assertEqual(result, "hello")
+
+    def test_extract_message_empty(self):
+        pc = self._pc()
+        self.assertEqual(pc.extract_message({}), "")
+
+    def test_run_layer1_mechanical(self):
+        pc = self._pc()
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['active_task_id'] = 'test_l1'
+        state['layer15_session_reads'] = ['/a.py']
+        extra, new_state = pc._run_layer1('fix the bug in auth.py', 'MECHANICAL', state)
+        self.assertIn('MECHANICAL', new_state.get('layer1_task_category', ''))
+        self.assertIsInstance(new_state.get('task_success_criteria'), list)
+
+    def test_run_layer1_planning(self):
+        pc = self._pc()
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['active_task_id'] = 'test_plan'
+        extra, new_state = pc._run_layer1('what should I do next', 'PLANNING', state)
+        self.assertEqual(new_state.get('layer1_task_category'), 'PLANNING')
+
+    def test_run_layer1_deep_no_reads(self):
+        pc = self._pc()
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['active_task_id'] = 'test_deep'
+        state['layer15_session_reads'] = []
+        extra, new_state = pc._run_layer1('refactor the entire auth module', 'DEEP', state)
+        # Should warn about no prior reads
+        self.assertTrue(any('DEEP' in line for line in extra))
+
+    def test_run_layer1_multi_task(self):
+        pc = self._pc()
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['active_task_id'] = 'test_multi'
+        extra, new_state = pc._run_layer1('1. fix the bug\n2. add tests\n3. update docs', 'MECHANICAL', state)
+        self.assertGreaterEqual(new_state.get('layer1_subtask_count', 0), 2)
+
+    def test_run_layer1_high_impact_criteria(self):
+        pc = self._pc()
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['active_task_id'] = 'test_impact'
+        state['layer19_last_impact_level'] = 'HIGH'
+        extra, new_state = pc._run_layer1('fix the config', 'MECHANICAL', state)
+        criteria = new_state.get('task_success_criteria', [])
+        self.assertTrue(any('dependent' in c.lower() for c in criteria))
+
+    def test_main_bad_json(self):
+        pc = self._pc()
+        sys.stdin = io.StringIO('not json')
+        try:
+            pc.main()
+        finally:
+            sys.stdin = self._orig_stdin
+
+    def test_main_short_message(self):
+        pc = self._pc()
+        self._set_stdin({"message": "hi"})
+        self._capture_print()
+        try:
+            pc.main()
+        finally:
+            builtins.print = self._orig_print
+        # Short message (<5 chars) returns early
+        self.assertEqual(self._captured, [])
+
+
 if __name__ == '__main__':
     unittest.main()
