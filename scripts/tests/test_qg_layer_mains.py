@@ -3315,17 +3315,14 @@ class TestHooksShared(_MainTestBase):
             content = f.read()
         self.assertIn('test', content)
 
-    # --- call_haiku_check (no API key path) ---
+    # --- call_haiku_check (no API key path, lines 714-715) ---
 
     def test_call_haiku_no_api_key(self):
+        # Lines 714-715: load_api_key returns '' → _log_degradation called, fail-open returned
+        import unittest.mock as _mock
         hs = self._hs()
-        import os as _os
-        orig = _os.environ.pop('ANTHROPIC_API_KEY', None)
-        try:
+        with _mock.patch.object(hs, 'load_api_key', return_value=''):
             ok, reason, genuine = hs.call_haiku_check('test prompt')
-        finally:
-            if orig:
-                _os.environ['ANTHROPIC_API_KEY'] = orig
         self.assertTrue(ok)
         self.assertFalse(genuine)
 
@@ -3359,6 +3356,227 @@ class TestHooksShared(_MainTestBase):
         self.assertTrue(hs.VALIDATION_COMMAND_RE.search('python -m pytest tests/'))
         self.assertTrue(hs.VALIDATION_COMMAND_RE.search('npm test'))
         self.assertTrue(hs.VALIDATION_COMMAND_RE.search('bash smoke-test.sh'))
+
+    # --- rotate_log write failure (lines 44-50) ---
+
+    def test_rotate_log_write_failure_no_crash(self):
+        # Lines 44-48: inner except — os.fdopen raises, os.unlink called; then unlink also raises
+        import unittest.mock as _mock
+        hs = self._hs()
+        f = self._write_file('fail.log', ''.join(f'line{i}\n' for i in range(20)))
+        with _mock.patch('os.fdopen', side_effect=OSError('mock fdopen fail')):
+            with _mock.patch('os.unlink', side_effect=OSError('mock unlink fail')):
+                hs.rotate_log(f, 5)  # Should not raise
+
+    def test_rotate_log_outer_exception_no_crash(self):
+        # Lines 49-50: outer except — open(path, 'r') raises, exception swallowed
+        import unittest.mock as _mock
+        hs = self._hs()
+        with _mock.patch('builtins.open', side_effect=PermissionError('denied')):
+            hs.rotate_log('/some/path.log', 5)  # Should not raise
+
+    # --- load_api_key dotenv open raises unexpected exception (lines 100-102) ---
+
+    def test_load_api_key_dotenv_open_exception(self):
+        # Lines 100-102: open(.env) raises unexpected exception, returns ''
+        import os as _os, unittest.mock as _mock
+        hs = self._hs()
+        orig = _os.environ.pop('ANTHROPIC_API_KEY', None)
+        try:
+            with _mock.patch('builtins.open', side_effect=PermissionError('denied')):
+                key = hs.load_api_key()
+        finally:
+            if orig:
+                _os.environ['ANTHROPIC_API_KEY'] = orig
+        self.assertEqual(key, '')
+
+    # --- check_cache expired entry (line 119) ---
+
+    def test_check_cache_expired_returns_none(self):
+        # Line 119: cache entry exists but ts is older than 86400s → returns None
+        import json as _json, time as _time
+        hs = self._hs()
+        orig = hs.CACHE_PATH
+        hs.CACHE_PATH = os.path.join(self.tmpdir, 'exp_cache.json')
+        try:
+            h = hs._response_hash('old response')
+            cache = {h: {'ok': True, 'reason': '', 'ts': _time.time() - 90000}}
+            with open(hs.CACHE_PATH, 'w') as fh:
+                _json.dump(cache, fh)
+            result = hs.check_cache('old response')
+        finally:
+            hs.CACHE_PATH = orig
+        self.assertIsNone(result)
+
+    # --- write_cache outer exception (lines 142-143) ---
+
+    def test_write_cache_write_exception_no_crash(self):
+        # Lines 142-143: outer json.dump write raises, exception swallowed
+        import unittest.mock as _mock
+        hs = self._hs()
+        orig = hs.CACHE_PATH
+        hs.CACHE_PATH = os.path.join(self.tmpdir, 'crash_cache.json')
+        try:
+            with _mock.patch('json.dump', side_effect=OSError('mock write fail')):
+                hs.write_cache('some response', True, 'ok')  # Should not raise
+        finally:
+            hs.CACHE_PATH = orig
+
+    # --- write_override exception (lines 155-156) ---
+
+    def test_write_override_exception_no_crash(self):
+        # Lines 155-156: open raises, exception swallowed
+        import unittest.mock as _mock
+        hs = self._hs()
+        orig = hs.OVERRIDES_PATH
+        hs.OVERRIDES_PATH = os.path.join(self.tmpdir, 'overrides_fail.jsonl')
+        try:
+            with _mock.patch('builtins.open', side_effect=PermissionError('denied')):
+                hs.write_override({'reason': 'test'})  # Should not raise
+        finally:
+            hs.OVERRIDES_PATH = orig
+
+    # --- call_haiku_check 429 retry (lines 738-744) ---
+
+    def test_call_haiku_429_retry(self):
+        # Lines 738-744: first urlopen raises 429, second succeeds
+        import urllib.error, unittest.mock as _mock, json as _json
+        hs = self._hs()
+        good_body = _json.dumps({'content': [{'type': 'text', 'text': '{"ok": true}'}]}).encode()
+        good_resp = _mock.MagicMock()
+        good_resp.__enter__ = lambda s: s
+        good_resp.__exit__ = _mock.MagicMock(return_value=False)
+        good_resp.read.return_value = good_body
+        err_429 = urllib.error.HTTPError(url='', code=429, msg='Too Many Requests', hdrs=None, fp=None)
+        call_count = [0]
+        def fake_urlopen(req, timeout=10):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise err_429
+            return good_resp
+        import os as _os
+        orig = _os.environ.get('ANTHROPIC_API_KEY')
+        _os.environ['ANTHROPIC_API_KEY'] = 'sk-test-key'
+        try:
+            with _mock.patch('urllib.request.urlopen', side_effect=fake_urlopen):
+                with _mock.patch('time.sleep'):
+                    ok, reason, genuine = hs.call_haiku_check('test prompt')
+        finally:
+            if orig:
+                _os.environ['ANTHROPIC_API_KEY'] = orig
+            else:
+                _os.environ.pop('ANTHROPIC_API_KEY', None)
+        self.assertTrue(ok)
+        self.assertTrue(genuine)
+
+    # --- call_haiku_check backtick stripping (lines 751-753) ---
+
+    def test_call_haiku_backtick_response(self):
+        # Lines 751-753: LLM wraps JSON in ```json ... ``` code fence
+        import unittest.mock as _mock, json as _json
+        hs = self._hs()
+        body = _json.dumps({'content': [{'type': 'text', 'text': '```json\n{"ok": true}\n```'}]}).encode()
+        resp = _mock.MagicMock()
+        resp.__enter__ = lambda s: s
+        resp.__exit__ = _mock.MagicMock(return_value=False)
+        resp.read.return_value = body
+        import os as _os
+        orig = _os.environ.get('ANTHROPIC_API_KEY')
+        _os.environ['ANTHROPIC_API_KEY'] = 'sk-test-key'
+        try:
+            with _mock.patch('urllib.request.urlopen', return_value=resp):
+                ok, reason, genuine = hs.call_haiku_check('test prompt')
+        finally:
+            if orig:
+                _os.environ['ANTHROPIC_API_KEY'] = orig
+            else:
+                _os.environ.pop('ANTHROPIC_API_KEY', None)
+        self.assertTrue(ok)
+        self.assertTrue(genuine)
+
+    # --- call_haiku_check inner JSONDecodeError in regex fallback (lines 762-766) ---
+
+    def test_call_haiku_json_fallback_no_match(self):
+        # Lines 758-759, 767-769: initial parse fails, regex finds no match → fail-open
+        import unittest.mock as _mock, json as _json
+        hs = self._hs()
+        # Text with no JSON-like object — regex won't match
+        raw_text = 'completely invalid response with no json object at all'
+        body = _json.dumps({'content': [{'type': 'text', 'text': raw_text}]}).encode()
+        resp = _mock.MagicMock()
+        resp.__enter__ = lambda s: s
+        resp.__exit__ = _mock.MagicMock(return_value=False)
+        resp.read.return_value = body
+        real_loads = hs.json.loads
+        call_count = [0]
+        def fail_on_text(s, **kw):
+            result = real_loads(s, **kw)
+            call_count[0] += 1
+            # First call succeeds (parses API response body); second call is for text — raise
+            if call_count[0] >= 2:
+                raise _json.JSONDecodeError('mock', raw_text, 0)
+            return result
+        with _mock.patch.object(hs, 'load_api_key', return_value='sk-test-key'):
+            with _mock.patch('urllib.request.urlopen', return_value=resp):
+                with _mock.patch.object(hs.json, 'loads', side_effect=fail_on_text):
+                    ok, reason, genuine = hs.call_haiku_check('test prompt')
+        self.assertTrue(ok)
+        self.assertFalse(genuine)
+
+    def test_call_haiku_json_fallback_inner_decode_error(self):
+        # Lines 762-766: initial parse fails, regex finds match but inner parse also fails → fail-open
+        import unittest.mock as _mock, json as _json
+        hs = self._hs()
+        # Text containing a JSON-like object so regex matches, but both parses fail
+        raw_text = 'preamble {"ok": true} trailing'
+        body = _json.dumps({'content': [{'type': 'text', 'text': raw_text}]}).encode()
+        resp = _mock.MagicMock()
+        resp.__enter__ = lambda s: s
+        resp.__exit__ = _mock.MagicMock(return_value=False)
+        resp.read.return_value = body
+        real_loads = hs.json.loads
+        call_count = [0]
+        def fail_on_text(s, **kw):
+            result = real_loads(s, **kw)
+            call_count[0] += 1
+            if call_count[0] >= 2:
+                raise _json.JSONDecodeError('mock', raw_text, 0)
+            return result
+        with _mock.patch.object(hs, 'load_api_key', return_value='sk-test-key'):
+            with _mock.patch('urllib.request.urlopen', return_value=resp):
+                with _mock.patch.object(hs.json, 'loads', side_effect=fail_on_text):
+                    ok, reason, genuine = hs.call_haiku_check('test prompt')
+        self.assertTrue(ok)
+        self.assertFalse(genuine)
+
+    # --- call_haiku_check outer exception (lines 773-775) ---
+
+    def test_call_haiku_network_exception_fail_open(self):
+        # Lines 773-775: urlopen raises non-429 exception → fail-open
+        import unittest.mock as _mock
+        hs = self._hs()
+        import os as _os
+        orig = _os.environ.get('ANTHROPIC_API_KEY')
+        _os.environ['ANTHROPIC_API_KEY'] = 'sk-test-key'
+        try:
+            with _mock.patch('urllib.request.urlopen', side_effect=ConnectionError('network down')):
+                ok, reason, genuine = hs.call_haiku_check('test prompt')
+        finally:
+            if orig:
+                _os.environ['ANTHROPIC_API_KEY'] = orig
+            else:
+                _os.environ.pop('ANTHROPIC_API_KEY', None)
+        self.assertTrue(ok)
+        self.assertFalse(genuine)
+
+    # --- _log_degradation write exception (lines 786-787) ---
+
+    def test_log_degradation_write_exception_no_crash(self):
+        # Lines 786-787: open raises, exception swallowed
+        import unittest.mock as _mock
+        hs = self._hs()
+        with _mock.patch('builtins.open', side_effect=PermissionError('denied')):
+            hs._log_degradation('Test message')  # Should not raise
 
 
 # ============================================================================

@@ -568,6 +568,37 @@ class TestPrunePermissions(unittest.TestCase):
         try:
             with patch.object(m, "SETTINGS_PATH", p): m.main()
         finally: os.unlink(p)
+    def test_atomic_write_failure_cleans_up(self):
+        # Lines 56-61: os.replace raises, os.unlink called; then os.unlink also raises (lines 59-60)
+        m = self._import()
+        s = {"permissions": {"allow": ["Bash(git status --porcelain)"]}}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
+            json.dump(s, f); p = f.name
+        try:
+            with patch.object(m, "SETTINGS_PATH", p):
+                with patch("os.replace", side_effect=OSError("mock replace fail")):
+                    with patch("os.unlink", side_effect=OSError("mock unlink fail")):
+                        m.main()  # Should not raise even when unlink also fails
+        finally:
+            try: os.unlink(p)
+            except OSError: pass
+    def test_main_dunder_exits_zero(self):
+        # Lines 67-68, 71: run module as __main__ via runpy — normal path, exits 0
+        import runpy
+        with patch("sys.exit") as mock_exit:
+            runpy.run_path(os.path.join(HOOKS_DIR, "prune-permissions.py"), run_name="__main__")
+        mock_exit.assert_called_once_with(0)
+    def test_main_dunder_exception_swallowed(self):
+        # Lines 69-71: __main__ guard swallows unexpected Exception from main() and exits 0
+        import runpy
+        # Patch json.load to raise an unexpected exception type (not caught inside main's try block)
+        with patch("json.load", side_effect=PermissionError("simulated")):
+            with patch("sys.exit") as mock_exit:
+                runpy.run_path(
+                    os.path.join(HOOKS_DIR, "prune-permissions.py"),
+                    run_name="__main__",
+                )
+        mock_exit.assert_called_once_with(0)
 
 class TestQaScreenshotGate(unittest.TestCase):
     def _import(self):
