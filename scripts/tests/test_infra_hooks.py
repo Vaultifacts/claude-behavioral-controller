@@ -807,6 +807,50 @@ class TestContextWatchMain(unittest.TestCase):
         m = self._import()
         self.assertIn(".claude", m.STATE_DIR)
 
+    def test_new_threshold_70pct_writes_state_and_toasts(self):
+        m = self._import()
+        p = {"session_id": "s75", "context": {"tokens_used": 750, "context_window": 1000}}
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), \
+                 patch.object(m, "STATE_DIR", tmp), \
+                 patch("subprocess.Popen") as mock_popen:
+                m.main()
+            mock_popen.assert_called_once()
+            toast = os.path.join(tmp, "context-toast-state.json")
+            self.assertTrue(os.path.exists(toast))
+            with open(toast) as f:
+                state = json.load(f)
+            self.assertEqual(state["last_threshold"], 70)
+
+    def test_new_threshold_85pct_critical_level(self):
+        m = self._import()
+        p = {"session_id": "s85", "context": {"tokens_used": 860, "context_window": 1000}}
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), \
+                 patch.object(m, "STATE_DIR", tmp), \
+                 patch("subprocess.Popen") as mock_popen:
+                m.main()
+            args = mock_popen.call_args[0][0]
+            self.assertIn("Error", args)
+
+    def test_new_threshold_90pct_prints_message(self):
+        m = self._import()
+        p = {"session_id": "s92", "context": {"tokens_used": 920, "context_window": 1000}}
+        with tempfile.TemporaryDirectory() as tmp:
+            cap = io.StringIO()
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), \
+                 patch.object(m, "STATE_DIR", tmp), \
+                 patch("subprocess.Popen"), \
+                 patch("sys.stdout", cap):
+                m.main()
+            self.assertIn("compact needed", cap.getvalue())
+
+    def test_ctx_fallback_bad_data_no_crash(self):
+        m = self._import()
+        p = {"session_id": "s1", "context": {"tokens_used": "bad", "context_window": "x"}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            m.main()  # should not raise
+
 
 class TestEventObserverMain(unittest.TestCase):
     def _import(self):
