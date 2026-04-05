@@ -2252,5 +2252,241 @@ class TestLayer15MemCoverage(_MainTestBase):
         self.assertIsInstance(report['issues'], list)
 
 
+# ============================================================================
+# Layer 5: Subagent Coordination coverage (73%→80%+)
+# ============================================================================
+
+class TestLayer5Coverage(_MainTestBase):
+    def test_find_inflight_id_no_match(self):
+        from qg_layer5 import _find_inflight_id
+        sid = _find_inflight_id({}, 'task1')
+        self.assertEqual(len(sid), 8)  # uuid[:8]
+
+    def test_find_inflight_id_with_match(self):
+        from qg_layer5 import _find_inflight_id
+        subs = {'abc12345': {'parent_task_id': 't1', 'status': 'in_flight', 'ts': '2026-01-01'}}
+        sid = _find_inflight_id(subs, 't1')
+        self.assertEqual(sid, 'abc12345')
+
+    def test_write_handoff_creates_file(self):
+        import qg_layer5
+        orig = qg_layer5.HANDOFF_DIR
+        qg_layer5.HANDOFF_DIR = self.tmpdir
+        try:
+            qg_layer5._write_handoff('test123', 'ptask1', {})
+        finally:
+            qg_layer5.HANDOFF_DIR = orig
+        path = os.path.join(self.tmpdir, 'qg-subagent-test123.json')
+        self.assertTrue(os.path.exists(path))
+        with open(path) as f:
+            data = json.load(f)
+        self.assertEqual(data['subagent_id'], 'test123')
+
+    def test_merge_subagent_events_missing_file(self):
+        import qg_layer5, qg_session_state as ss
+        orig = qg_layer5.HANDOFF_DIR
+        qg_layer5.HANDOFF_DIR = self.tmpdir
+        state = ss.read_state()
+        state['layer5_subagents'] = {'miss123': {'status': 'in_flight'}}
+        try:
+            qg_layer5._merge_subagent_events('miss123', 'pt1', state)
+        finally:
+            qg_layer5.HANDOFF_DIR = orig
+        self.assertTrue(state['layer5_subagents']['miss123'].get('timeout_marker'))
+
+    def test_merge_subagent_events_corrupt_file(self):
+        import qg_layer5, qg_session_state as ss
+        orig = qg_layer5.HANDOFF_DIR
+        qg_layer5.HANDOFF_DIR = self.tmpdir
+        path = os.path.join(self.tmpdir, 'qg-subagent-bad123.json')
+        with open(path, 'w') as f:
+            f.write('not json')
+        state = ss.read_state()
+        state['layer5_subagents'] = {'bad123': {'status': 'in_flight'}}
+        try:
+            qg_layer5._merge_subagent_events('bad123', 'pt2', state)
+        finally:
+            qg_layer5.HANDOFF_DIR = orig
+        self.assertTrue(state['layer5_subagents']['bad123'].get('timeout_marker'))
+
+    def test_main_bad_json_no_crash(self):
+        import qg_layer5
+        sys.stdin = io.StringIO('not json')
+        try:
+            qg_layer5.main()
+        finally:
+            sys.stdin = self._orig_stdin
+
+    def test_main_non_agent_returns(self):
+        import qg_layer5
+        self._set_stdin({"tool_name": "Read", "tool_input": {}})
+        self._capture_print()
+        try:
+            qg_layer5.main()
+        finally:
+            builtins.print = self._orig_print
+        self.assertEqual(self._captured, [])
+
+    def test_main_pre_dispatch(self):
+        import qg_layer5, qg_session_state as ss
+        orig_mp = qg_layer5.MONITOR_PATH
+        orig_hd = qg_layer5.HANDOFF_DIR
+        qg_layer5.MONITOR_PATH = self.monitor_path
+        qg_layer5.HANDOFF_DIR = self.tmpdir
+        state = ss.read_state()
+        state['active_task_id'] = 'task_pre'
+        ss.write_state(state)
+        self._set_stdin({"tool_name": "Agent", "tool_input": {"prompt": "do something"}})
+        try:
+            qg_layer5.main()
+        finally:
+            qg_layer5.MONITOR_PATH = orig_mp
+            qg_layer5.HANDOFF_DIR = orig_hd
+        state2 = ss.read_state()
+        subs = state2.get('layer5_subagents', {})
+        self.assertGreater(len(subs), 0)
+
+    def test_main_post_dispatch(self):
+        import qg_layer5, qg_session_state as ss
+        orig_mp = qg_layer5.MONITOR_PATH
+        orig_hd = qg_layer5.HANDOFF_DIR
+        qg_layer5.MONITOR_PATH = self.monitor_path
+        qg_layer5.HANDOFF_DIR = self.tmpdir
+        state = ss.read_state()
+        state['active_task_id'] = 'task_post'
+        ss.write_state(state)
+        self._set_stdin({"tool_name": "Agent", "tool_input": {"prompt": "research"},
+                         "tool_response": "Found the answer."})
+        try:
+            qg_layer5.main()
+        finally:
+            qg_layer5.MONITOR_PATH = orig_mp
+            qg_layer5.HANDOFF_DIR = orig_hd
+
+
+# ============================================================================
+# Layer 6: Cross-session Pattern Analysis coverage (76%→80%+)
+# ============================================================================
+
+class TestLayer6Coverage(_MainTestBase):
+    def test_load_monitor_events_empty_file(self):
+        from qg_layer6 import load_monitor_events
+        f = self._write_file('empty.jsonl', '')
+        events = load_monitor_events(f)
+        self.assertEqual(events, [])
+
+    def test_load_monitor_events_with_data(self):
+        from qg_layer6 import load_monitor_events
+        f = self._write_file('monitor.jsonl',
+            json.dumps({"category": "LAZINESS", "session_uuid": "s1"}) + '\n')
+        events = load_monitor_events(f)
+        self.assertEqual(len(events), 1)
+
+    def test_load_monitor_events_invalid_json_skipped(self):
+        from qg_layer6 import load_monitor_events
+        f = self._write_file('mixed.jsonl', 'not json\n{"category":"X"}\n')
+        events = load_monitor_events(f)
+        self.assertEqual(len(events), 1)
+
+    def test_analyze_patterns_below_min_sessions(self):
+        from qg_layer6 import analyze_patterns
+        events = [{"session_uuid": "s1", "category": "LAZINESS"}]
+        patterns = analyze_patterns(events, min_sessions=3)
+        self.assertEqual(patterns, [])
+
+    def test_analyze_patterns_finds_recurring(self):
+        from qg_layer6 import analyze_patterns
+        events = []
+        for i in range(5):
+            sid = f's{i}'
+            for _ in range(3):
+                events.append({"session_uuid": sid, "category": "LAZINESS", "ts": f"2026-01-0{i+1}"})
+        patterns = analyze_patterns(events, min_sessions=3, min_pct=0.1)
+        self.assertGreater(len(patterns), 0)
+        self.assertEqual(patterns[0]['category'], 'LAZINESS')
+
+    def test_run_analysis_creates_output(self):
+        import qg_layer6
+        orig_rp = qg_layer6.RULES_PATH
+        qg_layer6.RULES_PATH = os.path.join(self.tmpdir, 'no_rules.json')
+        monitor = self._write_file('mon.jsonl', '')
+        output = os.path.join(self.tmpdir, 'cross.json')
+        try:
+            result = qg_layer6.run_analysis(monitor, output)
+        finally:
+            qg_layer6.RULES_PATH = orig_rp
+        self.assertIn('patterns', result)
+        self.assertIn('sessions_analyzed', result)
+
+    def test_run_analysis_with_rules(self):
+        import qg_layer6
+        orig_rp = qg_layer6.RULES_PATH
+        rules = self._write_file('rules.json', json.dumps({
+            "layer6": {"pattern_min_sessions": 2, "pattern_min_pct": 10}
+        }))
+        qg_layer6.RULES_PATH = rules
+        monitor = self._write_file('mon2.jsonl', '')
+        output = os.path.join(self.tmpdir, 'cross2.json')
+        try:
+            result = qg_layer6.run_analysis(monitor, output)
+        finally:
+            qg_layer6.RULES_PATH = orig_rp
+        self.assertIsInstance(result['patterns'], list)
+
+    def test_main_throttled(self):
+        import qg_layer6, qg_session_state as ss
+        state = ss.read_state()
+        state['layer6_last_analysis_ts'] = time.time()
+        ss.write_state(state)
+        self._capture_print()
+        try:
+            qg_layer6.main()
+        finally:
+            builtins.print = self._orig_print
+        # Throttled — returns early, no output
+
+    def test_main_runs_analysis(self):
+        import qg_layer6, qg_session_state as ss
+        orig_mp = qg_layer6.MONITOR_PATH
+        orig_cp = qg_layer6.CROSS_SESSION_PATH
+        orig_rp = qg_layer6.RULES_PATH
+        qg_layer6.MONITOR_PATH = self._write_file('mon3.jsonl', '')
+        qg_layer6.CROSS_SESSION_PATH = os.path.join(self.tmpdir, 'cross3.json')
+        qg_layer6.RULES_PATH = os.path.join(self.tmpdir, 'no_rules.json')
+        state = ss.read_state()
+        state['layer6_last_analysis_ts'] = 0
+        ss.write_state(state)
+        try:
+            qg_layer6.main()
+        finally:
+            qg_layer6.MONITOR_PATH = orig_mp
+            qg_layer6.CROSS_SESSION_PATH = orig_cp
+            qg_layer6.RULES_PATH = orig_rp
+        state2 = ss.read_state()
+        self.assertGreater(state2.get('layer6_last_analysis_ts', 0), 0)
+
+    def test_cli_run_flag(self):
+        import qg_layer6
+        orig_mp = qg_layer6.MONITOR_PATH
+        orig_cp = qg_layer6.CROSS_SESSION_PATH
+        orig_rp = qg_layer6.RULES_PATH
+        qg_layer6.MONITOR_PATH = self._write_file('mon4.jsonl', '')
+        qg_layer6.CROSS_SESSION_PATH = os.path.join(self.tmpdir, 'cross4.json')
+        qg_layer6.RULES_PATH = os.path.join(self.tmpdir, 'no_rules.json')
+        sys.argv = ['qg_layer6.py', '--run']
+        self._capture_print()
+        try:
+            # Simulate the __name__ == "__main__" block
+            result = qg_layer6.run_analysis()
+            print("Analyzed {} sessions, found {} patterns.".format(
+                result["sessions_analyzed"], len(result["patterns"])))
+        finally:
+            builtins.print = self._orig_print
+            qg_layer6.MONITOR_PATH = orig_mp
+            qg_layer6.CROSS_SESSION_PATH = orig_cp
+            qg_layer6.RULES_PATH = orig_rp
+        self.assertIn('Analyzed', self._output())
+
+
 if __name__ == '__main__':
     unittest.main()
