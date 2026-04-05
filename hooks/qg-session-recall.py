@@ -13,20 +13,24 @@ import time
 STATE_DIR = os.path.expanduser('~/.claude')
 SNAPSHOT = os.path.join(STATE_DIR, 'last-session-qg-failures.txt')
 
-if os.path.exists(SNAPSHOT):
-    try:
-        age_hours = (time.time() - os.path.getmtime(SNAPSHOT)) / 3600
-        if age_hours > 24:
-            os.remove(SNAPSHOT)
-            sys.exit(0)
-        text = open(SNAPSHOT, encoding='utf-8').read().strip()
-        if text:
-            header = '[qg-recall] Previous session quality gate summary:'
-            msg = header + chr(10) + text
-            print(json.dumps({'type': 'system', 'message': msg}))
-            os.remove(SNAPSHOT)
-            sys.exit(0)
-    except Exception:
-        pass
 
-sys.exit(0)
+def main():
+    if os.path.exists(SNAPSHOT):
+        try:
+            age_hours = (time.time() - os.path.getmtime(SNAPSHOT)) / 3600
+            if age_hours > 24:
+                os.remove(SNAPSHOT)
+                return
+            text = open(SNAPSHOT, encoding='utf-8').read().strip()
+            if text:
+                header = '[qg-recall] Previous session quality gate summary:'
+                msg = header + chr(10) + text
+                print(json.dumps({'type': 'system', 'message': msg}))
+                os.remove(SNAPSHOT)
+                return
+        except Exception:
+            pass
+
+
+if __name__ == "__main__":
+    main()

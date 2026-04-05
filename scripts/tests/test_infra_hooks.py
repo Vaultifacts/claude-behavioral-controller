@@ -682,6 +682,7 @@ class TestQgSessionRecall(unittest.TestCase):
                 "spec = importlib.util.spec_from_file_location('m', {!r})\n"
                 "m = importlib.util.module_from_spec(spec)\n"
                 "spec.loader.exec_module(m)\n"
+                "m.main()\n"
             ).format(tmp, self.HOOK_PATH)
             r = subprocess.run([sys.executable, "-c", script], input=b"", capture_output=True, env=env)
             self.assertEqual(r.returncode, 0)
@@ -702,6 +703,7 @@ class TestQgSessionRecall(unittest.TestCase):
                 "spec = importlib.util.spec_from_file_location('m', {!r})\n"
                 "m = importlib.util.module_from_spec(spec)\n"
                 "spec.loader.exec_module(m)\n"
+                "m.main()\n"
             ).format(tmp, self.HOOK_PATH)
             r = subprocess.run([sys.executable, "-c", script], input=b"", capture_output=True, env=env)
             self.assertEqual(r.returncode, 0); self.assertFalse(os.path.exists(snap))
@@ -758,6 +760,271 @@ class TestQgShadowWorker(unittest.TestCase):
     def test_shadow_log_name(self):
         m = self._import()
         self.assertIn("qg-shadow.log", m.SHADOW_LOG)
+
+class TestContextWatchMain(unittest.TestCase):
+    def _import(self):
+        mod_name = "context-watch"
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+
+    def test_low_context_returns(self):
+        m = self._import()
+        p = {"session_id": "s1", "context": {"tokens_used": 100, "context_window": 10000}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            m.main()  # should return without raising
+
+    def test_invalid_json_returns(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO("bad")):
+            m.main()
+
+    def test_empty_payload_returns(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO(json.dumps({}))):
+            m.main()
+
+    def test_zero_context_returns(self):
+        m = self._import()
+        p = {"session_id": "s1", "context": {"tokens_used": 0, "context_window": 0}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            m.main()
+
+    def test_high_context_already_toasted(self):
+        m = self._import()
+        p = {"session_id": "s90", "context": {"tokens_used": 900, "context_window": 1000}}
+        with tempfile.TemporaryDirectory() as tmp:
+            toast = os.path.join(tmp, "context-toast-state.json")
+            with open(toast, "w") as f:
+                json.dump({"session_id": "s90", "last_threshold": 90}, f)
+            cap = io.StringIO()
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), \
+                 patch.object(m, "STATE_DIR", tmp), \
+                 patch("sys.stdout", cap):
+                m.main()
+
+    def test_state_dir_constant(self):
+        m = self._import()
+        self.assertIn(".claude", m.STATE_DIR)
+
+
+class TestEventObserverMain(unittest.TestCase):
+    def _import(self):
+        mod_name = "event-observer"
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+
+    def test_invalid_json_returns(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO("bad")):
+            m.main()
+
+    def test_unknown_event_returns(self):
+        m = self._import()
+        p = {"hook_event_name": "Unknown"}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            m.main()
+
+    def test_instructions_loaded_logs(self):
+        m = self._import()
+        p = {"hook_event_name": "InstructionsLoaded", "load_reason": "startup", "file_path": "/CLAUDE.md"}
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), patch.object(m, "LOG_PATH", log):
+                m.main()
+            self.assertTrue(os.path.exists(log))
+            self.assertIn("INSTRUCTIONS", open(log, encoding="utf-8").read())
+
+    def test_session_start_logs(self):
+        m = self._import()
+        p = {"hook_event_name": "SessionStart", "trigger": "new"}
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), patch.object(m, "LOG_PATH", log):
+                m.main()
+            self.assertIn("SESSION_START", open(log, encoding="utf-8").read())
+
+    def test_config_change_stderr(self):
+        m = self._import()
+        p = {"hook_event_name": "ConfigChange", "source": "user", "file_path": "/s.json"}
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "hook-audit.log")
+            err_cap = io.StringIO()
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), \
+                 patch.object(m, "LOG_PATH", log), \
+                 patch("sys.stderr", err_cap):
+                m.main()
+            self.assertIn("config-change", err_cap.getvalue())
+
+    def test_log_path_constant(self):
+        m = self._import()
+        self.assertIn("hook-audit.log", m.LOG_PATH)
+
+
+class TestPermissionRequestLogMain(unittest.TestCase):
+    def _import(self):
+        mod_name = "permission-request-log"
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+
+    def test_invalid_json_returns(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO("bad")):
+            m.main()
+
+    def test_bash_cmd_logs(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_input": {"command": "git status"}}
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), patch.object(m, "LOG_PATH", log):
+                m.main()
+            self.assertIn("PERMISSION_REQUEST", open(log, encoding="utf-8").read())
+            self.assertIn("Bash", open(log, encoding="utf-8").read())
+
+    def test_file_path_logs(self):
+        m = self._import()
+        p = {"tool_name": "Write", "tool_input": {"file_path": "/p.py"}}
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), patch.object(m, "LOG_PATH", log):
+                m.main()
+            self.assertIn("Write", open(log, encoding="utf-8").read())
+
+    def test_empty_input_logs(self):
+        m = self._import()
+        p = {"tool_name": "T", "tool_input": {}}
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), patch.object(m, "LOG_PATH", log):
+                m.main()
+            self.assertTrue(os.path.exists(log))
+
+    def test_non_dict_input_logs(self):
+        m = self._import()
+        p = {"tool_name": "T", "tool_input": "s"}
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), patch.object(m, "LOG_PATH", log):
+                m.main()
+            self.assertTrue(os.path.exists(log))
+
+    def test_log_path_constant(self):
+        m = self._import()
+        self.assertIn("hook-audit.log", m.LOG_PATH)
+
+
+class TestPreCompactSnapshotMain(unittest.TestCase):
+    def _import(self):
+        mod_name = "pre-compact-snapshot"
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+
+    def test_invalid_json_returns(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO("bad")):
+            m.main()
+
+    def test_no_transcript_logs(self):
+        m = self._import()
+        p = {"session_id": "abc", "trigger": "auto", "transcript_path": ""}
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), patch.object(m, "LOG_PATH", log):
+                m.main()
+            self.assertIn("PRE_COMPACT", open(log, encoding="utf-8").read())
+
+    def test_missing_transcript_logs(self):
+        m = self._import()
+        p = {"session_id": "abc", "trigger": "auto", "transcript_path": "/nope.jsonl"}
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), patch.object(m, "LOG_PATH", log):
+                m.main()
+            self.assertIn("PRE_COMPACT", open(log, encoding="utf-8").read())
+
+    def test_existing_transcript_copies(self):
+        m = self._import()
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            open(tp, "w").write("{}\n")
+            log = os.path.join(tmp, "hook-audit.log")
+            sessions = os.path.join(tmp, "sessions")
+            p = {"session_id": "xyz", "trigger": "auto", "transcript_path": tp}
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), \
+                 patch.object(m, "LOG_PATH", log), \
+                 patch.object(m, "SESSIONS_DIR", sessions):
+                m.main()
+            self.assertTrue(any(f.endswith(".jsonl.bak") for f in os.listdir(sessions)))
+
+    def test_manual_trigger_logs(self):
+        m = self._import()
+        p = {"session_id": "a", "trigger": "manual", "transcript_path": ""}
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), \
+                 patch.object(m, "LOG_PATH", log), \
+                 patch("subprocess.Popen"):
+                m.main()
+            self.assertIn("manual", open(log, encoding="utf-8").read())
+
+    def test_log_path_constant(self):
+        m = self._import()
+        self.assertIn("hook-audit.log", m.LOG_PATH)
+
+
+class TestQgSessionRecallMain(unittest.TestCase):
+    def _import(self):
+        mod_name = "qg-session-recall"
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+
+    def test_no_snapshot_returns(self):
+        m = self._import()
+        with patch.object(m, "SNAPSHOT", "/nope/missing.txt"):
+            m.main()  # should return silently
+
+    def test_injects_message_main(self):
+        m = self._import()
+        with tempfile.TemporaryDirectory() as tmp:
+            snap = os.path.join(tmp, "last-session-qg-failures.txt")
+            open(snap, "w", encoding="utf-8").write("Block count: 3")
+            cap = io.StringIO()
+            with patch.object(m, "SNAPSHOT", snap), patch("sys.stdout", cap):
+                m.main()
+            s = cap.getvalue().strip()
+            self.assertTrue(s)
+            self.assertEqual(json.loads(s).get("type"), "system")
+            self.assertFalse(os.path.exists(snap))
+
+    def test_stale_snapshot_deleted_main(self):
+        m = self._import()
+        with tempfile.TemporaryDirectory() as tmp:
+            snap = os.path.join(tmp, "last-session-qg-failures.txt")
+            open(snap, "w", encoding="utf-8").write("old")
+            os.utime(snap, (time.time()-90000, time.time()-90000))
+            with patch.object(m, "SNAPSHOT", snap):
+                m.main()
+            self.assertFalse(os.path.exists(snap))
+
+    def test_empty_text_no_output(self):
+        m = self._import()
+        with tempfile.TemporaryDirectory() as tmp:
+            snap = os.path.join(tmp, "last-session-qg-failures.txt")
+            open(snap, "w", encoding="utf-8").write("   ")
+            cap = io.StringIO()
+            with patch.object(m, "SNAPSHOT", snap), patch("sys.stdout", cap):
+                m.main()
+            self.assertEqual(cap.getvalue().strip(), "")
+
+    def test_snapshot_constant(self):
+        m = self._import()
+        self.assertIn("last-session-qg-failures.txt", m.SNAPSHOT)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

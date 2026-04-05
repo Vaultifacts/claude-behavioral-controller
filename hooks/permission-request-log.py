@@ -12,25 +12,29 @@ from _hooks_shared import rotate_log
 STATE_DIR = os.path.expanduser('~/.claude').replace('\\', '/')
 LOG_PATH = f'{STATE_DIR}/hook-audit.log'
 
-try:
-    payload = json.load(sys.stdin)
-except Exception:
-    sys.exit(0)
 
-tool_name = payload.get('tool_name', '?')
-tool_input = payload.get('tool_input', {})
-context = ''
-if isinstance(tool_input, dict):
-    context = (tool_input.get('command', '') or tool_input.get('file_path', ''))[:80]
+def main():
+    try:
+        payload = json.load(sys.stdin)
+    except Exception:
+        return
 
-now = datetime.now().strftime('%Y-%m-%d %H:%M')
-line = f'{now} | PERMISSION_REQUEST | {tool_name} | {context}\n'
+    tool_name = payload.get('tool_name', '?')
+    tool_input = payload.get('tool_input', {})
+    context = ''
+    if isinstance(tool_input, dict):
+        context = (tool_input.get('command', '') or tool_input.get('file_path', ''))[:80]
 
-try:
-    with open(LOG_PATH, 'a', encoding='utf-8') as f:
-        f.write(line)
-    rotate_log(LOG_PATH, 200)
-except Exception:
-    pass
+    now = datetime.now().strftime('%Y-%m-%d %H:%M')
+    line = f'{now} | PERMISSION_REQUEST | {tool_name} | {context}\n'
 
-sys.exit(0)
+    try:
+        with open(LOG_PATH, 'a', encoding='utf-8') as f:
+            f.write(line)
+        rotate_log(LOG_PATH, 200)
+    except Exception:
+        pass
+
+
+if __name__ == "__main__":
+    main()
