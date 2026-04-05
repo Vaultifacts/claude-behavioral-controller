@@ -3451,6 +3451,448 @@ class TestPrecheckHookBoost(_MainTestBase):
         # Short message (<5 chars) returns early
         self.assertEqual(self._captured, [])
 
+    # --- _write_event coverage (lines 11-15) ---
+
+    def test_write_event_writes_to_file(self):
+        pc = self._pc()
+        orig = pc._MONITOR_PATH
+        pc._MONITOR_PATH = self.monitor_path
+        try:
+            pc._write_event({'event_id': 'test-write', 'layer': 'precheck', 'msg': 'hello'})
+        finally:
+            pc._MONITOR_PATH = orig
+        self.assertTrue(os.path.exists(self.monitor_path))
+        with open(self.monitor_path, encoding='utf-8') as f:
+            line = f.readline()
+        data = json.loads(line)
+        self.assertEqual(data['event_id'], 'test-write')
+
+    def test_write_event_bad_path_no_crash(self):
+        pc = self._pc()
+        orig = pc._MONITOR_PATH
+        pc._MONITOR_PATH = '/nonexistent_dir/qg-monitor.jsonl'
+        try:
+            pc._write_event({'event_id': 'fail-path'})
+        finally:
+            pc._MONITOR_PATH = orig
+        # Should silently swallow exception
+
+    # --- detect_subtasks line 46 coverage ---
+
+    def test_detect_subtasks_conjunction(self):
+        pc = self._pc()
+        msg = 'Fix the login bug and also update the README and then run the tests'
+        result = pc.detect_subtasks(msg)
+        self.assertGreaterEqual(len(result), 2)
+
+    # --- _run_layer1 codebase scan (lines 113-125) ---
+
+    def test_run_layer1_deep_with_scope_scan(self):
+        pc = self._pc()
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['active_task_id'] = 'test_scan'
+        state['layer15_session_reads'] = ['precheck-hook.py']
+        # DEEP category with a scope file that exists in the hooks dir
+        extra, new_state = pc._run_layer1(
+            'refactor the precheck-hook.py file completely', 'DEEP', state)
+        self.assertEqual(new_state.get('layer1_task_category'), 'DEEP')
+
+    def test_run_layer1_mechanical_with_scope_scan(self):
+        pc = self._pc()
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['active_task_id'] = 'test_mech_scan'
+        state['layer15_session_reads'] = ['some_file.py']
+        extra, new_state = pc._run_layer1(
+            'edit the qg_layer29.py to fix the count check', 'MECHANICAL', state)
+        self.assertIn('MECHANICAL', new_state.get('layer1_task_category', ''))
+        # scope_files should be set
+        self.assertIsInstance(new_state.get('layer1_scope_files'), list)
+
+    def test_run_layer1_scope_merged_into_state(self):
+        pc = self._pc()
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['active_task_id'] = 'test_scope_merge'
+        state['layer1_scope_files'] = ['existing_file.py']
+        state['layer15_session_reads'] = ['existing_file.py']
+        extra, new_state = pc._run_layer1(
+            'update qg_session_state.py with new fields', 'MECHANICAL', state)
+        # scope_files should be a list (may include existing + scanned)
+        self.assertIsInstance(new_state.get('layer1_scope_files'), list)
+
+    # --- main() Ollama path and session state update (lines 194-244) ---
+
+    def test_main_ollama_mocked_mechanical(self):
+        """Mock urlopen so Ollama call returns MECHANICAL, verify directive printed."""
+        import unittest.mock as mock
+        pc = self._pc()
+        orig = pc._MONITOR_PATH
+        pc._MONITOR_PATH = self.monitor_path
+        mock_resp = mock.MagicMock()
+        mock_resp.read.return_value = json.dumps({"response": "MECHANICAL"}).encode()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = mock.MagicMock(return_value=False)
+        self._set_stdin({"message": "edit the main config file to add logging"})
+        self._capture_print()
+        try:
+            with mock.patch('urllib.request.urlopen', return_value=mock_resp):
+                pc.main()
+        finally:
+            builtins.print = self._orig_print
+            pc._MONITOR_PATH = orig
+        output = self._output()
+        self.assertIn('MECHANICAL', output)
+
+    def test_main_ollama_mocked_planning(self):
+        """Mock urlopen so Ollama returns PLANNING, verify directive printed."""
+        import unittest.mock as mock
+        pc = self._pc()
+        orig = pc._MONITOR_PATH
+        pc._MONITOR_PATH = self.monitor_path
+        mock_resp = mock.MagicMock()
+        mock_resp.read.return_value = json.dumps({"response": "PLANNING"}).encode()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = mock.MagicMock(return_value=False)
+        self._set_stdin({"message": "what should I work on next for this project"})
+        self._capture_print()
+        try:
+            with mock.patch('urllib.request.urlopen', return_value=mock_resp):
+                pc.main()
+        finally:
+            builtins.print = self._orig_print
+            pc._MONITOR_PATH = orig
+        output = self._output()
+        self.assertIn('PLANNING', output)
+
+    def test_main_ollama_timeout_falls_back_to_none(self):
+        """When Ollama times out, category defaults to NONE (no directive printed)."""
+        import unittest.mock as mock
+        pc = self._pc()
+        orig = pc._MONITOR_PATH
+        pc._MONITOR_PATH = self.monitor_path
+        self._set_stdin({"message": "explain how the session state works"})
+        self._capture_print()
+        try:
+            with mock.patch('urllib.request.urlopen', side_effect=Exception("timeout")):
+                pc.main()
+        finally:
+            builtins.print = self._orig_print
+            pc._MONITOR_PATH = orig
+        # NONE has no directive, so nothing printed from directive path
+        # (may still print layer1 lines)
+
+    def test_main_deep_override_via_detect_deep(self):
+        """If detect_deep returns True, category becomes DEEP regardless of Ollama."""
+        import unittest.mock as mock
+        pc = self._pc()
+        orig = pc._MONITOR_PATH
+        pc._MONITOR_PATH = self.monitor_path
+        mock_resp = mock.MagicMock()
+        mock_resp.read.return_value = json.dumps({"response": "NONE"}).encode()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = mock.MagicMock(return_value=False)
+        # detect_deep requires len>=300 AND a keyword like "rewrite"
+        long_msg = ("rewrite the entire authentication system from scratch. " * 6).strip()
+        self._set_stdin({"message": long_msg})
+        self._capture_print()
+        try:
+            with mock.patch('urllib.request.urlopen', return_value=mock_resp):
+                pc.main()
+        finally:
+            builtins.print = self._orig_print
+            pc._MONITOR_PATH = orig
+        output = self._output()
+        self.assertIn('DEEP', output)
+
+    def test_main_session_uuid_initialised(self):
+        """main() initialises session_uuid in state when not present."""
+        import unittest.mock as mock
+        import qg_session_state as ss
+        pc = self._pc()
+        orig = pc._MONITOR_PATH
+        pc._MONITOR_PATH = self.monitor_path
+        state = ss.read_state()
+        state['session_uuid'] = ''
+        ss.write_state(state)
+        mock_resp = mock.MagicMock()
+        mock_resp.read.return_value = json.dumps({"response": "NONE"}).encode()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = mock.MagicMock(return_value=False)
+        self._set_stdin({"message": "explain what this codebase does"})
+        try:
+            with mock.patch('urllib.request.urlopen', return_value=mock_resp):
+                pc.main()
+        finally:
+            pc._MONITOR_PATH = orig
+        state2 = ss.read_state()
+        self.assertTrue(state2.get('session_uuid'))
+
+    def test_main_write_event_called_on_valid_message(self):
+        """_write_event is called during main() for a valid message."""
+        import unittest.mock as mock
+        pc = self._pc()
+        orig = pc._MONITOR_PATH
+        pc._MONITOR_PATH = self.monitor_path
+        mock_resp = mock.MagicMock()
+        mock_resp.read.return_value = json.dumps({"response": "ASSUMPTION"}).encode()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = mock.MagicMock(return_value=False)
+        self._set_stdin({"message": "describe what the config file contains"})
+        try:
+            with mock.patch('urllib.request.urlopen', return_value=mock_resp):
+                pc.main()
+        finally:
+            pc._MONITOR_PATH = orig
+        self.assertTrue(os.path.exists(self.monitor_path))
+        with open(self.monitor_path, encoding='utf-8') as f:
+            content = f.read()
+        self.assertIn('CLASSIFY_', content)
+
+
+# --- Layer 29 Coverage Boost ---
+
+class TestLayer29Coverage(_MainTestBase):
+    def _m29(self):
+        import importlib
+        return importlib.import_module('qg_layer29')
+
+    # --- _write_event (lines 15-19) ---
+
+    def test_write_event_writes_to_file(self):
+        m = self._m29()
+        orig = m.MONITOR_PATH
+        m.MONITOR_PATH = self.monitor_path
+        try:
+            m._write_event({'event_id': 'l29-write', 'layer': 'layer29'})
+        finally:
+            m.MONITOR_PATH = orig
+        self.assertTrue(os.path.exists(self.monitor_path))
+        with open(self.monitor_path, encoding='utf-8') as f:
+            line = f.readline()
+        data = json.loads(line)
+        self.assertEqual(data['event_id'], 'l29-write')
+
+    def test_write_event_bad_path_no_crash(self):
+        m = self._m29()
+        orig = m.MONITOR_PATH
+        m.MONITOR_PATH = '/nonexistent_dir/monitor.jsonl'
+        try:
+            m._write_event({'event_id': 'fail'})
+        finally:
+            m.MONITOR_PATH = orig
+
+    # --- _get_last_turn_data (lines 53-54) ---
+
+    def test_get_last_turn_data_reads_transcript(self):
+        m = self._m29()
+        # Write a minimal transcript with assistant text and tool_result
+        transcript_file = os.path.join(self.tmpdir, 'transcript.jsonl')
+        assistant_entry = {
+            "role": "assistant",
+            "message": {
+                "content": [
+                    {"type": "text", "text": "I added 3 tests to the file."}
+                ]
+            }
+        }
+        user_entry = {
+            "role": "user",
+            "message": {
+                "content": [
+                    {"type": "tool_result", "content": "def test_foo():\n    pass\ndef test_bar():\n    pass\n"}
+                ]
+            }
+        }
+        with open(transcript_file, 'w', encoding='utf-8') as f:
+            f.write(json.dumps(assistant_entry) + '\n')
+            f.write(json.dumps(user_entry) + '\n')
+        response_text, edit_content = m._get_last_turn_data(transcript_file)
+        self.assertIn('added 3 tests', response_text)
+        self.assertIn('def test_foo', edit_content)
+
+    def test_get_last_turn_data_user_no_tool_result_stops(self):
+        """A user entry with no tool_result should stop iteration."""
+        m = self._m29()
+        transcript_file = os.path.join(self.tmpdir, 'transcript2.jsonl')
+        user_plain = {
+            "role": "user",
+            "message": {"content": [{"type": "text", "text": "do something"}]}
+        }
+        assistant_entry = {
+            "role": "assistant",
+            "message": {"content": [{"type": "text", "text": "I did it."}]}
+        }
+        with open(transcript_file, 'w', encoding='utf-8') as f:
+            f.write(json.dumps(assistant_entry) + '\n')
+            f.write(json.dumps(user_plain) + '\n')
+        response_text, edit_content = m._get_last_turn_data(transcript_file)
+        # Should stop at user with no tool_result, so response_text is empty
+        self.assertEqual(response_text, "")
+
+    # --- check_count_claims count check branch (lines 117-120) ---
+
+    def test_check_count_claims_function_mismatch(self):
+        m = self._m29()
+        response = "I added 5 functions to the module."
+        edit = "def func_a():\n    pass\ndef func_b():\n    pass\n"
+        issues = m.check_count_claims(response, edit)
+        # claimed 5, actual 2 — should flag mismatch
+        self.assertTrue(any('COUNT_MISMATCH' in msg for _, msg in issues))
+
+    def test_check_count_claims_function_match_no_issue(self):
+        m = self._m29()
+        response = "I added 2 functions to the module."
+        edit = "def func_a():\n    pass\ndef func_b():\n    pass\n"
+        issues = m.check_count_claims(response, edit)
+        self.assertEqual(issues, [])
+
+    def test_check_count_claims_test_mismatch(self):
+        m = self._m29()
+        response = "I added 5 tests for the new feature."
+        edit = "def test_foo():\n    pass\ndef test_bar():\n    pass\n"
+        issues = m.check_count_claims(response, edit)
+        self.assertTrue(any('COUNT_MISMATCH' in msg for _, msg in issues))
+
+    def test_check_count_claims_test_match_no_issue(self):
+        m = self._m29()
+        response = "I added 2 tests for the new feature."
+        edit = "def test_foo():\n    pass\ndef test_bar():\n    pass\n"
+        issues = m.check_count_claims(response, edit)
+        self.assertEqual(issues, [])
+
+    # --- main() (lines 147-175) ---
+
+    def test_main_with_transcript_no_issues(self):
+        """When response text matches edits, main() returns without printing."""
+        m = self._m29()
+        orig = m.MONITOR_PATH
+        m.MONITOR_PATH = self.monitor_path
+        transcript_file = os.path.join(self.tmpdir, 'transcript_ok.jsonl')
+        assistant_entry = {
+            "role": "assistant",
+            "message": {"content": [{"type": "text", "text": "I made the changes."}]}
+        }
+        user_entry = {
+            "role": "user",
+            "message": {
+                "content": [{"type": "tool_result", "content": "updated_content = True\n"}]
+            }
+        }
+        with open(transcript_file, 'w', encoding='utf-8') as f:
+            f.write(json.dumps(assistant_entry) + '\n')
+            f.write(json.dumps(user_entry) + '\n')
+        self._set_stdin({"transcript_path": transcript_file})
+        self._capture_print()
+        try:
+            m.main()
+        finally:
+            builtins.print = self._orig_print
+            m.MONITOR_PATH = orig
+        # No issues → no print
+        self.assertEqual(self._captured, [])
+
+    def test_main_with_transcript_claim_mismatch_prints(self):
+        """When response claims don't match edits, main() prints output."""
+        m = self._m29()
+        orig = m.MONITOR_PATH
+        m.MONITOR_PATH = self.monitor_path
+        transcript_file = os.path.join(self.tmpdir, 'transcript_mismatch.jsonl')
+        assistant_entry = {
+            "role": "assistant",
+            "message": {
+                "content": [{"type": "text", "text": "I added error handling to all functions."}]
+            }
+        }
+        user_entry = {
+            "role": "user",
+            "message": {
+                "content": [{"type": "tool_result", "content": "def foo():\n    return 1\n"}]
+            }
+        }
+        with open(transcript_file, 'w', encoding='utf-8') as f:
+            f.write(json.dumps(assistant_entry) + '\n')
+            f.write(json.dumps(user_entry) + '\n')
+        self._set_stdin({"transcript_path": transcript_file})
+        self._capture_print()
+        try:
+            m.main()
+        finally:
+            builtins.print = self._orig_print
+            m.MONITOR_PATH = orig
+        output = self._output()
+        self.assertIn('Layer 2.9', output)
+        self.assertIn('CLAIM_MISMATCH', output)
+
+    def test_main_with_transcript_count_mismatch_prints(self):
+        """When count claims don't match edits, main() prints output."""
+        m = self._m29()
+        orig = m.MONITOR_PATH
+        m.MONITOR_PATH = self.monitor_path
+        transcript_file = os.path.join(self.tmpdir, 'transcript_count.jsonl')
+        assistant_entry = {
+            "role": "assistant",
+            "message": {
+                "content": [{"type": "text", "text": "I added 10 tests for the login module."}]
+            }
+        }
+        user_entry = {
+            "role": "user",
+            "message": {
+                "content": [
+                    {"type": "tool_result",
+                     "content": "def test_login():\n    pass\ndef test_logout():\n    pass\n"}
+                ]
+            }
+        }
+        with open(transcript_file, 'w', encoding='utf-8') as f:
+            f.write(json.dumps(assistant_entry) + '\n')
+            f.write(json.dumps(user_entry) + '\n')
+        self._set_stdin({"transcript_path": transcript_file})
+        self._capture_print()
+        try:
+            m.main()
+        finally:
+            builtins.print = self._orig_print
+            m.MONITOR_PATH = orig
+        output = self._output()
+        self.assertIn('Layer 2.9', output)
+
+    def test_main_event_written_on_warning(self):
+        """When a warning is found, _write_event is called (monitor file updated)."""
+        m = self._m29()
+        orig = m.MONITOR_PATH
+        m.MONITOR_PATH = self.monitor_path
+        transcript_file = os.path.join(self.tmpdir, 'transcript_event.jsonl')
+        assistant_entry = {
+            "role": "assistant",
+            "message": {
+                "content": [{"type": "text", "text": "I added error handling to the parser."}]
+            }
+        }
+        user_entry = {
+            "role": "user",
+            "message": {
+                "content": [{"type": "tool_result", "content": "x = 1\ny = 2\n"}]
+            }
+        }
+        with open(transcript_file, 'w', encoding='utf-8') as f:
+            f.write(json.dumps(assistant_entry) + '\n')
+            f.write(json.dumps(user_entry) + '\n')
+        self._set_stdin({"transcript_path": transcript_file})
+        self._capture_print()
+        try:
+            m.main()
+        finally:
+            builtins.print = self._orig_print
+            m.MONITOR_PATH = orig
+        # Monitor file should have been written
+        self.assertTrue(os.path.exists(self.monitor_path))
+        with open(self.monitor_path, encoding='utf-8') as f:
+            content = f.read()
+        self.assertIn('layer29', content)
+
 
 if __name__ == '__main__':
     unittest.main()

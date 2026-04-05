@@ -65,7 +65,7 @@ Substitute evidence (e.g., "smoke test passes") does NOT address specific contra
 ## Session Management
 - Context hooks fire automatically: toast at 70%, Claude gets message at 90%
 - Run `/compact` when statusline shows yellow `up ctx` or red `/compact` hint
-- **Before /compact**: Always save important findings, progress, and session state to memory files and update MEMORY.md before compacting. Never compact without saving first.
+- **Before /compact**: Invoke the `pre-compact` skill. Never compact without completing it first.
 - Session cost/duration auto-logged to `~/.claude/audit-log.md` — view with `claude-cost`
 - Use `~/.claude/projects/C--Users-Matt1/memory/MEMORY.md` for cross-session facts
 
@@ -105,13 +105,3 @@ Substitute evidence (e.g., "smoke test passes") does NOT address specific contra
 
 This file applies to ALL projects. Project-level CLAUDE.md takes precedence.
 
-## Compact Instructions
-When compacting, preserve the following in the summary:
-- **Active task**: what we were working on, current step, and immediate next action
-- **Files modified**: exact paths of any files created or changed this session
-- **Key findings**: errors found, decisions made, approaches tried and rejected
-- **Pending items**: anything explicitly deferred, flagged, or noted as "do next"
-- **Plan file**: if a plan file is active, note its path so it can be re-read after compaction
-- **Memory state**: confirm memory files were saved before compacting; if not, save them first
-
-Do NOT compact mid-task without saving findings to `~/.claude/projects/C--Users-Matt1/memory/` first.
