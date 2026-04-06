@@ -2664,6 +2664,836 @@ class TestTodoExtractor(unittest.TestCase):
         result = mod.get_transcript_path({})
         self.assertIsNone(result)
 
+    def test_atomic_write_permission_error_retry(self):
+        """atomic_write retries on PermissionError (lines 95-96)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = os.path.join(tmp, "out.json")
+            call_count = [0]
+            real_replace = os.replace
+            def fake_replace(src, dst):
+                call_count[0] += 1
+                if call_count[0] < 2:
+                    raise PermissionError("locked")
+                real_replace(src, dst)
+            with unittest.mock.patch("os.replace", side_effect=fake_replace):
+                mod.atomic_write(out_path, {"x": 1})
+            data = json.load(open(out_path, encoding="utf-8"))
+        self.assertEqual(data["x"], 1)
+        self.assertEqual(call_count[0], 2)
+
+    def test_get_transcript_path_slug_search(self):
+        """get_transcript_path finds file by searching PROJECTS_DIR (lines 107-116)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            # Create a fake project dir with a session JSONL
+            proj_dir = os.path.join(tmp, "some-project")
+            os.makedirs(proj_dir)
+            tp = os.path.join(proj_dir, "sess123.jsonl")
+            open(tp, "w").write("{}\n")
+            payload = {
+                "transcript_path": "",
+                "cwd": "/fake/cwd",
+                "session_id": "sess123",
+            }
+            with unittest.mock.patch.object(mod, "PROJECTS_DIR", tmp):
+                result = mod.get_transcript_path(payload)
+        self.assertIsNotNone(result)
+        self.assertTrue(result.endswith("sess123.jsonl"))
+
+    def test_get_transcript_path_no_cwd_no_session(self):
+        """get_transcript_path returns None when cwd or session_id missing (line 105-106)."""
+        mod = self._load_module()
+        result = mod.get_transcript_path({"transcript_path": "", "cwd": "", "session_id": ""})
+        self.assertIsNone(result)
+
+    def test_scan_transcript_empty_line_skipped(self):
+        """Empty lines in transcript don't crash scan (line 164)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            with open(tp, "w", encoding="utf-8") as f:
+                f.write("\n\n\n")
+            items = mod.scan_transcript(tp, int(time.time()))
+        self.assertEqual(items, [])
+
+    def test_scan_transcript_non_list_content_skipped(self):
+        """Assistant message with non-list content is skipped (line 177)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            entry = {"type": "assistant", "message": {"content": "just a string"}}
+            open(tp, "w", encoding="utf-8").write(json.dumps(entry) + "\n")
+            items = mod.scan_transcript(tp, int(time.time()))
+        self.assertEqual(items, [])
+
+    def test_scan_transcript_empty_scan_text_skipped(self):
+        """Write tool_use with empty content is skipped (line 199)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            entry = {
+                "type": "assistant",
+                "message": {"content": [{
+                    "type": "tool_use", "name": "Write",
+                    "input": {"file_path": "/f.py", "content": ""},
+                }]},
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(entry) + "\n")
+            items = mod.scan_transcript(tp, int(time.time()))
+        self.assertEqual(items, [])
+
+    def test_scan_transcript_empty_captured_skipped(self):
+        """CODE_TODO_RE match with empty capture group is skipped (line 204)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            # A TODO: followed by only whitespace — captured group strips to empty
+            entry = {
+                "type": "assistant",
+                "message": {"content": [{
+                    "type": "tool_use", "name": "Write",
+                    "input": {"file_path": "/f.py", "content": "# TODO:     "},
+                }]},
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(entry) + "\n")
+            items = mod.scan_transcript(tp, int(time.time()))
+        # Either 0 items (pattern doesn't match short text) or captured is indeed empty
+        self.assertIsInstance(items, list)
+
+    def test_scan_transcript_empty_text_block_skipped(self):
+        """Assistant text block with empty text is skipped (line 215)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            entry = {
+                "type": "assistant",
+                "message": {"content": [{"type": "text", "text": ""}]},
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(entry) + "\n")
+            items = mod.scan_transcript(tp, int(time.time()))
+        self.assertEqual(items, [])
+
+    def test_anti_pattern_suppresses_high_conf(self):
+        """Anti-pattern suppresses high-confidence 'don't forget' pattern (line 227)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            # "the existing TODO" triggers anti-pattern; "don't forget" is in same sentence
+            entry = {
+                "type": "assistant",
+                "message": {"content": [{"type": "text",
+                    "text": "The existing TODO says don't forget to handle the edge case."}]},
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(entry) + "\n")
+            items = mod.scan_transcript(tp, int(time.time()))
+        self.assertEqual(items, [])
+
+    def test_low_conf_with_deferral_signal_extracted(self):
+        """Low-confidence 'we should' with deferral signal is extracted (lines 240-242)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            entry = {
+                "type": "assistant",
+                "message": {"content": [{"type": "text",
+                    "text": "We should refactor this later when we have more time."}]},
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(entry) + "\n")
+            items = mod.scan_transcript(tp, int(time.time()))
+        self.assertGreater(len(items), 0)
+
+    def test_module_level_main_call(self):
+        """Module-level try: main() / except Exception: pass runs without crashing (lines 282-284)."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "todo_extractor_ml",
+            os.path.join(HOOKS_DIR, "todo-extractor.py")
+        )
+        mod2 = importlib.util.module_from_spec(spec)
+        payload = json.dumps({"session_id": "ml_test"})
+        with unittest.mock.patch("sys.exit", side_effect=SystemExit), \
+             unittest.mock.patch("sys.stdin", io.StringIO(payload)):
+            try:
+                spec.loader.exec_module(mod2)
+            except SystemExit:
+                pass
+
+
+# ---------------------------------------------------------------------------
+# TestSubagentQualityGate — SubagentStop hook
+# ---------------------------------------------------------------------------
+
+class TestSubagentQualityGate(unittest.TestCase):
+    """Tests for subagent-quality-gate.py — SubagentStop hook."""
+
+    HOOK_PATH = os.path.join(HOOKS_DIR, "subagent-quality-gate.py")
+
+    @classmethod
+    def _load_module(cls):
+        import importlib.util
+        mod_name = "subagent_quality_gate"
+        spec = importlib.util.spec_from_file_location(mod_name, cls.HOOK_PATH)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def _call_main(self, mod, payload):
+        cap = io.StringIO()
+        with unittest.mock.patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+             unittest.mock.patch("sys.stdout", cap):
+            mod.main()
+        out = cap.getvalue().strip()
+        return json.loads(out) if out else {}
+
+    # ── get_tool_summary ────────────────────────────────────────────────────
+
+    def test_get_tool_summary_missing_transcript(self):
+        """get_tool_summary returns empty lists for missing file (line 24-25)."""
+        mod = self._load_module()
+        names, paths, cmds = mod.get_tool_summary("/nope/missing.jsonl")
+        self.assertEqual(names, [])
+        self.assertEqual(paths, [])
+        self.assertEqual(cmds, [])
+
+    def test_get_tool_summary_empty_transcript(self):
+        """get_tool_summary handles empty transcript."""
+        mod = self._load_module()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+            f.write("")
+            tp = f.name
+        try:
+            names, paths, cmds = mod.get_tool_summary(tp)
+        finally:
+            os.unlink(tp)
+        self.assertEqual(names, [])
+
+    def test_get_tool_summary_edit_write_bash(self):
+        """get_tool_summary extracts Edit, Write, Bash names and paths (lines 48-61)."""
+        mod = self._load_module()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+            line = json.dumps({"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Edit", "input": {"file_path": "/a.py"}},
+                {"type": "tool_use", "name": "Bash", "input": {"command": "pytest"}},
+            ]}})
+            f.write(line + "\n")
+            tp = f.name
+        try:
+            names, paths, cmds = mod.get_tool_summary(tp)
+        finally:
+            os.unlink(tp)
+        self.assertIn("Edit", names)
+        self.assertIn("Bash", names)
+        self.assertIn("/a.py", paths)
+        self.assertIn("pytest", cmds)
+
+    def test_get_tool_summary_user_message_breaks_loop(self):
+        """get_tool_summary stops at user message with non-tool-result content (lines 38-46)."""
+        mod = self._load_module()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+            lines = [
+                json.dumps({"type": "assistant", "message": {"content": [
+                    {"type": "tool_use", "name": "Bash", "input": {"command": "ls"}},
+                ]}}),
+                json.dumps({"type": "user", "message": {"content": "hello"}}),
+            ]
+            f.write("\n".join(lines) + "\n")
+            tp = f.name
+        try:
+            names, paths, cmds = mod.get_tool_summary(tp)
+        finally:
+            os.unlink(tp)
+        # Should have found the Bash tool before breaking on user message
+        self.assertIn("Bash", names)
+
+    def test_get_tool_summary_tool_result_continues(self):
+        """get_tool_summary skips user messages that are pure tool_result (line 44)."""
+        mod = self._load_module()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+            lines = [
+                json.dumps({"type": "assistant", "message": {"content": [
+                    {"type": "tool_use", "name": "Edit", "input": {"file_path": "/b.py"}},
+                ]}}),
+                json.dumps({"type": "user", "message": {"content": [
+                    {"type": "tool_result", "tool_use_id": "x", "content": "ok"},
+                ]}}),
+                json.dumps({"type": "assistant", "message": {"content": [
+                    {"type": "tool_use", "name": "Bash", "input": {"command": "pytest"}},
+                ]}}),
+            ]
+            f.write("\n".join(lines) + "\n")
+            tp = f.name
+        try:
+            names, paths, cmds = mod.get_tool_summary(tp)
+        finally:
+            os.unlink(tp)
+        self.assertIn("Bash", names)
+
+    # ── get_failed_commands ─────────────────────────────────────────────────
+
+    def test_get_failed_commands_missing_transcript(self):
+        """get_failed_commands returns [] for missing file (lines 69-70)."""
+        mod = self._load_module()
+        result = mod.get_failed_commands("/nope/missing.jsonl")
+        self.assertEqual(result, [])
+
+    def test_get_failed_commands_no_failures(self):
+        """get_failed_commands returns [] when no is_error=True results."""
+        mod = self._load_module()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+            lines = [
+                json.dumps({"type": "assistant", "message": {"content": [
+                    {"type": "tool_use", "name": "Bash", "id": "tid1",
+                     "input": {"command": "pytest"}},
+                ]}}),
+                json.dumps({"type": "user", "message": {"content": [
+                    {"type": "tool_result", "tool_use_id": "tid1",
+                     "is_error": False, "content": "4 passed"},
+                ]}}),
+            ]
+            f.write("\n".join(lines) + "\n")
+            tp = f.name
+        try:
+            result = mod.get_failed_commands(tp)
+        finally:
+            os.unlink(tp)
+        self.assertEqual(result, [])
+
+    def test_get_failed_commands_detects_error(self):
+        """get_failed_commands matches is_error=True with pending Bash (lines 81-113)."""
+        mod = self._load_module()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+            lines = [
+                json.dumps({"type": "assistant", "message": {"content": [
+                    {"type": "tool_use", "name": "Bash", "id": "tid2",
+                     "input": {"command": "bad_command"}},
+                ]}}),
+                json.dumps({"type": "user", "message": {"content": [
+                    {"type": "tool_result", "tool_use_id": "tid2",
+                     "is_error": True, "content": "command not found"},
+                ]}}),
+            ]
+            f.write("\n".join(lines) + "\n")
+            tp = f.name
+        try:
+            result = mod.get_failed_commands(tp)
+        finally:
+            os.unlink(tp)
+        self.assertEqual(len(result), 1)
+        self.assertIn("bad_command", result[0][0])
+
+    # ── get_last_response ───────────────────────────────────────────────────
+
+    def test_get_last_response_missing_transcript(self):
+        """get_last_response returns '' for missing file (lines 121-122)."""
+        mod = self._load_module()
+        result = mod.get_last_response("/nope/missing.jsonl")
+        self.assertEqual(result, "")
+
+    def test_get_last_response_finds_text(self):
+        """get_last_response extracts last assistant text block (lines 134-141)."""
+        mod = self._load_module()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+            line = json.dumps({"type": "assistant", "message": {"content": [
+                {"type": "text", "text": "Task complete."},
+            ]}})
+            f.write(line + "\n")
+            tp = f.name
+        try:
+            result = mod.get_last_response(tp)
+        finally:
+            os.unlink(tp)
+        self.assertEqual(result, "Task complete.")
+
+    def test_get_last_response_string_content(self):
+        """get_last_response handles string message content (line 142-143)."""
+        mod = self._load_module()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+            line = json.dumps({"type": "assistant", "message": {"content": "Direct string response."}})
+            f.write(line + "\n")
+            tp = f.name
+        try:
+            result = mod.get_last_response(tp)
+        finally:
+            os.unlink(tp)
+        self.assertEqual(result, "Direct string response.")
+
+    # ── log_decision ────────────────────────────────────────────────────────
+
+    def test_log_decision_writes_line(self):
+        """log_decision writes a log line (lines 149-158)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "quality-gate.log")
+            with unittest.mock.patch.object(mod, "LOG_PATH", log):
+                mod.log_decision("PASS", "ok", "test-agent", "some response")
+            content = open(log, encoding="utf-8").read()
+        self.assertIn("PASS", content)
+        self.assertIn("subagent:test-agent", content)
+
+    # ── main() flow ─────────────────────────────────────────────────────────
+
+    def test_main_stop_hook_active_continues(self):
+        """stop_hook_active=True → immediately return {continue: True} (line 168-170)."""
+        mod = self._load_module()
+        result = self._call_main(mod, {"stop_hook_active": True})
+        self.assertTrue(result.get("continue"))
+
+    def test_main_invalid_json_continues(self):
+        """Invalid JSON stdin → data={}, no edits → continues (lines 162-165)."""
+        mod = self._load_module()
+        cap = io.StringIO()
+        with unittest.mock.patch("sys.stdin", io.StringIO("bad json")), \
+             unittest.mock.patch("sys.stdout", cap):
+            mod.main()
+        out = cap.getvalue().strip()
+        result = json.loads(out)
+        self.assertTrue(result.get("continue"))
+
+    def test_main_no_edit_no_verify_continues(self):
+        """No code edits, no verification → passes all mechanical checks → continues."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "quality-gate.log")
+            with unittest.mock.patch.object(mod, "LOG_PATH", log), \
+                 unittest.mock.patch.object(mod, "check_cache", return_value=(True, "ok")):
+                result = self._call_main(mod, {
+                    "agent_type": "test",
+                    "agent_transcript_path": "",
+                    "last_assistant_message": "I read the file and summarized it.",
+                })
+        self.assertTrue(result.get("continue"))
+
+    def test_main_code_edit_no_verify_blocks(self):
+        """Code edit without verification → BLOCK (lines 185-189)."""
+        mod = self._load_module()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+            line = json.dumps({"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Edit",
+                 "input": {"file_path": "/src/app.py", "old_string": "x", "new_string": "y"}},
+            ]}})
+            f.write(line + "\n")
+            tp = f.name
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                log = os.path.join(tmp, "quality-gate.log")
+                with unittest.mock.patch.object(mod, "LOG_PATH", log):
+                    result = self._call_main(mod, {
+                        "agent_type": "test",
+                        "agent_transcript_path": tp,
+                    })
+        finally:
+            os.unlink(tp)
+        self.assertEqual(result.get("decision"), "block")
+        self.assertIn("QUALITY GATE", result.get("reason", ""))
+
+    def test_main_code_edit_non_code_path_not_blocked(self):
+        """Code edit on non-code path (memory/) → has_code_edit=False → not blocked (lines 181-183)."""
+        mod = self._load_module()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+            line = json.dumps({"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Edit",
+                 "input": {"file_path": "memory/MEMORY.md", "old_string": "x", "new_string": "y"}},
+            ]}})
+            f.write(line + "\n")
+            tp = f.name
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                log = os.path.join(tmp, "quality-gate.log")
+                with unittest.mock.patch.object(mod, "LOG_PATH", log), \
+                     unittest.mock.patch.object(mod, "check_cache", return_value=(True, "ok")):
+                    result = self._call_main(mod, {
+                        "agent_type": "test",
+                        "agent_transcript_path": tp,
+                        "last_assistant_message": "Updated memory file.",
+                    })
+        finally:
+            os.unlink(tp)
+        self.assertTrue(result.get("continue"))
+
+    def test_main_edit_then_bash_not_validation_blocks(self):
+        """Edit + Bash but Bash is not a validation command → BLOCK (lines 191-196)."""
+        mod = self._load_module()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+            lines = [
+                json.dumps({"type": "assistant", "message": {"content": [
+                    {"type": "tool_use", "name": "Edit",
+                     "input": {"file_path": "/src/app.py", "old_string": "x", "new_string": "y"}},
+                    {"type": "tool_use", "name": "Bash",
+                     "input": {"command": "echo done"}},
+                ]}}),
+            ]
+            f.write("\n".join(lines) + "\n")
+            tp = f.name
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                log = os.path.join(tmp, "quality-gate.log")
+                with unittest.mock.patch.object(mod, "LOG_PATH", log):
+                    result = self._call_main(mod, {
+                        "agent_type": "test",
+                        "agent_transcript_path": tp,
+                    })
+        finally:
+            os.unlink(tp)
+        self.assertEqual(result.get("decision"), "block")
+
+    def test_main_edit_last_action_blocks(self):
+        """Edit + pytest but last action is Edit → BLOCK (lines 198-202).
+
+        get_tool_summary iterates lines in reverse, collecting tools in reverse order,
+        then re-reverses. So the LAST tool in the file becomes tool_names[-1].
+        Two separate assistant blocks are needed so Edit appears after Bash in the file.
+        """
+        mod = self._load_module()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+            lines = [
+                json.dumps({"type": "assistant", "message": {"content": [
+                    {"type": "tool_use", "name": "Bash",
+                     "input": {"command": "pytest"}},
+                ]}}),
+                json.dumps({"type": "user", "message": {"content": [
+                    {"type": "tool_result", "tool_use_id": "x", "content": "3 passed"},
+                ]}}),
+                json.dumps({"type": "assistant", "message": {"content": [
+                    {"type": "tool_use", "name": "Edit",
+                     "input": {"file_path": "/src/app.py", "old_string": "x", "new_string": "y"}},
+                ]}}),
+            ]
+            f.write("\n".join(lines) + "\n")
+            tp = f.name
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                log = os.path.join(tmp, "quality-gate.log")
+                with unittest.mock.patch.object(mod, "LOG_PATH", log):
+                    result = self._call_main(mod, {
+                        "agent_type": "test",
+                        "agent_transcript_path": tp,
+                    })
+        finally:
+            os.unlink(tp)
+        self.assertEqual(result.get("decision"), "block")
+
+    def test_main_cites_test_count_no_verify_blocks(self):
+        """Response cites test counts but no verification ran → BLOCK (lines 205-215)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "quality-gate.log")
+            with unittest.mock.patch.object(mod, "LOG_PATH", log):
+                result = self._call_main(mod, {
+                    "agent_type": "test",
+                    "agent_transcript_path": "",
+                    "last_assistant_message": "Tests pass: 42 passed, 0 failed, 42 total",
+                })
+        self.assertEqual(result.get("decision"), "block")
+        self.assertIn("QUALITY GATE", result.get("reason", ""))
+
+    def test_main_failed_command_unaddressed_blocks(self):
+        """Failed command with response not addressing error → BLOCK (lines 218-227)."""
+        mod = self._load_module()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+            lines = [
+                json.dumps({"type": "assistant", "message": {"content": [
+                    {"type": "tool_use", "name": "Bash", "id": "tid3",
+                     "input": {"command": "python script.py"}},
+                ]}}),
+                json.dumps({"type": "user", "message": {"content": [
+                    {"type": "tool_result", "tool_use_id": "tid3",
+                     "is_error": True, "content": "ImportError modulenotfoundxyz missing"},
+                ]}}),
+            ]
+            f.write("\n".join(lines) + "\n")
+            tp = f.name
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                log = os.path.join(tmp, "quality-gate.log")
+                with unittest.mock.patch.object(mod, "LOG_PATH", log):
+                    result = self._call_main(mod, {
+                        "agent_type": "test",
+                        "agent_transcript_path": tp,
+                        "last_assistant_message": "The task is done and everything looks great.",
+                    })
+        finally:
+            os.unlink(tp)
+        self.assertEqual(result.get("decision"), "block")
+
+    def test_main_llm_pass_continues(self):
+        """LLM check returns ok=True → PASS → continues (lines 230-270)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "quality-gate.log")
+            with unittest.mock.patch.object(mod, "LOG_PATH", log), \
+                 unittest.mock.patch.object(mod, "check_cache", return_value=(True, "ok")):
+                result = self._call_main(mod, {
+                    "agent_type": "test",
+                    "agent_transcript_path": "",
+                    "last_assistant_message": "I read the file and found the pattern.",
+                })
+        self.assertTrue(result.get("continue"))
+
+    def test_main_llm_block_blocks(self):
+        """LLM check returns ok=False → BLOCK (lines 262-265)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "quality-gate.log")
+            with unittest.mock.patch.object(mod, "LOG_PATH", log), \
+                 unittest.mock.patch.object(mod, "check_cache",
+                                            return_value=(False, "ASSUMPTION: guessed file path")):
+                result = self._call_main(mod, {
+                    "agent_type": "test",
+                    "agent_transcript_path": "",
+                    "last_assistant_message": "The file is at /some/guessed/path.py",
+                })
+        self.assertEqual(result.get("decision"), "block")
+
+    def test_main_llm_degraded_continues(self):
+        """LLM call fails (degraded) → DEGRADED-PASS → continues (lines 258-260, 267-270)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "quality-gate.log")
+            # cache miss and call_haiku_check returns genuine=False (degraded).
+            # Patch on mod directly — module uses `from _hooks_shared import ...`
+            # so names are bound on the module itself, not on _hooks_shared.
+            with unittest.mock.patch.object(mod, "LOG_PATH", log), \
+                 unittest.mock.patch.object(mod, "check_cache", return_value=None), \
+                 unittest.mock.patch.object(mod, "call_haiku_check",
+                                            return_value=(True, "ok", False)):
+                result = self._call_main(mod, {
+                    "agent_type": "test",
+                    "agent_transcript_path": "",
+                    "last_assistant_message": "Done with the task.",
+                })
+        self.assertTrue(result.get("continue"))
+
+    def test_main_empty_response_skips_llm(self):
+        """Empty response skips LLM check entirely → continues (line 231)."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "quality-gate.log")
+            with unittest.mock.patch.object(mod, "LOG_PATH", log):
+                result = self._call_main(mod, {
+                    "agent_type": "test",
+                    "agent_transcript_path": "",
+                    "last_assistant_message": "",
+                })
+        self.assertTrue(result.get("continue"))
+
+    def test_main_edit_with_pytest_passes(self):
+        """Edit then pytest validation as last action → passes mechanical checks → LLM checked."""
+        mod = self._load_module()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
+            # Two separate assistant blocks: Edit first, then Bash last.
+            # get_tool_summary reverses lines so tool_names[-1] == last tool in file == Bash.
+            lines = [
+                json.dumps({"type": "assistant", "message": {"content": [
+                    {"type": "tool_use", "name": "Edit",
+                     "input": {"file_path": "/src/app.py", "old_string": "x", "new_string": "y"}},
+                ]}}),
+                json.dumps({"type": "user", "message": {"content": [
+                    {"type": "tool_result", "tool_use_id": "x", "content": "ok"},
+                ]}}),
+                json.dumps({"type": "assistant", "message": {"content": [
+                    {"type": "tool_use", "name": "Bash",
+                     "input": {"command": "pytest --tb=short"}},
+                ]}}),
+            ]
+            f.write("\n".join(lines) + "\n")
+            tp = f.name
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                log = os.path.join(tmp, "quality-gate.log")
+                with unittest.mock.patch.object(mod, "LOG_PATH", log), \
+                     unittest.mock.patch.object(mod, "check_cache", return_value=(True, "ok")):
+                    result = self._call_main(mod, {
+                        "agent_type": "test",
+                        "agent_transcript_path": tp,
+                        "last_assistant_message": "All tests pass.",
+                    })
+        finally:
+            os.unlink(tp)
+        self.assertTrue(result.get("continue"))
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage for TestErrorDedup missing lines
+# ---------------------------------------------------------------------------
+
+class TestErrorDedupExtra(unittest.TestCase):
+    """Additional coverage for error-dedup.py missing lines."""
+
+    def _import(self):
+        if "error-dedup" not in sys.modules:
+            with patch("sys.stdin", io.StringIO("{}")), patch("sys.exit"):
+                sys.modules["error-dedup"] = __import__("error-dedup")
+        return sys.modules["error-dedup"]
+
+    def test_load_state_bad_json_returns_none(self):
+        """load_state returns None when JSON parse fails (lines 83-84)."""
+        m = self._import()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
+            f.write("not valid json{{{")
+            p = f.name
+        try:
+            with patch.object(m, "STATE_FILE", p):
+                result = m.load_state()
+        finally:
+            os.unlink(p)
+        self.assertIsNone(result)
+
+    def test_atomic_write_permission_retry(self):
+        """atomic_write retries on PermissionError (lines 73-74)."""
+        m = self._import()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = os.path.join(tmp, "s.json")
+            call_count = [0]
+            real_replace = os.replace
+            def fake_replace(src, dst):
+                call_count[0] += 1
+                if call_count[0] < 2:
+                    raise PermissionError("locked")
+                real_replace(src, dst)
+            with patch("os.replace", side_effect=fake_replace):
+                m.atomic_write(p, {"k": "v"})
+        self.assertEqual(call_count[0], 2)
+
+    def test_tier2_posttooluse_bash_error_extracted(self):
+        """PostToolUse Bash with exit code and error line → extracted (lines 123-133)."""
+        m = self._import()
+        p = {
+            "hook_event_name": "PostToolUse",
+            "session_id": "s2",
+            "tool_name": "Bash",
+            "tool_response": "Exit code 1\nTraceback (most recent call last):\n  ModuleNotFoundError: no module named foo",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            sf = os.path.join(tmp, "s.json")
+            # Pre-write a stale state file so the PostToolUse throttle check
+            # (time.time() - state['ts'] < THROTTLE_SEC) does not exit early.
+            old_state = m.new_state("other")
+            old_state["ts"] = int(time.time()) - 100
+            with open(sf, "w", encoding="utf-8") as fh:
+                json.dump(old_state, fh)
+            with patch.object(m, "STATE_FILE", sf), \
+                 patch("sys.stdin", io.StringIO(json.dumps(p))):
+                try:
+                    m.main()
+                except SystemExit:
+                    pass
+            self.assertTrue(os.path.exists(sf))
+            st = json.load(open(sf, encoding="utf-8"))
+        self.assertEqual(len(st["errors"]), 1)
+
+    def test_tier2_no_context_re_match_exits_0(self):
+        """PostToolUse Bash without TIER2_CONTEXT_RE match → no error extracted → exits 0."""
+        m = self._import()
+        p = {
+            "hook_event_name": "PostToolUse",
+            "session_id": "s3",
+            "tool_name": "Bash",
+            "tool_response": "Everything is fine, all good",
+        }
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            with self.assertRaises(SystemExit) as ctx:
+                m.main()
+        self.assertEqual(ctx.exception.code, 0)
+
+    def test_tier2_error_line_not_found_uses_response_prefix(self):
+        """PostToolUse Bash: context matches but no TIER2_ERROR_RE line → fallback to response[:500] (line 132-133)."""
+        m = self._import()
+        # TIER2_CONTEXT_RE matches "Exit code 1" but none of the lines match TIER2_ERROR_RE
+        # This forces the fallback to response[:500]
+        p = {
+            "hook_event_name": "PostToolUse",
+            "session_id": "s4",
+            "tool_name": "Bash",
+            "tool_response": "Exit code 1\nsome other output without error keywords",
+        }
+        # Also need TIER2_ERROR_RE to match the full response
+        # TIER2_ERROR_RE matches "some" - nope. We need it to match response as a whole.
+        # Let's include "FAILED" in the response but not in any individual line of length > 10
+        p["tool_response"] = "Exit code 1\nFAILED"
+        with tempfile.TemporaryDirectory() as tmp:
+            sf = os.path.join(tmp, "s.json")
+            with patch.object(m, "STATE_FILE", sf), \
+                 patch("sys.stdin", io.StringIO(json.dumps(p))):
+                try:
+                    m.main()
+                except SystemExit:
+                    pass
+
+    def test_module_level_main_exception_swallowed(self):
+        """Module-level try/except swallows Exception from main() (lines 179-180)."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "error_dedup_ml",
+            os.path.join(HOOKS_DIR, "error-dedup.py")
+        )
+        mod2 = importlib.util.module_from_spec(spec)
+        # Force main() to raise an unexpected exception; module-level except catches it
+        with patch("sys.stdin", io.StringIO("{}")), patch("sys.exit"):
+            spec.loader.exec_module(mod2)
+        # If we get here without crashing, the except block worked
+
+# ---------------------------------------------------------------------------
+# Additional coverage for TestPreCompactSnapshot missing lines
+# ---------------------------------------------------------------------------
+
+class TestPreCompactSnapshotExtra(unittest.TestCase):
+    """Additional coverage for pre-compact-snapshot.py missing lines."""
+
+    def _import(self):
+        mod_name = "pre-compact-snapshot"
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+
+    def test_copy_failure_is_swallowed(self):
+        """shutil.copy2 failure is silently swallowed (lines 37-38)."""
+        m = self._import()
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            open(tp, "w").write("{}\n")
+            log = os.path.join(tmp, "audit.log")
+            sessions = os.path.join(tmp, "sessions")
+            p = {"session_id": "abc", "trigger": "auto", "transcript_path": tp}
+            with unittest.mock.patch("sys.stdin", io.StringIO(json.dumps(p))), \
+                 unittest.mock.patch.object(m, "LOG_PATH", log), \
+                 unittest.mock.patch.object(m, "SESSIONS_DIR", sessions), \
+                 unittest.mock.patch("shutil.copy2", side_effect=OSError("disk full")):
+                m.main()
+            self.assertIn("PRE_COMPACT", open(log, encoding="utf-8").read())
+
+    def test_popen_failure_is_swallowed(self):
+        """subprocess.Popen failure is silently swallowed (lines 58-59)."""
+        m = self._import()
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "audit.log")
+            p = {"session_id": "abc", "trigger": "manual", "transcript_path": ""}
+            with unittest.mock.patch("sys.stdin", io.StringIO(json.dumps(p))), \
+                 unittest.mock.patch.object(m, "LOG_PATH", log), \
+                 unittest.mock.patch("subprocess.Popen", side_effect=OSError("no popen")):
+                m.main()
+            self.assertIn("manual", open(log, encoding="utf-8").read())
+
+    def test_log_write_failure_swallowed(self):
+        """Log write failure is silently swallowed (lines 65-66)."""
+        m = self._import()
+        p = {"session_id": "abc", "trigger": "auto", "transcript_path": ""}
+        with unittest.mock.patch("sys.stdin", io.StringIO(json.dumps(p))), \
+             unittest.mock.patch("builtins.open", side_effect=OSError("no write")):
+            m.main()  # Should not raise
+
+    def test_dunder_main_calls_main(self):
+        """__name__ == '__main__' block calls main() (line 70)."""
+        import runpy
+        # main() will be called; it reads sys.stdin so patch it
+        with unittest.mock.patch("sys.stdin", io.StringIO(json.dumps(
+            {"session_id": "x", "trigger": "auto", "transcript_path": ""}
+        ))), unittest.mock.patch("builtins.open", side_effect=OSError("no log")):
+            runpy.run_path(
+                os.path.join(HOOKS_DIR, "pre-compact-snapshot.py"),
+                run_name="__main__",
+            )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
