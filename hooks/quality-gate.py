@@ -197,7 +197,8 @@ def get_tool_summary(transcript_path):
     edited_paths = []
     bash_commands = []
 
-    for d in _get_last_turn_lines(transcript_path):
+    turn_lines = _get_last_turn_lines(transcript_path)
+    for d in turn_lines:
         for block in d.get('message', {}).get('content', []):
             if not isinstance(block, dict) or block.get('type') != 'tool_use':
                 continue
@@ -213,7 +214,13 @@ def get_tool_summary(transcript_path):
                 if cmd:
                     bash_commands.append(cmd)
 
-    return tool_names, edited_paths, bash_commands
+    final_turn_tools = []
+    if turn_lines:
+        for block in turn_lines[-1].get('message', {}).get('content', []):
+            if isinstance(block, dict) and block.get('type') == 'tool_use':
+                final_turn_tools.append(block.get('name', ''))
+
+    return tool_names, edited_paths, bash_commands, final_turn_tools
 
 
 def get_user_request(transcript_path, max_lines=300):
@@ -471,7 +478,7 @@ def _count_user_items(user_request):
     return 0
 
 
-def mechanical_checks(tool_names, edited_paths, bash_commands, failed_commands, response, user_request=""):
+def mechanical_checks(tool_names, edited_paths, bash_commands, failed_commands, response, user_request="", final_turn_tools=None):
     """Return a block reason string, or None if all checks pass."""
     has_code_edit = any(n in ("Edit", "Write") for n in tool_names)
     has_agent = any(n == "Agent" for n in tool_names)
@@ -484,8 +491,9 @@ def mechanical_checks(tool_names, edited_paths, bash_commands, failed_commands, 
     # Agent tool may contain edits — treat like code edit if no verification follows
     if has_agent and not has_code_edit:
         agent_idx = max(i for i, n in enumerate(tool_names) if n == 'Agent')
-        # If Agent is the most recent tool call, subagent self-verifies internally — skip MECHANICAL
-        if tool_names[-1] != 'Agent':
+        # If Agent is the final action in the current turn, subagent self-verifies internally — skip MECHANICAL
+        # Only exempt when final_turn_tools shows Agent as the last action (not when final turn is text-only)
+        if not (final_turn_tools and final_turn_tools[-1] == 'Agent'):
             has_post_agent_verify = any(
                 n == 'Bash' for n in tool_names[agent_idx + 1:]
             )
@@ -862,7 +870,7 @@ def main():
 
     transcript_path = data.get("transcript_path", "")
     response = data.get("last_assistant_message", "")
-    tool_names, edited_paths, bash_commands = get_tool_summary(transcript_path)
+    tool_names, edited_paths, bash_commands, final_turn_tools = get_tool_summary(transcript_path)
     complexity = get_last_complexity()
     failed_commands = get_failed_commands(transcript_path) if tool_names else []
     user_request = get_user_request(transcript_path)
@@ -893,7 +901,7 @@ def main():
         _record_verified_counts(response, tool_names)
 
     # Layer 1: Mechanical checks (instant, all complexity levels — runs even with no tools)
-    block_reason = mechanical_checks(tool_names, edited_paths, bash_commands, failed_commands, response, user_request)
+    block_reason = mechanical_checks(tool_names, edited_paths, bash_commands, failed_commands, response, user_request, final_turn_tools=final_turn_tools)
     if block_reason:
             log_decision('BLOCK', block_reason, user_request, tool_names, complexity, response)  # SMOKE:13
             try:

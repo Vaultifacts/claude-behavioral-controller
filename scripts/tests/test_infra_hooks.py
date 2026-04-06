@@ -5170,13 +5170,25 @@ class TestQualityGate(unittest.TestCase):
         self.assertIsNone(result)
 
     def test_mechanical_checks_agent_without_post_verify(self):
-        """Lines 483-492: Agent is last tool — subagent self-verifies, skip MECHANICAL."""
+        """Lines 483-492: Agent is last tool in final turn — subagent self-verifies, skip MECHANICAL."""
         m = self._import()
         result = m.mechanical_checks(
             ["Agent"], [], [], [],
-            "The agent completed the task.", "fix the bug"
+            "The agent completed the task.", "fix the bug",
+            final_turn_tools=["Agent"]
         )
-        self.assertIsNone(result)  # Agent-last: subagent self-verified internally
+        self.assertIsNone(result)  # Agent-last in final turn: subagent self-verified internally
+
+    def test_mechanical_checks_agent_in_prior_turn_no_verify(self):
+        """Agent used in prior turn, current turn is text-only → needs verification → BLOCK."""
+        m = self._import()
+        result = m.mechanical_checks(
+            ["Agent"], [], [], [],
+            "The layout is fixed.", "fix the bug",
+            final_turn_tools=[]  # final turn has no tools (text-only response)
+        )
+        self.assertIsNotNone(result)
+        self.assertIn("MECHANICAL", result)
 
     def test_mechanical_checks_agent_mid_without_post_verify(self):
         """Lines 483-492: Agent used mid-sequence without post-Bash → treated as code edit."""

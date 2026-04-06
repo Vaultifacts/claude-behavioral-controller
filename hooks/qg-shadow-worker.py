@@ -63,7 +63,7 @@ def main():
         re.IGNORECASE
     )
     _user_words = user_request.strip().split()
-    if len(_user_words) <= 5 or _TRIVIAL_RE.match(user_request.strip()):
+    if len(_user_words) <= 2 or _TRIVIAL_RE.match(user_request.strip()):
         return  # trivial input — skip ollama to avoid LAZINESS false positives
 
 

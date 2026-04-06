@@ -1866,7 +1866,7 @@ try:
             {'type': 'tool_result', 'tool_use_id': 't1', 'content': '396 passed'},
             {'type': 'tool_result', 'tool_use_id': 't2', 'content': 'file'},
         ]}}) + '\n')
-    names, _, cmds = qg.get_tool_summary(tf)
+    names, _, cmds, _ = qg.get_tool_summary(tf)
     assert 'Bash' in names, f'Bash not found: {names}'
     assert 'Read' in names, f'Read not found: {names}'
     assert 'bash smoke-test.sh' in cmds, f'cmd not found: {cmds}'
