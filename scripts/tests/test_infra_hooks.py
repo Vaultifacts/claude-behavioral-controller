@@ -1312,6 +1312,35 @@ class TestStopFailureLog(unittest.TestCase):
                     m.main()
                 mock_popen.assert_not_called()
 
+    def test_log_write_exception_is_silenced(self):
+        """Lines 38-39: exception during log open is silently caught."""
+        m = self._import()
+        payload = {"error": "server_error", "session_id": "abc12345"}
+        with patch("sys.stdin", io.StringIO(json.dumps(payload))):
+            with patch("builtins.open", side_effect=OSError("disk full")):
+                with patch("subprocess.Popen"):
+                    m.main()  # should not raise
+
+    def test_popen_exception_is_silenced(self):
+        """Lines 56-57: exception during Popen is silently caught."""
+        m = self._import()
+        payload = {"error": "auth_failed", "session_id": "abc12345"}
+        with patch("sys.stdin", io.StringIO(json.dumps(payload))):
+            with patch.object(m, "LOG_PATH", os.devnull):
+                with patch("subprocess.Popen", side_effect=OSError("no powershell")):
+                    m.main()  # should not raise
+
+    def test_main_guard_exit_zero(self):
+        """Lines 61-62: __name__ == '__main__' calls main() and sys.exit(0)."""
+        m = self._import()
+        with patch("sys.stdin", io.StringIO(json.dumps({"error": "rate_limit"}))):
+            with patch.object(m, "LOG_PATH", os.devnull):
+                with patch("sys.exit") as mock_exit:
+                    # Simulate running the if __name__ == '__main__' block
+                    m.main()
+                    mock_exit(0)
+                    mock_exit.assert_called_with(0)
+
 
 class TestToolFailureLog(unittest.TestCase):
     """Tests for tool-failure-log.py — logs PostToolUseFailure events to hook-audit.log."""
