@@ -1,6 +1,6 @@
 ---
 name: remote-control
-description: Connect the current Claude Code session to the Claude mobile app on your phone. Use when you want to access this desktop session from your phone, when asked to "connect my phone", "remote control", "mobile access", or "connect to Claude app".
+description: Use when asked to connect a phone to this desktop session, access this session remotely, or set up mobile access via the Claude app.
 ---
 
 ## Remote Control — Connect Phone to This Session

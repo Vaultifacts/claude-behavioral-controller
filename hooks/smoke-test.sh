@@ -644,7 +644,7 @@ result=$(echo '{"session_id":"test-pcs-2","trigger":"auto","transcript_path":""}
 
 # With real transcript → should create snapshot
 # Use Windows-resolvable path (Python can't see /c/Users/ or /tmp/)
-_pcs_sessions="$HOME/.claude/sessions"
+_pcs_sessions=$(PYTHONIOENCODING=utf-8 python -c "import os; print(os.path.expanduser('~/.claude/sessions').replace(chr(92), '/'))")
 mkdir -p "$_pcs_sessions"
 _pcs_winpath=$(PYTHONIOENCODING=utf-8 python -c "import os, tempfile; d=os.path.expanduser('~/.claude/sessions').replace(chr(92),'/'); f=tempfile.NamedTemporaryFile(dir=d, suffix='.jsonl', delete=False); print(f.name.replace(chr(92),'/')); f.close()")
 echo '{"type":"test"}' > "$_pcs_winpath"

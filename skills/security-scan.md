@@ -1,6 +1,6 @@
 ---
 name: security-scan
-description: Focused security audit of a codebase or file. Use when asked to "check security", "security review", "find vulnerabilities", "check for secrets", "OWASP scan", or "is this code safe?". Covers injection, secrets, auth, dependencies, and config. Distinct from code-review (which covers security as one of many concerns) and /audit (which covers everything). Use this for a dedicated, depth-first security pass.
+description: Use when asked to check security, find vulnerabilities, scan for secrets, or run a dedicated security audit. For general code review where security is one concern among many, use code-review instead.
 ---
 
 Security scan of: $ARGUMENTS (or entire project if no argument given)

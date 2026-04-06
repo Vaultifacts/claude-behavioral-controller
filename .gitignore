@@ -77,3 +77,36 @@ __pycache__/
 # Claude plugin cache (large, regenerated)
 plugins/cache/
 tools/claude-dash/
+
+# Coverage artifacts
+.coverage
+.coverage.*
+
+# Subagent result files
+qg-subagent-*.json
+
+# Monthly monitor logs and runtime data
+qg-monitor-*.jsonl
+qg-quarantine.jsonl
+qg-calibration.jsonl
+qg-ab-results.json
+qg-adversarial-results.json
+qg-context-preserve.json
+qg-cross-project.json
+qg-cross-session.json
+qg-shadow.log
+last-session-qg-failures.txt
+error-dedup-dismiss.json
+
+# Runtime directories
+sessions/
+shell-snapshots/
+snapshots/
+image-cache/
+ide/
+chrome/
+plugins/
+
+# Temp/generated
+audit-log-test.md
+audit-summary.py

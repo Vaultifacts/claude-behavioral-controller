@@ -1,3 +1,8 @@
+---
+name: code-review
+description: Use when the user explicitly asks to review code or audit a file — not after every edit, not for PRs, not for full project audits.
+---
+
 # Skill: Code Review
 
 ## Trigger

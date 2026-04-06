@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: Lightweight PR review (single-pass, no sub-agents). Reads the diff, checks for bugs/security/quality, and posts a review comment via gh. Fast and cheap. For a deep multi-agent review, use pr-review-toolkit:review-pr instead.
+description: Use when asked to review a pull request by PR number — lightweight single-pass. For deep multi-agent review, use pr-review-toolkit:review-pr instead.
 disable-model-invocation: true
 ---
 

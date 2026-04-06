@@ -1,6 +1,6 @@
 ---
 name: run-tests
-description: Run the test suite, diagnose failures, and fix them. Use when tests are failing, when you've just written code and need to verify it, or when asked to "make the tests pass", "run tests", "fix failing tests", or "get tests green". Covers the run → fail → fix → verify loop. Not for writing new tests (use generate-tests) or planning TDD cycles (use superpowers:test-driven-development).
+description: Use when tests are failing, after writing code that needs verification, or when asked to make tests pass or get tests green. Not for writing new tests (use generate-tests) or TDD planning.
 ---
 
 Run the test suite and fix any failures for: $ARGUMENTS

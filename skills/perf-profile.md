@@ -1,6 +1,6 @@
 ---
 name: perf-profile
-description: Profile and diagnose performance issues — bundle size, runtime CPU/memory hotspots, slow queries, and render performance. Use when asked to "profile performance", "why is this slow", "reduce bundle size", "optimize memory usage", "find the bottleneck", or "performance audit". For LCP/Core Web Vitals specifically, use chrome-devtools-mcp:debug-optimize-lcp instead.
+description: Use when asked to profile performance, find bottlenecks, reduce bundle size, diagnose slow queries, or investigate high CPU or memory usage. For LCP/Core Web Vitals, use chrome-devtools-mcp:debug-optimize-lcp instead.
 ---
 
 Performance profile of: $ARGUMENTS (or current project if no argument given)
@@ -93,7 +93,7 @@ grep -r "SELECT\|findAll\|\.find(\|\.query(" --include="*.ts" --include="*.js" -
 **[HIGH|MEDIUM|LOW] Finding title**
 Location: file:line
 Issue: description
-Impact: estimated effect (e.g., "adds ~200KB to bundle", "O(n²) on user list")
+Impact: a measured value where tooling allows (e.g., "adds ~200KB to bundle", "query takes 480ms on 10k rows"). "O(n²)" is a complexity classification, not a measurement — pair it with a measured value if possible.
 Fix: specific change
 
 ### Quick wins (under 30 min each)
@@ -108,9 +108,6 @@ Fix: specific change
 
 ## Step 6 — Implement fixes
 
-For each confirmed fix:
-1. Make the minimal change
-2. Re-measure where possible (re-run build, re-check bundle size)
-3. Note the before/after delta
+For each confirmed fix, use the `performance-fix` skill — do NOT apply changes without a measured baseline. The `performance-fix` skill requires a concrete before/after number (ms, KB, req/s); supply the measured Impact value from Step 5 as that baseline.
 
 Do not optimize prematurely — only fix what the profile shows is actually slow.

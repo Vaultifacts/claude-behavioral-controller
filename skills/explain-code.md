@@ -1,6 +1,6 @@
 ---
 name: explain-code
-description: Structured deep-dive explanation of a file, function, or system — covering purpose, data flow, design decisions, dependencies, entry points, and gotchas. Use when the user asks to "explain this in depth", "walk me through", "document how X works", "I need to understand before modifying", or wants a shareable reference explanation. Do NOT use for quick one-liner questions — those don't need a skill.
+description: Use when asked to explain code in depth, walk through a file or function, document how something works, or understand code before modifying it. Not for quick one-liner questions.
 ---
 
 Explain: $ARGUMENTS

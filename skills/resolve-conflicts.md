@@ -1,6 +1,6 @@
 ---
 name: resolve-conflicts
-description: Resolve git merge or rebase conflicts. Use when encountering conflict markers (<<<<<<<, =======, >>>>>>>), when "git merge", "git rebase", or "git cherry-pick" leaves conflicts, or when asked to "fix conflicts", "resolve merge conflicts", or "help with rebase". Distinct from superpowers:using-git-worktrees (which sets up isolation before work begins).
+description: Use when git merge, rebase, or cherry-pick leaves conflict markers, or when asked to fix or resolve merge conflicts.
 ---
 
 Resolve git conflicts in: $ARGUMENTS (or current repo if no argument given)

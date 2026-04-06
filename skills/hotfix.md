@@ -1,7 +1,9 @@
 ---
 name: hotfix
-description: Production hotfix workflow — branch from the release tag, apply a minimal fix, and fast-track to merge. Use when asked to "hotfix", "patch production", "emergency fix", "fix prod without waiting for main", or "cherry-pick to release". Distinct from normal feature development — this prioritizes speed and minimal blast radius over code elegance.
+description: Use when a bug needs patching in production immediately — hotfix, emergency fix, patch without waiting for main, or cherry-pick to a release branch.
 ---
+
+> **Iron rule**: Verify the root cause independently before writing any code. Do NOT implement a fix based on the reporter's diagnosis alone — verify by reading the relevant code path and all call sites yourself.
 
 Hotfix for: $ARGUMENTS
 
@@ -38,6 +40,8 @@ Branch naming: `hotfix/` prefix + short description (e.g., `hotfix/null-check-pa
 
 Use `superpowers:systematic-debugging` to find the root cause before writing any code.
 
+The reporter's description is a starting point, not a conclusion. Before writing code: read the file at the reported line, trace the full call path, and confirm whether the same issue exists at other call sites. If the scope is larger than the reporter described, stop and escalate.
+
 Constraints for a hotfix:
 - Fix ONLY the reported issue — no refactoring, no "while I'm here" changes
 - Change as few files as possible
@@ -54,14 +58,24 @@ If the diff touches more than 2-3 files, reconsider — is the scope too broad f
 
 ## Step 5 — Test
 
-Run the test suite:
+Run the test suite scoped to the changed files:
 ```bash
-# Run tests relevant to the changed files only if possible
+# Run tests covering the changed path
 ```
 
-At minimum, run tests that cover the fixed path. If no tests exist for the fix, write one targeted test before committing.
+If no tests exist for the fixed path, write one targeted test before committing — even one assertion is enough to prevent regression. 'Tests take too long' is not acceptable — an incorrect hotfix extends downtime. If the test suite is broken for unrelated reasons, see Abort criteria.
 
-## Step 6 — Commit and tag
+## Step 6 — State the rollback procedure
+
+Before committing, write out the rollback:
+```
+Rollback: git revert <commit> && git push origin main
+# or: git checkout v<previous-tag> && deploy
+```
+
+If you cannot state the rollback, do not proceed. A deployed fix that cannot be quickly reverted is worse than the original bug.
+
+## Step 7 — Commit and tag
 
 ```bash
 git add <specific-files>
@@ -76,7 +90,7 @@ git tag v2.3.2
 
 Increment the patch version (semver: MAJOR.MINOR.**PATCH**).
 
-## Step 7 — Merge back to main
+## Step 8 — Merge back to main
 
 A hotfix that isn't merged back to main will be lost in the next release:
 
@@ -87,7 +101,7 @@ git merge hotfix/v2.3.2 --no-ff -m "chore: merge hotfix v2.3.2 into main"
 
 If there are conflicts merging back, resolve them carefully — main may have diverged.
 
-## Step 8 — Push and deploy
+## Step 9 — Push and deploy
 
 ```bash
 git push origin main
@@ -96,7 +110,7 @@ git push origin v2.3.2  # push the tag
 
 Then open a PR if required by the project's deployment process, or trigger the deploy directly.
 
-## Step 9 — Report
+## Step 10 — Report
 
 ```
 ## Hotfix Complete
@@ -117,3 +131,14 @@ Stop and escalate if:
 - The root cause is architectural (can't be fixed with a small patch)
 - You can't reproduce the issue locally
 - Tests are failing for unrelated reasons — don't deploy on a broken base
+
+## Rationalizations
+
+| Phrase | Why it fails |
+|--------|-------------|
+| "The bug is obvious" | Obvious to the reporter ≠ verified by you. Read the code path. |
+| "We're losing $X/minute" | An incorrect fix doubles downtime. Diagnose first — it takes 2 minutes. |
+| "Tests take too long" | Run targeted tests for the changed path. The full suite can run in CI. |
+| "Just push it" | State the rollback before pushing. Takes 30 seconds. |
+| "The fix is one line" | One-line fixes can have multiple callers. Check all call sites. |
+| "I'll write tests after" | Tests written after deployment are not regression guards — they just document the current state. |

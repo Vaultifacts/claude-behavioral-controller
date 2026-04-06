@@ -1,6 +1,6 @@
 ---
 name: dep-audit
-description: Audit project dependencies for outdated packages, known CVEs, and version drift. Use when asked to "check dependencies", "audit packages", "find outdated packages", "check for CVEs", "update dependencies", or "dependency health check". Covers npm/yarn/pnpm, pip/uv, cargo, and go modules. Produces a prioritized update plan — does not auto-update without confirmation.
+description: Use when asked to check dependencies, audit packages, find outdated packages, check for CVEs, update dependencies, or run a dependency health check. Covers npm/yarn/pnpm, pip/uv, cargo, and go modules.
 ---
 
 Dependency audit for: $ARGUMENTS (or current project if no argument given)
@@ -75,8 +75,10 @@ Flag packages declared at different versions in different packages.
 ### High value (major version lag > 1 year old)
 - [ ] upgrade A from B to C  →  security patches + perf improvements
 
-### Routine (patch/minor, safe to batch)
-- [ ] upgrade D, E, F  →  run: npm update
+### Routine (patch/minor, lower risk — upgrade one at a time)
+- [ ] upgrade D  →  one at a time; patch/minor versions can still have breaking changes
+- [ ] upgrade E
+- [ ] upgrade F
 
 ### Hold (major — review changelog first)
 - [ ] react 17 → 18  →  breaking changes in rendering model; see CHANGELOG
@@ -89,7 +91,4 @@ Present the plan. Then ask:
 
 Do NOT run `npm install`, `pip install --upgrade`, or equivalent without confirmation.
 
-For each confirmed update:
-1. Apply the change to the lock/manifest file
-2. Run the test suite (`run-tests` skill) to catch regressions
-3. Report result before moving to the next package
+For each confirmed update, use the `upgrade-dependency` skill — one package at a time. Do NOT batch-install multiple packages in a single command. The `upgrade-dependency` skill handles changelog reading, API boundary checks, and isolated commits.

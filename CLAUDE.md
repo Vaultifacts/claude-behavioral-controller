@@ -65,7 +65,10 @@ Substitute evidence (e.g., "smoke test passes") does NOT address specific contra
 ## Session Management
 - Context hooks fire automatically: toast at 70%, Claude gets message at 90%
 - Run `/compact` when statusline shows yellow `up ctx` or red `/compact` hint
+- **At session start**: Invoke the `new-session` skill before responding to the user's first message.
 - **Before /compact**: Invoke the `pre-compact` skill. Never compact without completing it first.
+- **After /compact**: Invoke the `post-compact` skill before continuing any work.
+- **At end of session (without compacting)**: Invoke the `end-session` skill.
 - Session cost/duration auto-logged to `~/.claude/audit-log.md` — view with `claude-cost`
 - Use `~/.claude/projects/C--Users-Matt1/memory/MEMORY.md` for cross-session facts
 
