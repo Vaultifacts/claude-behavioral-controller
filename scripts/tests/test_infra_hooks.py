@@ -4625,6 +4625,40 @@ class TestErrorDedupExtra(unittest.TestCase):
             spec.loader.exec_module(mod2)
         # If we get here without crashing, the except block worked
 
+    def test_module_level_except_swallows_exception(self):
+        """Module-level except block (lines 179-180) is hit when main() raises."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "error_dedup_exc",
+            os.path.join(HOOKS_DIR, "error-dedup.py")
+        )
+        mod2 = importlib.util.module_from_spec(spec)
+        # Patch json.load to raise a non-SystemExit exception so main() raises
+        # past the inner try/except, reaching the module-level except block
+        with patch("json.load", side_effect=RuntimeError("forced")), \
+             patch("sys.exit"):
+            spec.loader.exec_module(mod2)
+        # Reaching here means the module-level except swallowed the RuntimeError
+
+    def test_tier2_non_string_tool_response_converted(self):
+        """PostToolUse Bash: non-string tool_response is coerced via str() (line 125)."""
+        m = self._import()
+        # json.load returns tool_response as a dict (non-string); line 125 coerces it
+        p = {
+            "hook_event_name": "PostToolUse",
+            "session_id": "s5",
+            "tool_name": "Bash",
+            "tool_response": "placeholder",
+        }
+        # Patch json.load to return the payload with a non-string tool_response
+        non_str_payload = dict(p)
+        non_str_payload["tool_response"] = {"exit_code": 1, "output": "ok"}
+        with patch("json.load", return_value=non_str_payload), \
+             patch("sys.stdin", io.StringIO("{}")):
+            with self.assertRaises(SystemExit) as ctx:
+                m.main()
+        self.assertEqual(ctx.exception.code, 0)
+
 # ---------------------------------------------------------------------------
 # Additional coverage for TestPreCompactSnapshot missing lines
 # ---------------------------------------------------------------------------
