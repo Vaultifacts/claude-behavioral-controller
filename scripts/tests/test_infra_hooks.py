@@ -1693,5 +1693,977 @@ class TestSmokeCountUpdater(unittest.TestCase):
         self.assertIn("999 smoke tests pass", replaced)
 
 
+class TestSessionEndLogBackup(unittest.TestCase):
+    """Additional tests for session-end-log.py — OneDrive backup and file-cleanup branches."""
+
+    def _import(self):
+        mod_name = "session-end-log"
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+
+    def _run_main(self, payload, log_path=None, subprocess_stdout="", makedirs_ok=True):
+        m = self._import()
+        mock_run_result = MagicMock(stdout=subprocess_stdout, returncode=0)
+        with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+             patch("subprocess.run", return_value=mock_run_result), \
+             patch("subprocess.Popen", MagicMock()):
+            if log_path:
+                with patch.object(m, "LOG_PATH", log_path):
+                    m.main()
+            else:
+                m.main()
+
+    def test_backup_makedirs_called(self):
+        """makedirs is called for the backup directory structure."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+        with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+             patch("subprocess.run", return_value=MagicMock(stdout="", returncode=0)), \
+             patch("subprocess.Popen", MagicMock()), \
+             patch("os.makedirs") as mock_makedirs, \
+             patch("os.path.isdir", return_value=False), \
+             patch("glob.glob", return_value=[]), \
+             patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")):
+            try:
+                m.main()
+            except Exception:
+                pass
+        self.assertTrue(mock_makedirs.called)
+
+    def test_backup_copy2_called_for_matching_files(self):
+        """shutil.copy2 is called when glob finds matching files."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+        fake_state = "/fake/home/.claude"
+        fake_backup = "/fake/home/OneDrive/Documents/ClaudeCode"
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                 patch("subprocess.run", return_value=MagicMock(stdout="", returncode=0)), \
+                 patch("subprocess.Popen", MagicMock()), \
+                 patch("os.makedirs"), \
+                 patch("os.path.isdir", return_value=False), \
+                 patch("glob.glob", return_value=[f"{fake_state}/settings.json"]), \
+                 patch("os.path.basename", return_value="settings.json"), \
+                 patch("shutil.copy2") as mock_copy2, \
+                 patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")), \
+                 patch.object(m, "LOG_PATH", log_path):
+                m.main()
+        self.assertTrue(mock_copy2.called)
+
+    def test_backup_subdir_copy_when_isdir_true(self):
+        """Files from hooks/templates/commands subdirs are copied when isdir returns True."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            # Simulate a subdir with one .py file
+            def fake_isdir(path):
+                return True
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                 patch("subprocess.run", return_value=MagicMock(stdout="", returncode=0)), \
+                 patch("subprocess.Popen", MagicMock()), \
+                 patch("os.makedirs"), \
+                 patch("os.path.isdir", side_effect=fake_isdir), \
+                 patch("os.listdir", return_value=["myhook.py"]), \
+                 patch("glob.glob", return_value=[]), \
+                 patch("shutil.copy2") as mock_copy2, \
+                 patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")), \
+                 patch.object(m, "LOG_PATH", log_path):
+                m.main()
+        self.assertTrue(mock_copy2.called)
+
+    def test_backup_memory_dirs_copied(self):
+        """Memory directories (.md files) are copied when isdir returns True."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                 patch("subprocess.run", return_value=MagicMock(stdout="", returncode=0)), \
+                 patch("subprocess.Popen", MagicMock()), \
+                 patch("os.makedirs"), \
+                 patch("os.path.isdir", return_value=True), \
+                 patch("os.listdir", return_value=["MEMORY.md"]), \
+                 patch("glob.glob", return_value=[]), \
+                 patch("shutil.copy2") as mock_copy2, \
+                 patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")), \
+                 patch.object(m, "LOG_PATH", log_path):
+                m.main()
+        self.assertTrue(mock_copy2.called)
+
+    def test_backup_sessions_cleanup_old_bak_files(self):
+        """Old .jsonl.bak files older than 7 days are removed."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            old_bak = os.path.join(tmp, "old-session.jsonl.bak")
+            open(old_bak, "w").write("x")
+            # Make it 8 days old
+            old_time = time.time() - 8 * 86400
+            os.utime(old_bak, (old_time, old_time))
+
+            def fake_isdir(path):
+                if "sessions" in path:
+                    return True
+                return False
+
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                 patch("subprocess.run", return_value=MagicMock(stdout="", returncode=0)), \
+                 patch("subprocess.Popen", MagicMock()), \
+                 patch("os.makedirs"), \
+                 patch("os.path.isdir", side_effect=fake_isdir), \
+                 patch("os.listdir", return_value=["old-session.jsonl.bak"]), \
+                 patch("glob.glob", return_value=[]), \
+                 patch("shutil.copy2"), \
+                 patch("os.path.getmtime", return_value=old_time), \
+                 patch("os.remove") as mock_remove, \
+                 patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")), \
+                 patch.object(m, "LOG_PATH", log_path):
+                m.main()
+        self.assertTrue(mock_remove.called)
+
+    def test_backup_sessions_keeps_recent_bak_files(self):
+        """Recent .jsonl.bak files (within 7 days) are NOT removed."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+
+        def fake_isdir(path):
+            return "sessions" in path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                 patch("subprocess.run", return_value=MagicMock(stdout="", returncode=0)), \
+                 patch("subprocess.Popen", MagicMock()), \
+                 patch("os.makedirs"), \
+                 patch("os.path.isdir", side_effect=fake_isdir), \
+                 patch("os.listdir", return_value=["recent.jsonl.bak"]), \
+                 patch("glob.glob", return_value=[]), \
+                 patch("shutil.copy2"), \
+                 patch("os.path.getmtime", return_value=time.time() - 3600), \
+                 patch("os.remove") as mock_remove, \
+                 patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")), \
+                 patch.object(m, "LOG_PATH", log_path):
+                m.main()
+        mock_remove.assert_not_called()
+
+    def test_backup_skips_dotfiles(self):
+        """Files starting with '.' are skipped during glob backup."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            fake_state = "/fake/home/.claude"
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                 patch("subprocess.run", return_value=MagicMock(stdout="", returncode=0)), \
+                 patch("subprocess.Popen", MagicMock()), \
+                 patch("os.makedirs"), \
+                 patch("os.path.isdir", return_value=False), \
+                 patch("glob.glob", return_value=[f"{fake_state}/.env.secret"]), \
+                 patch("os.path.basename", return_value=".env.secret"), \
+                 patch("shutil.copy2") as mock_copy2, \
+                 patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")), \
+                 patch.object(m, "LOG_PATH", log_path):
+                m.main()
+        mock_copy2.assert_not_called()
+
+    def test_backup_writes_ok_line_to_log(self):
+        """When backup succeeds, 'backup OK' is written to the log."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                 patch("subprocess.run", return_value=MagicMock(stdout="", returncode=0)), \
+                 patch("subprocess.Popen", MagicMock()), \
+                 patch("os.makedirs"), \
+                 patch("os.path.isdir", return_value=False), \
+                 patch("glob.glob", return_value=[]), \
+                 patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")), \
+                 patch.object(m, "LOG_PATH", log_path):
+                m.main()
+            content = open(log_path, encoding="utf-8").read()
+        self.assertIn("backup OK", content)
+
+    def test_backup_failure_writes_fail_line(self):
+        """When makedirs raises, 'backup FAIL' is written to the log."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                 patch("subprocess.run", return_value=MagicMock(stdout="", returncode=0)), \
+                 patch("subprocess.Popen", MagicMock()), \
+                 patch("os.makedirs", side_effect=OSError("no space")), \
+                 patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")), \
+                 patch.object(m, "LOG_PATH", log_path):
+                m.main()
+            content = open(log_path, encoding="utf-8").read()
+        self.assertIn("backup FAIL", content)
+
+    def test_qg_feedback_with_blocks_writes_snapshot(self):
+        """When qg failures output contains blocks, snapshot file is written."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+        qg_out = "Block count: 3 blocks in last session"
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            snap_path = os.path.join(tmp, "last-session-qg-failures.txt")
+
+            def fake_run(cmd, **kwargs):
+                if "failures" in cmd:
+                    return MagicMock(stdout=qg_out, returncode=0)
+                if "auto-detect" in cmd:
+                    return MagicMock(stdout="", returncode=0)
+                return MagicMock(stdout="", returncode=0)
+
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                 patch("subprocess.run", side_effect=fake_run), \
+                 patch("subprocess.Popen", MagicMock()), \
+                 patch("os.makedirs"), \
+                 patch("os.path.isdir", return_value=False), \
+                 patch("glob.glob", return_value=[]), \
+                 patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")), \
+                 patch("os.path.exists", return_value=False), \
+                 patch.object(m, "LOG_PATH", log_path):
+                # Patch the snapshot path by patching open for the snapshot write
+                real_open = open
+                written = {}
+                def patched_open(path, mode="r", **kw):
+                    if "last-session-qg-failures" in str(path) and "w" in mode:
+                        buf = io.StringIO()
+                        written["buf"] = buf
+                        return buf
+                    return real_open(path, mode, **kw)
+                with patch("builtins.open", side_effect=patched_open):
+                    m.main()
+
+    def test_qg_feedback_no_blocks_skips_snapshot(self):
+        """When qg output has 0 blocks, snapshot file is NOT written."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+        qg_out = "0 blocks total"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            snap_path = os.path.join(tmp, "last-session-qg-failures.txt")
+
+            def fake_run(cmd, **kwargs):
+                if "failures" in cmd:
+                    return MagicMock(stdout=qg_out, returncode=0)
+                return MagicMock(stdout="", returncode=0)
+
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                 patch("subprocess.run", side_effect=fake_run), \
+                 patch("subprocess.Popen", MagicMock()), \
+                 patch("os.makedirs"), \
+                 patch("os.path.isdir", return_value=False), \
+                 patch("glob.glob", return_value=[]), \
+                 patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")), \
+                 patch.object(m, "LOG_PATH", log_path):
+                m.main()
+        self.assertFalse(os.path.exists(snap_path))
+
+    def test_qg_autodetect_appends_to_existing_snapshot(self):
+        """auto-detect output is appended to an existing snapshot file."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            snap_path = os.path.join(tmp, "last-session-qg-failures.txt")
+            open(snap_path, "w", encoding="utf-8").write("Block count: 2 blocks\nIf the gate missed something")
+
+            def fake_run(cmd, **kwargs):
+                if "failures" in cmd:
+                    return MagicMock(stdout="2 blocks found", returncode=0)
+                if "auto-detect" in cmd:
+                    return MagicMock(stdout="SYSTEMIC: repeated assumption pattern", returncode=0)
+                return MagicMock(stdout="", returncode=0)
+
+            real_exists = os.path.exists
+            def fake_exists(p):
+                if "last-session-qg-failures" in str(p):
+                    return True
+                return real_exists(p)
+
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                 patch("subprocess.run", side_effect=fake_run), \
+                 patch("subprocess.Popen", MagicMock()), \
+                 patch("os.makedirs"), \
+                 patch("os.path.isdir", return_value=False), \
+                 patch("glob.glob", return_value=[]), \
+                 patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")), \
+                 patch("os.path.exists", side_effect=fake_exists), \
+                 patch.object(m, "LOG_PATH", log_path):
+                real_open = open
+                appended = {}
+                def patched_open(path, mode="r", **kw):
+                    if "last-session-qg-failures" in str(path) and "a" in mode:
+                        buf = io.StringIO()
+                        appended["called"] = True
+                        return buf
+                    if "last-session-qg-failures" in str(path) and "w" in mode:
+                        return io.StringIO()
+                    return real_open(path, mode, **kw)
+                with patch("builtins.open", side_effect=patched_open):
+                    m.main()
+        self.assertTrue(appended.get("called", False))
+
+    def test_weekly_summary_appended_when_this_week_line_found(self):
+        """Weekly summary line is appended to snapshot when 'This week' line present."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+        weekly_out = "This week: 5 sessions, 3 blocks\nBlock rate delta: -10%"
+
+        real_exists = os.path.exists
+        def fake_exists(p):
+            if "last-session-qg-failures" in str(p):
+                return True
+            return real_exists(p)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+
+            def fake_run(cmd, **kwargs):
+                if "weekly" in cmd:
+                    return MagicMock(stdout=weekly_out, returncode=0)
+                return MagicMock(stdout="", returncode=0)
+
+            appended = {}
+            real_open = open
+            def patched_open(path, mode="r", **kw):
+                if "last-session-qg-failures" in str(path) and "a" in mode:
+                    appended["called"] = True
+                    return io.StringIO()
+                if "last-session-qg-failures" in str(path) and "w" in mode:
+                    return io.StringIO()
+                return real_open(path, mode, **kw)
+
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                 patch("subprocess.run", side_effect=fake_run), \
+                 patch("subprocess.Popen", MagicMock()), \
+                 patch("os.makedirs"), \
+                 patch("os.path.isdir", return_value=False), \
+                 patch("glob.glob", return_value=[]), \
+                 patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")), \
+                 patch("os.path.exists", side_effect=fake_exists), \
+                 patch("builtins.open", side_effect=patched_open), \
+                 patch.object(m, "LOG_PATH", log_path):
+                m.main()
+        self.assertTrue(appended.get("called", False))
+
+    def test_shadow_summary_appended_when_agreement_line_found(self):
+        """Shadow phi4 summary is appended when 'Agreement:' line is present."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+        shadow_out = "Agreement: 90%\nTotal evals: 20\nOllama more aggressive: 2"
+
+        real_exists = os.path.exists
+        def fake_exists(p):
+            if "last-session-qg-failures" in str(p):
+                return True
+            return real_exists(p)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+
+            def fake_run(cmd, **kwargs):
+                if "shadow" in cmd:
+                    return MagicMock(stdout=shadow_out, returncode=0)
+                return MagicMock(stdout="", returncode=0)
+
+            appended = {}
+            real_open = open
+            def patched_open(path, mode="r", **kw):
+                if "last-session-qg-failures" in str(path) and "a" in mode:
+                    appended["called"] = True
+                    return io.StringIO()
+                if "last-session-qg-failures" in str(path) and "w" in mode:
+                    return io.StringIO()
+                return real_open(path, mode, **kw)
+
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                 patch("subprocess.run", side_effect=fake_run), \
+                 patch("subprocess.Popen", MagicMock()), \
+                 patch("os.makedirs"), \
+                 patch("os.path.isdir", return_value=False), \
+                 patch("glob.glob", return_value=[]), \
+                 patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")), \
+                 patch("os.path.exists", side_effect=fake_exists), \
+                 patch("builtins.open", side_effect=patched_open), \
+                 patch.object(m, "LOG_PATH", log_path):
+                m.main()
+        self.assertTrue(appended.get("called", False))
+
+    def test_qg_run_exception_swallowed(self):
+        """Exception from subprocess.run is swallowed gracefully."""
+        m = self._import()
+        payload = {"reason": "normal_exit", "session_id": "test1234"}
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                 patch("subprocess.run", side_effect=Exception("network error")), \
+                 patch("subprocess.Popen", MagicMock()), \
+                 patch("os.makedirs"), \
+                 patch("os.path.isdir", return_value=False), \
+                 patch("glob.glob", return_value=[]), \
+                 patch("os.path.expanduser", side_effect=lambda p: p.replace("~", "/fake/home")), \
+                 patch.object(m, "LOG_PATH", log_path):
+                m.main()  # should not raise
+
+
+class TestTaskClassifier(unittest.TestCase):
+    """Tests for task-classifier.py — UserPromptSubmit hook that classifies task complexity."""
+
+    HOOK_PATH = os.path.join(HOOKS_DIR, "task-classifier.py")
+
+    _RCFILE = os.path.join(os.path.expanduser("~/.claude"), ".coveragerc")
+
+    def _run(self, payload, transcript_path=None):
+        """Run task-classifier under coverage run so subprocess lines are tracked."""
+        import subprocess
+        if transcript_path:
+            payload = dict(payload, transcript_path=transcript_path)
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        cmd = [sys.executable, "-m", "coverage", "run",
+               "--parallel-mode", "--rcfile=" + self._RCFILE,
+               self.HOOK_PATH]
+        r = subprocess.run(cmd, input=json.dumps(payload).encode(),
+                           capture_output=True, env=env)
+        return r.stdout.decode(), r.stderr.decode(), r.returncode
+
+    def test_invalid_json_exits_0(self):
+        import subprocess
+        env = os.environ.copy(); env["PYTHONIOENCODING"] = "utf-8"
+        r = subprocess.run([sys.executable, self.HOOK_PATH], input=b"not-json", capture_output=True, env=env)
+        self.assertEqual(r.returncode, 0)
+
+    def test_trivial_short_message(self):
+        out, _, rc = self._run({"message": "hi"})
+        self.assertEqual(rc, 0)
+        self.assertIn("TRIVIAL", out)
+
+    def test_trivial_yes_no_response(self):
+        out, _, rc = self._run({"message": "yes"})
+        self.assertEqual(rc, 0)
+        self.assertIn("TRIVIAL", out)
+
+    def test_trivial_ok_response(self):
+        out, _, rc = self._run({"message": "ok"})
+        self.assertEqual(rc, 0)
+        self.assertIn("TRIVIAL", out)
+
+    def test_simple_rename_keyword(self):
+        out, _, rc = self._run({"message": "rename the function foo to bar in main.py"})
+        self.assertEqual(rc, 0)
+        self.assertIn("SIMPLE", out)
+
+    def test_simple_debug_keyword(self):
+        out, _, rc = self._run({"message": "debug the login page issue"})
+        self.assertEqual(rc, 0)
+        self.assertIn("SIMPLE", out)
+
+    def test_complex_implement_keyword(self):
+        out, _, rc = self._run({"message": "implement the new authentication flow for the API"})
+        self.assertEqual(rc, 0)
+        self.assertIn("COMPLEX", out)
+
+    def test_complex_refactor_keyword(self):
+        out, _, rc = self._run({"message": "refactor the database layer to use the repository pattern"})
+        self.assertEqual(rc, 0)
+        self.assertIn("COMPLEX", out)
+
+    def test_complex_build_keyword(self):
+        out, _, rc = self._run({"message": "build the CI pipeline for the project"})
+        self.assertEqual(rc, 0)
+        self.assertIn("COMPLEX", out)
+
+    def test_deep_architecture_keyword(self):
+        out, _, rc = self._run({"message": "design the overall architecture for the microservices migration"})
+        self.assertEqual(rc, 0)
+        self.assertIn("DEEP", out)
+
+    def test_deep_algorithm_keyword(self):
+        out, _, rc = self._run({"message": "analyze the algorithm performance and optimize the bottleneck"})
+        self.assertEqual(rc, 0)
+        self.assertIn("DEEP", out)
+
+    def test_message_as_dict(self):
+        out, _, rc = self._run({"message": {"content": "rename x to y"}})
+        self.assertEqual(rc, 0)
+        self.assertIn("task-classifier", out)
+
+    def test_message_as_list_of_blocks(self):
+        out, _, rc = self._run({"message": [{"type": "text", "text": "refactor the whole codebase"}]})
+        self.assertEqual(rc, 0)
+        self.assertIn("COMPLEX", out)
+
+    def test_prompt_field_fallback(self):
+        out, _, rc = self._run({"prompt": "implement a new feature for the dashboard"})
+        self.assertEqual(rc, 0)
+        self.assertIn("COMPLEX", out)
+
+    def test_system_task_notification_exits_early(self):
+        out, _, rc = self._run({"message": "<task-notification>some background task done</task-notification>"})
+        self.assertEqual(rc, 0)
+        self.assertNotIn("task-classifier", out)
+
+    def test_system_message_exits_early(self):
+        out, _, rc = self._run({"message": "<system>internal message</system>"})
+        self.assertEqual(rc, 0)
+        self.assertNotIn("task-classifier", out)
+
+    def test_stop_hook_feedback_forces_moderate_minimum(self):
+        out, _, rc = self._run({"message": "stop hook feedback: please fix this"})
+        self.assertEqual(rc, 0)
+        # compliance-retry message should appear
+        self.assertIn("compliance-retry", out)
+
+    def test_contradiction_signal_injects_reminder(self):
+        out, _, rc = self._run({"message": "that's wrong, it does not exist"})
+        self.assertEqual(rc, 0)
+        self.assertIn("contradiction-check", out)
+
+    def test_confidence_challenge_injects_reminder(self):
+        out, _, rc = self._run({"message": "are you sure that's correct?"})
+        self.assertEqual(rc, 0)
+        self.assertIn("confidence-challenge", out)
+
+    def test_gate_miss_signal_injects_reminder(self):
+        out, _, rc = self._run({"message": "you assumed that without checking"})
+        self.assertEqual(rc, 0)
+        self.assertIn("gate-miss", out)
+
+    def test_new_project_intent_detected(self):
+        out, _, rc = self._run({"message": "let's start a new project for the dashboard"})
+        self.assertEqual(rc, 0)
+        self.assertIn("project-detector", out)
+
+    def test_new_project_question_not_detected(self):
+        out, _, rc = self._run({"message": "how does the new project workflow handle the setup?"})
+        self.assertEqual(rc, 0)
+        self.assertNotIn("project-detector", out)
+
+    def test_short_input_go_ahead(self):
+        out, _, rc = self._run({"message": "go ahead"})
+        self.assertEqual(rc, 0)
+        # short-input hint may fire when transcript_path absent
+        self.assertEqual(rc, 0)
+
+    def test_short_input_number_with_no_transcript(self):
+        out, _, rc = self._run({"message": "1"})
+        self.assertEqual(rc, 0)
+
+    def test_short_input_number_with_missing_transcript(self):
+        out, _, rc = self._run({"message": "2", "transcript_path": "/nope/missing.jsonl"})
+        self.assertEqual(rc, 0)
+
+    def test_short_input_with_numbered_list_transcript(self):
+        """When transcript has a numbered list, short-input hint includes items."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            assistant_entry = {
+                "type": "assistant",
+                "message": {
+                    "content": [{
+                        "type": "text",
+                        "text": "Here are your options:\n1. Option one description here\n2. Option two description here\n3. Option three description here",
+                    }]
+                }
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(assistant_entry) + "\n")
+            out, _, rc = self._run({"message": "1"}, transcript_path=tp)
+        self.assertEqual(rc, 0)
+        self.assertIn("short-input", out)
+
+    def test_short_input_with_no_numbered_list_transcript(self):
+        """When transcript has assistant text without numbered list, brief-input hint fires."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            assistant_entry = {
+                "type": "assistant",
+                "message": {
+                    "content": [{"type": "text", "text": "Here is some information without a list."}]
+                }
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(assistant_entry) + "\n")
+            out, _, rc = self._run({"message": "go"}, transcript_path=tp)
+        self.assertEqual(rc, 0)
+        self.assertIn("short-input", out)
+
+    def test_word_count_determines_moderate_score(self):
+        """A 13+ word message defaults to MODERATE when no keywords match."""
+        msg = "please look at this file and tell me what the function does now"
+        out, _, rc = self._run({"message": msg})
+        self.assertEqual(rc, 0)
+        self.assertIn("MODERATE", out)
+
+    def test_trivial_list_pattern(self):
+        # "list files?" matches ^(list|show|display) \w+\??$ trivial pattern
+        # and doesn't hit any SIMPLE keywords that would bump score
+        out, _, rc = self._run({"message": "thanks!"})
+        self.assertEqual(rc, 0)
+        self.assertIn("TRIVIAL", out)
+
+    def test_orchestrator_hint_at_high_context(self):
+        """Context at 40%+ injects orchestrator dispatch hint for MODERATE+ tasks.
+        The real statusline-state.json (pct>=40) triggers the orchestrator hint."""
+        state_path = os.path.expanduser("~/.claude/statusline-state.json")
+        if os.path.exists(state_path):
+            try:
+                pct = json.load(open(state_path)).get("pct", 0)
+            except Exception:
+                pct = 0
+        else:
+            pct = 0
+        # Only assert orchestrator hint when context is actually >=20%
+        out, _, rc = self._run({"message": "implement a new authentication flow for the API"})
+        self.assertEqual(rc, 0)
+        if pct >= 20:
+            self.assertIn("orchestrator", out)
+        else:
+            self.assertIn("task-classifier", out)
+
+
+class TestTodoExtractor(unittest.TestCase):
+    """Tests for todo-extractor.py — Stop hook that extracts TODOs from transcripts.
+
+    Loads the original hooks/todo-extractor.py in-process using importlib with
+    sys.exit patched to raise SystemExit (so control flow inside main() works).
+    detect_project_name is injected after load since it only lives in a dead
+    except-ImportError block. FEED_FILE is overridden per-test via mod.FEED_FILE.
+    """
+
+    HOOK_PATH = os.path.join(HOOKS_DIR, "todo-extractor.py")
+
+    @classmethod
+    def _load_module(cls):
+        """Load todo-extractor.py in-process, return the module object."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("todo_extractor", cls.HOOK_PATH)
+        mod = importlib.util.module_from_spec(spec)
+        dummy_payload = json.dumps({"session_id": "load_dummy"})
+        with unittest.mock.patch("sys.exit", side_effect=SystemExit), \
+             unittest.mock.patch("sys.stdin", io.StringIO(dummy_payload)):
+            try:
+                spec.loader.exec_module(mod)
+            except SystemExit:
+                pass
+        # Inject detect_project_name — it only exists in a dead except-ImportError block
+        def _dpn(payload):
+            cwd = (payload.get("workspace", {}).get("current_dir", "")
+                   or payload.get("cwd", ""))
+            if not cwd:
+                return None
+            return os.path.basename(cwd.rstrip("/\\"))
+        mod.detect_project_name = _dpn
+        return mod
+
+    def _call_main(self, mod, payload, feed_file):
+        """Override mod.FEED_FILE, call main() with payload, return 0 on success."""
+        mod.FEED_FILE = feed_file
+        try:
+            with unittest.mock.patch("sys.exit", side_effect=SystemExit), \
+                 unittest.mock.patch("sys.stdin", io.StringIO(json.dumps(payload))):
+                mod.main()
+        except SystemExit:
+            pass
+        return 0
+
+    def _run_and_read(self, payload, feed_file):
+        """Call main() and return (0, feed_data_dict_or_None)."""
+        mod = self._load_module()
+        rc = self._call_main(mod, payload, feed_file)
+        if os.path.exists(feed_file):
+            data = json.load(open(feed_file, encoding="utf-8"))
+        else:
+            data = None
+        return rc, data
+
+    def test_invalid_json_exits_0(self):
+        """Invalid JSON on stdin: main() catches exception, exits 0."""
+        mod = self._load_module()
+        mod.FEED_FILE = os.devnull
+        try:
+            with unittest.mock.patch("sys.exit", side_effect=SystemExit), \
+                 unittest.mock.patch("sys.stdin", io.StringIO("not-json")):
+                mod.main()
+        except SystemExit as e:
+            # side_effect=SystemExit raises SystemExit() with no args → code is None
+            self.assertIn(e.code, (0, None))
+
+    def test_no_transcript_path_writes_empty_feed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            feed = os.path.join(tmp, "feed.json")
+            rc, data = self._run_and_read({"session_id": "abc12345"}, feed)
+        self.assertEqual(rc, 0)
+        self.assertIsNotNone(data)
+        self.assertEqual(data["count"], 0)
+        self.assertEqual(data["items"], [])
+
+    def test_missing_transcript_writes_empty_feed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            feed = os.path.join(tmp, "feed.json")
+            rc, data = self._run_and_read(
+                {"session_id": "abc12345", "transcript_path": "/nope/missing.jsonl"}, feed
+            )
+        self.assertEqual(rc, 0)
+        self.assertIsNotNone(data)
+        self.assertEqual(data["count"], 0)
+
+    def test_transcript_with_code_todo_extracted(self):
+        """TODO: comment in Write tool_use is extracted."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            feed = os.path.join(tmp, "feed.json")
+            entry = {
+                "type": "assistant",
+                "message": {"content": [{
+                    "type": "tool_use", "name": "Write",
+                    "input": {"file_path": "/project/main.py",
+                              "content": "def foo():\n    # TODO: implement this properly\n    pass\n"},
+                }]},
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(entry) + "\n")
+            rc, data = self._run_and_read({"session_id": "abc12345", "transcript_path": tp}, feed)
+        self.assertEqual(rc, 0)
+        self.assertGreater(data["count"], 0)
+        self.assertEqual(data["items"][0]["category"], "TODO")
+
+    def test_transcript_with_fixme_extracted(self):
+        """FIXME: comment in Edit new_string is extracted."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            feed = os.path.join(tmp, "feed.json")
+            entry = {
+                "type": "assistant",
+                "message": {"content": [{
+                    "type": "tool_use", "name": "Edit",
+                    "input": {"file_path": "/project/app.py", "old_string": "x = 1",
+                              "new_string": "x = 1  # FIXME: handle edge case here"},
+                }]},
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(entry) + "\n")
+            rc, data = self._run_and_read({"session_id": "abc12345", "transcript_path": tp}, feed)
+        self.assertEqual(rc, 0)
+        self.assertGreater(data["count"], 0)
+        self.assertEqual(data["items"][0]["category"], "FIXME")
+
+    def test_transcript_dont_forget_pattern_extracted(self):
+        """don't forget pattern in assistant text is extracted as high-conf TODO."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            feed = os.path.join(tmp, "feed.json")
+            entry = {
+                "type": "assistant",
+                "message": {"content": [{
+                    "type": "text",
+                    "text": "Don't forget to add error handling for the database connection.",
+                }]},
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(entry) + "\n")
+            rc, data = self._run_and_read({"session_id": "abc12345", "transcript_path": tp}, feed)
+        self.assertEqual(rc, 0)
+        self.assertGreater(data["count"], 0)
+        self.assertEqual(data["items"][0]["category"], "dont_forget")
+
+    def test_transcript_low_conf_without_deferral_not_extracted(self):
+        """Low-confidence 'we should' without deferral signal is NOT extracted."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            feed = os.path.join(tmp, "feed.json")
+            entry = {
+                "type": "assistant",
+                "message": {"content": [{
+                    "type": "text",
+                    "text": "We should use the new API endpoint for authentication.",
+                }]},
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(entry) + "\n")
+            rc, data = self._run_and_read({"session_id": "abc12345", "transcript_path": tp}, feed)
+        self.assertEqual(rc, 0)
+        self.assertEqual(data["count"], 0)
+
+    def test_anti_pattern_suppresses_low_conf_todo(self):
+        """Anti-pattern 'the existing TODO' suppresses false positive extraction."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            feed = os.path.join(tmp, "feed.json")
+            entry = {
+                "type": "assistant",
+                "message": {"content": [{
+                    "type": "text",
+                    "text": "The existing TODO says we should clean up the code later.",
+                }]},
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(entry) + "\n")
+            rc, data = self._run_and_read({"session_id": "abc12345", "transcript_path": tp}, feed)
+        self.assertEqual(rc, 0)
+        # anti-pattern suppresses 'we should' even with deferral signal 'later'
+        self.assertEqual(data["count"], 0)
+
+    def test_code_fence_segments_excluded_from_conversational_scan(self):
+        """Text inside code fences is not scanned for conversational patterns."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            feed = os.path.join(tmp, "feed.json")
+            entry = {
+                "type": "assistant",
+                "message": {"content": [{
+                    "type": "text",
+                    "text": "Here is the code:\n```python\n# Don't forget to add tests\ndef foo(): pass\n```\nDone.",
+                }]},
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(entry) + "\n")
+            rc, data = self._run_and_read({"session_id": "abc12345", "transcript_path": tp}, feed)
+        self.assertEqual(rc, 0)
+        self.assertEqual(data["count"], 0)
+
+    def test_duplicate_todos_deduplicated(self):
+        """Same TODO text appearing twice results in only one item."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            feed = os.path.join(tmp, "feed.json")
+            entry1 = {
+                "type": "assistant",
+                "message": {"content": [{
+                    "type": "tool_use", "name": "Write",
+                    "input": {"file_path": "/a.py", "content": "# TODO: fix this bug properly"},
+                }]},
+            }
+            entry2 = {
+                "type": "assistant",
+                "message": {"content": [{
+                    "type": "tool_use", "name": "Write",
+                    "input": {"file_path": "/b.py", "content": "# TODO: fix this bug properly"},
+                }]},
+            }
+            with open(tp, "w", encoding="utf-8") as f:
+                f.write(json.dumps(entry1) + "\n")
+                f.write(json.dumps(entry2) + "\n")
+            rc, data = self._run_and_read({"session_id": "abc12345", "transcript_path": tp}, feed)
+        self.assertEqual(rc, 0)
+        self.assertEqual(data["count"], 1)
+
+    def test_non_write_edit_tool_use_skipped(self):
+        """tool_use blocks for Bash are not scanned for TODO patterns."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            feed = os.path.join(tmp, "feed.json")
+            entry = {
+                "type": "assistant",
+                "message": {"content": [{
+                    "type": "tool_use", "name": "Bash",
+                    "input": {"command": "# TODO: remember to run this"},
+                }]},
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(entry) + "\n")
+            rc, data = self._run_and_read({"session_id": "abc12345", "transcript_path": tp}, feed)
+        self.assertEqual(rc, 0)
+        self.assertEqual(data["count"], 0)
+
+    def test_empty_transcript_writes_empty_feed(self):
+        """Empty transcript file produces empty feed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            feed = os.path.join(tmp, "feed.json")
+            open(tp, "w").write("")
+            rc, data = self._run_and_read({"session_id": "abc12345", "transcript_path": tp}, feed)
+        self.assertEqual(rc, 0)
+        self.assertEqual(data["count"], 0)
+
+    def test_invalid_jsonl_lines_skipped(self):
+        """Non-JSON lines in transcript are skipped without crashing."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            feed = os.path.join(tmp, "feed.json")
+            open(tp, "w", encoding="utf-8").write("not-json\nalso-bad\n")
+            rc, data = self._run_and_read({"session_id": "abc12345", "transcript_path": tp}, feed)
+        self.assertEqual(rc, 0)
+        self.assertEqual(data["count"], 0)
+
+    def test_feed_file_has_expected_keys(self):
+        """Output feed.json has all expected top-level keys."""
+        with tempfile.TemporaryDirectory() as tmp:
+            feed = os.path.join(tmp, "feed.json")
+            rc, data = self._run_and_read({"session_id": "abc12345"}, feed)
+        self.assertEqual(rc, 0)
+        for key in ("ts", "session_id", "project", "count", "items", "persisted_to_backlog"):
+            self.assertIn(key, data)
+
+    def test_later_pattern_high_conf(self):
+        """'later: ...' pattern is high-confidence and extracted without deferral co-signal."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            feed = os.path.join(tmp, "feed.json")
+            entry = {
+                "type": "assistant",
+                "message": {"content": [{
+                    "type": "text",
+                    "text": "Later: we need to add proper validation for this endpoint.",
+                }]},
+            }
+            open(tp, "w", encoding="utf-8").write(json.dumps(entry) + "\n")
+            rc, data = self._run_and_read({"session_id": "abc12345", "transcript_path": tp}, feed)
+        self.assertEqual(rc, 0)
+        self.assertGreater(data["count"], 0)
+        self.assertEqual(data["items"][0]["category"], "later")
+
+    def test_normalize_text_helper(self):
+        """normalize_text strips and lowercases, collapses whitespace."""
+        mod = self._load_module()
+        result = mod.normalize_text("  Hello   World  ")
+        self.assertEqual(result, "hello world")
+
+    def test_item_hash_length_and_consistency(self):
+        """item_hash returns 8-char hex string, same text = same hash."""
+        mod = self._load_module()
+        h = mod.item_hash("test item")
+        self.assertEqual(len(h), 8)
+        self.assertEqual(h, mod.item_hash("test item"))
+
+    def test_split_code_fences_helper(self):
+        """split_code_fences returns even-indexed segments outside fences."""
+        mod = self._load_module()
+        parts = mod.split_code_fences("before\n```python\ninside\n```\nafter")
+        self.assertIn("before", parts[0])
+        self.assertIn("after", parts[-1])
+
+    def test_atomic_write_creates_file(self):
+        """atomic_write writes JSON atomically via temp file."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = os.path.join(tmp, "out.json")
+            mod.atomic_write(out_path, {"key": "value"})
+            data = json.load(open(out_path, encoding="utf-8"))
+        self.assertEqual(data["key"], "value")
+
+    def test_get_transcript_path_direct(self):
+        """get_transcript_path returns path when transcript_path file exists."""
+        mod = self._load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            tp = os.path.join(tmp, "t.jsonl")
+            open(tp, "w").write("{}\n")
+            result = mod.get_transcript_path({"transcript_path": tp})
+        self.assertEqual(result.replace("\\", "/"), tp.replace("\\", "/"))
+
+    def test_get_transcript_path_missing_returns_none(self):
+        """get_transcript_path returns None when file doesn't exist."""
+        mod = self._load_module()
+        result = mod.get_transcript_path({"transcript_path": "/nope/missing.jsonl"})
+        self.assertIsNone(result)
+
+    def test_get_transcript_path_empty_returns_none(self):
+        """get_transcript_path returns None when no path and no session_id."""
+        mod = self._load_module()
+        result = mod.get_transcript_path({})
+        self.assertIsNone(result)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

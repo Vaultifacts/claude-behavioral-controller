@@ -4,6 +4,7 @@ source = hooks
 omit =
     hooks/_py_check.py
     hooks/_test_snippet.py
+    hooks/_todo_extractor_patched.py
 
 [paths]
 source =
