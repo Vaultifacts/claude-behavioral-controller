@@ -413,6 +413,7 @@ def get_failed_commands(transcript_path, max_lines=300):
                 continue
             if d.get('type') == 'assistant':
                 in_last_turn = True
+                pending_bash = []  # reset per turn; only track the most recent turn's commands
                 for block in d.get('message', {}).get('content', []):
                     if isinstance(block, dict) and block.get('type') == 'tool_use' and block.get('name') == 'Bash':
                         cmd = block.get('input', {}).get('command', '')
