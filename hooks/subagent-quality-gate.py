@@ -270,5 +270,5 @@ If real issue: {{"ok": false, "reason": "CATEGORY: specific issue"}}"""
     print(json.dumps({"continue": True}))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
