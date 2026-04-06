@@ -474,6 +474,87 @@ class TestLayer18AbMain(_MainTestBase):
         # No events means main returns early
         self.assertEqual(self._captured, [])
 
+    def test_write_event_writes_to_file(self):
+        import qg_layer18_ab
+        orig = qg_layer18_ab.MONITOR_PATH
+        qg_layer18_ab.MONITOR_PATH = self.monitor_path
+        try:
+            qg_layer18_ab._write_event({"layer": "layer18_ab", "test": True})
+            with open(self.monitor_path) as f:
+                self.assertIn("layer18_ab", f.read())
+        finally:
+            qg_layer18_ab.MONITOR_PATH = orig
+
+    def test_load_events_bad_open_returns_empty(self):
+        from unittest.mock import patch
+        import qg_layer18_ab
+        with patch("builtins.open", side_effect=PermissionError("denied")):
+            result = qg_layer18_ab.load_events(monitor_path="/fake/path")
+        self.assertEqual(result, [])
+
+    def test_load_events_bad_json_line_skipped(self):
+        import qg_layer18_ab
+        path = os.path.join(self.tmpdir, "monitor.jsonl")
+        with open(path, "w") as f:
+            f.write('{"valid": true}\nbad json line\n{"also": "valid"}\n')
+        result = qg_layer18_ab.load_events(monitor_path=path)
+        self.assertEqual(len(result), 2)
+
+    def test_compare_rules_proposed_better(self):
+        import qg_layer18_ab
+        from unittest.mock import patch
+        events = []
+        current = {}
+        proposed = {}
+        side = [
+            {"would_fire": 5, "would_suppress": 0, "total_events": 5, "events_by_severity": {}, "events_by_category": {}, "events_by_layer": {}},
+            {"would_fire": 3, "would_suppress": 2, "total_events": 5, "events_by_severity": {}, "events_by_category": {}, "events_by_layer": {}},
+        ]
+        with patch.object(qg_layer18_ab, "evaluate_rules", side_effect=side):
+            result = qg_layer18_ab.compare_rules(current, proposed, events)
+        self.assertEqual(result["comparison"]["recommendation"], "proposed_better")
+
+    def test_compare_rules_current_better(self):
+        import qg_layer18_ab
+        from unittest.mock import patch
+        events = []
+        current = {}
+        proposed = {}
+        side = [
+            {"would_fire": 3, "would_suppress": 2, "total_events": 5, "events_by_severity": {}, "events_by_category": {}, "events_by_layer": {}},
+            {"would_fire": 5, "would_suppress": 0, "total_events": 5, "events_by_severity": {}, "events_by_category": {}, "events_by_layer": {}},
+        ]
+        with patch.object(qg_layer18_ab, "evaluate_rules", side_effect=side):
+            result = qg_layer18_ab.compare_rules(current, proposed, events)
+        self.assertEqual(result["comparison"]["recommendation"], "current_better")
+
+    def test_save_results_exception_no_crash(self):
+        import qg_layer18_ab
+        from unittest.mock import patch
+        with patch("builtins.open", side_effect=OSError("disk full")):
+            qg_layer18_ab.save_results({"data": "x"}, output_path="/fake/out.json")
+
+    def test_main_hook_mode_with_events_logs(self):
+        import qg_layer18_ab
+        orig_mp = qg_layer18_ab.MONITOR_PATH
+        orig_rp = qg_layer18_ab.RESULTS_PATH
+        monitor = os.path.join(self.tmpdir, "monitor.jsonl")
+        with open(monitor, "w") as f:
+            for _ in range(5):
+                f.write('{"category":"ASSUMPTION","severity":"warning","layer":"layer2"}\n')
+        qg_layer18_ab.MONITOR_PATH = monitor
+        qg_layer18_ab.RESULTS_PATH = os.path.join(self.tmpdir, "results.json")
+        sys.argv = ["qg_layer18_ab.py"]
+        self._set_stdin({})
+        try:
+            qg_layer18_ab.main()
+            with open(monitor) as f:
+                content = f.read()
+            self.assertIn("layer18_ab", content)
+        finally:
+            qg_layer18_ab.MONITOR_PATH = orig_mp
+            qg_layer18_ab.RESULTS_PATH = orig_rp
+
 
 # --- Layer 19_cross: Cross-Project Patterns ---
 
