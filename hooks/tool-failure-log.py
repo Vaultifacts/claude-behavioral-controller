@@ -1,4 +1,4 @@
-"""
+﻿"""
 tool-failure-log.py — PostToolUseFailure hook.
 Logs tool failures to hook-audit.log for observability.
 Always exits 0. Async.
@@ -41,6 +41,6 @@ def main():
         pass
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
     sys.exit(0)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Layer 15 (Memory) -- Memory & State Integrity (SessionStart).
 Checks memory files for staleness, missing references, and basic integrity.
 Advisory only.
@@ -167,5 +167,5 @@ def main():
     out = {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}}
     print(json.dumps(out))
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

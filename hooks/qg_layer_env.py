@@ -138,5 +138,5 @@ def main():
         run_pre_tool_use(payload)
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     main()

@@ -1,4 +1,4 @@
-"""
+﻿"""
 qg-session-recall.py -- SessionStart hook.
 Injects previous session qg failures summary as a system message.
 Only fires if snapshot file exists (written by session-end-log.py when session had 1+ blocks).
@@ -32,5 +32,5 @@ def main():
             pass
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

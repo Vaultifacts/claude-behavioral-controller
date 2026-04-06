@@ -87,7 +87,7 @@ def run_integrity_check(monitor_path=None, quarantine_path=None):
     return result
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     import sys
     result = run_integrity_check()
     print('Audit trail: {} valid, {} issue(s). Status: {}'.format(

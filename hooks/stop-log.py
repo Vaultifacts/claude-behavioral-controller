@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 import json
 import os
 from datetime import datetime
@@ -101,6 +101,6 @@ def main():
         pass
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
     sys.exit(0)

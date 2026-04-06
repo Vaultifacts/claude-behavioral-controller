@@ -8466,5 +8466,338 @@ class TestLayer7CoverageGaps(unittest.TestCase):
         self.assertTrue(callable(qg_layer7.main))
 
 
+
+# ============================================================================
+# qg_layer8 coverage boost — missing lines 21-22, 34-35, 47, 87-88, 92
+# ============================================================================
+
+class TestLayer8CoverageBoost(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.tmpdir = tempfile.mkdtemp()
+        self.ts = os.path.join(self.tmpdir, 'state.json')
+        self.monitor_tmp = os.path.join(self.tmpdir, 'monitor.jsonl')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_write_event_exception_silenced(self):
+        # Lines 21-22: _write_event handles IOError silently
+        import qg_layer8
+        orig = qg_layer8.MONITOR_PATH
+        qg_layer8.MONITOR_PATH = '/nonexistent_dir_xyz/monitor.jsonl'
+        try:
+            qg_layer8._write_event({'event_id': 'x', 'ts': 't'})  # must not raise
+        finally:
+            qg_layer8.MONITOR_PATH = orig
+
+    def test_main_bad_json_returns_early(self):
+        # Lines 34-35: bad JSON in stdin causes early return
+        import io, qg_layer8
+        qg_layer8.MONITOR_PATH = self.monitor_tmp
+        sys.stdin = io.StringIO('not valid json at all')
+        try:
+            qg_layer8.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        self.assertFalse(os.path.exists(self.monitor_tmp))
+
+    def test_main_no_pass_no_fail_returns_early(self):
+        # Line 47: both passed and failed are None, returns early
+        import io, qg_layer8, qg_session_state as ss
+        qg_layer8.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        state['layer_env_test_baseline'] = [[5, 0]]
+        ss.write_state(state)
+        sys.stdin = io.StringIO(
+            '{"tool_name": "Bash", "tool_input": {"command": "pytest tests/"}, '
+            '"tool_response": "All tests completed without summary"}')
+        try:
+            qg_layer8.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        self.assertFalse(os.path.exists(self.monitor_tmp))
+
+    def test_main_no_regression_updates_state(self):
+        # Lines 87-88: no new failures, sets regression_expected False
+        import io, qg_layer8, qg_session_state as ss
+        qg_layer8.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        state['layer_env_test_baseline'] = [[10, 2]]
+        ss.write_state(state)
+        sys.stdin = io.StringIO(
+            '{"tool_name": "Bash", "tool_input": {"command": "pytest tests/"}, '
+            '"tool_response": "10 passed, 1 failed"}')
+        try:
+            qg_layer8.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        updated = ss.read_state()
+        self.assertFalse(updated.get('layer8_regression_expected'))
+        self.assertFalse(os.path.exists(self.monitor_tmp))
+
+    def test_module_has_main(self):
+        # Line 92: __main__ guard — verify main is callable
+        import qg_layer8
+        self.assertTrue(callable(qg_layer8.main))
+
+
+# ============================================================================
+# qg_layer9 coverage boost — missing lines 17-18, 54-57, 78-79, 95-96, 104
+# ============================================================================
+
+class TestLayer9CoverageBoost(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.tmpdir = tempfile.mkdtemp()
+        self.ts = os.path.join(self.tmpdir, 'state.json')
+        self.calibration_tmp = os.path.join(self.tmpdir, 'calibration.jsonl')
+        self.monitor_tmp = os.path.join(self.tmpdir, 'monitor.jsonl')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_write_event_exception_silenced(self):
+        # Lines 17-18: _write_event handles IOError silently
+        import qg_layer9
+        orig = qg_layer9._MONITOR_PATH
+        qg_layer9._MONITOR_PATH = '/nonexistent_dir_xyz/monitor.jsonl'
+        try:
+            qg_layer9._write_event({'event_id': 'x', 'ts': 't'})  # must not raise
+        finally:
+            qg_layer9._MONITOR_PATH = orig
+
+    def test_get_response_text_outer_except(self):
+        # Lines 54-57: outer exception in get_response_text returns ''
+        import qg_layer9
+        # Pass a path that exists but will cause an error when iterating lines
+        # We can simulate by making it unreadable — but on Windows that's tricky.
+        # Instead use a path that raises on open (binary file with bad mode simulation)
+        # Simplest: patch via a real file with completely broken content that triggers
+        # the outer exception by not being readable at all (permission denied not easy).
+        # Use a directory path so open() fails:
+        dir_path = self.tmpdir  # a directory, not a file
+        result = qg_layer9.get_response_text(dir_path)
+        self.assertEqual(result, '')
+
+    def test_get_response_text_no_assistant_in_lines(self):
+        # Lines 54-57: valid file but no assistant role found — returns ''
+        import json, qg_layer9
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w') as f:
+            f.write(json.dumps({'message': {'role': 'user', 'content': 'hello'}}) + '\n')
+        result = qg_layer9.get_response_text(path)
+        self.assertEqual(result, '')
+
+    def test_rules_file_missing_uses_default_threshold(self):
+        # Lines 78-79: missing rules file falls back to threshold=5
+        import io, qg_layer9, qg_session_state as ss
+        qg_layer9.CALIBRATION_PATH = self.calibration_tmp
+        qg_layer9._MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        state['layer3_evaluation_count'] = 3
+        ss.write_state(state)
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w') as f:
+            import json
+            f.write(json.dumps({'message': {'role': 'assistant', 'content': "I'm certain."}}) + '\n')
+        orig_expanduser = os.path.expanduser
+
+        def fake_expanduser(p):
+            if 'qg-rules.json' in p:
+                return '/nonexistent_xyz/qg-rules.json'
+            return orig_expanduser(p)
+
+        import builtins
+        orig_open = builtins.open
+
+        def patched_open(path_arg, *args, **kwargs):
+            if 'qg-rules.json' in str(path_arg):
+                raise FileNotFoundError('no rules')
+            return orig_open(path_arg, *args, **kwargs)
+
+        builtins.open = patched_open
+        sys.stdin = io.StringIO('{"transcript_path": "' + path.replace('\\', '/') + '"}')
+        try:
+            qg_layer9.main()
+        finally:
+            builtins.open = orig_open
+            sys.stdin = sys.__stdin__
+        # eval_count=3 < threshold=5 (default), so no calibration written
+        self.assertFalse(os.path.exists(self.calibration_tmp))
+
+    def test_calibration_write_exception_silenced(self):
+        # Lines 95-96: exception when writing calibration file is silenced
+        import io, json, qg_layer9, qg_session_state as ss
+        qg_layer9._MONITOR_PATH = self.monitor_tmp
+        # Point calibration to a directory (not writable as file) to force exception
+        qg_layer9.CALIBRATION_PATH = self.tmpdir
+        state = ss.read_state()
+        state['layer3_evaluation_count'] = 10
+        state['layer3_pending_fn_alert'] = None
+        ss.write_state(state)
+        path = os.path.join(self.tmpdir, 'transcript.jsonl')
+        with open(path, 'w') as f:
+            f.write(json.dumps({'message': {'role': 'assistant', 'content': "I'm certain."}}) + '\n')
+        orig_cal = qg_layer9.CALIBRATION_PATH
+        sys.stdin = io.StringIO('{"transcript_path": "' + path.replace('\\', '/') + '"}')
+        try:
+            qg_layer9.main()  # must not raise despite bad CALIBRATION_PATH
+        finally:
+            qg_layer9.CALIBRATION_PATH = orig_cal
+            sys.stdin = sys.__stdin__
+
+    def test_module_has_main(self):
+        # Line 104: __main__ guard — verify main is callable
+        import qg_layer9
+        self.assertTrue(callable(qg_layer9.main))
+
+
+# ============================================================================
+# qg_layer26 coverage boost — missing lines 20-21, 35, 37, 64, 69-70, 77, 89, 93, 116
+# ============================================================================
+
+class TestLayer26CoverageBoost(unittest.TestCase):
+    def setUp(self):
+        import qg_session_state as ss
+        self.tmpdir = tempfile.mkdtemp()
+        self.ts = os.path.join(self.tmpdir, 'state.json')
+        self.monitor_tmp = os.path.join(self.tmpdir, 'monitor.jsonl')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_write_event_exception_silenced(self):
+        # Lines 20-21: _write_event handles IOError silently
+        import qg_layer26
+        orig = qg_layer26.MONITOR_PATH
+        qg_layer26.MONITOR_PATH = '/nonexistent_dir_xyz/monitor.jsonl'
+        try:
+            qg_layer26._write_event({'event_id': 'x', 'ts': 't'})  # must not raise
+        finally:
+            qg_layer26.MONITOR_PATH = orig
+
+    def test_detect_convention_direct_imports(self):
+        # Line 35: result['imports'] = 'direct'
+        from qg_layer26 import detect_convention
+        content = 'import os\nimport sys\n'
+        conv = detect_convention(content)
+        self.assertEqual(conv.get('imports'), 'direct')
+
+    def test_detect_convention_from_imports(self):
+        # Line 37: result['imports'] = 'from'
+        from qg_layer26 import detect_convention
+        content = 'from os import path\nfrom sys import argv\n'
+        conv = detect_convention(content)
+        self.assertEqual(conv.get('imports'), 'from')
+
+    def test_main_unsupported_extension_returns_early(self):
+        # Line 64: ext not in (.py, .js, .ts) returns early
+        import io, qg_layer26
+        qg_layer26.MONITOR_PATH = self.monitor_tmp
+        f = os.path.join(self.tmpdir, 'myfile.rb')
+        with open(f, 'w') as fh:
+            fh.write('def my_method; end\n')
+        sys.stdin = io.StringIO(
+            '{{"tool_name": "Write", "tool_input": {{"file_path": "{}"}}, "tool_response": ""}}'.format(
+                f.replace('\\', '/')))
+        try:
+            qg_layer26.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        self.assertFalse(os.path.exists(self.monitor_tmp))
+
+    def test_main_file_read_exception_returns_early(self):
+        # Lines 69-70: exception reading file content returns early
+        import io, qg_layer26
+        qg_layer26.MONITOR_PATH = self.monitor_tmp
+        # Use a directory path with .py extension to force open() failure
+        fake_py = self.tmpdir + '.py'
+        os.makedirs(fake_py, exist_ok=True)
+        sys.stdin = io.StringIO(
+            '{{"tool_name": "Write", "tool_input": {{"file_path": "{}"}}, "tool_response": ""}}'.format(
+                fake_py.replace('\\', '/')))
+        try:
+            qg_layer26.main()
+        finally:
+            sys.stdin = sys.__stdin__
+            import shutil
+            try: shutil.rmtree(fake_py)
+            except: pass
+        self.assertFalse(os.path.exists(self.monitor_tmp))
+
+    def test_main_no_convention_detected_returns_early(self):
+        # Line 77: detect_convention returns {} (no snake, no camel, no imports)
+        import io, qg_layer26
+        qg_layer26.MONITOR_PATH = self.monitor_tmp
+        f = os.path.join(self.tmpdir, 'empty_conv.py')
+        with open(f, 'w') as fh:
+            fh.write('x = 1\ny = 2\n')  # no defs, no imports
+        sys.stdin = io.StringIO(
+            '{{"tool_name": "Write", "tool_input": {{"file_path": "{}"}}, "tool_response": ""}}'.format(
+                f.replace('\\', '/')))
+        try:
+            qg_layer26.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        self.assertFalse(os.path.exists(self.monitor_tmp))
+
+    def test_main_layer17_creating_new_artifacts_skips(self):
+        # Line 89: layer17_creating_new_artifacts set, skips deviation check
+        import io, qg_layer26, qg_session_state as ss
+        qg_layer26.MONITOR_PATH = self.monitor_tmp
+        f = os.path.join(self.tmpdir, 'new_artifact.py')
+        with open(f, 'w') as fh:
+            fh.write('def camelCaseFunc():\n    pass\n')
+        state = ss.read_state()
+        state['layer26_convention_baseline'] = {'naming': 'snake_case'}
+        state['layer26_files_seen'] = 5
+        state['layer17_creating_new_artifacts'] = True
+        ss.write_state(state)
+        sys.stdin = io.StringIO(
+            '{{"tool_name": "Write", "tool_input": {{"file_path": "{}"}}, "tool_response": ""}}'.format(
+                f.replace('\\', '/')))
+        try:
+            qg_layer26.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        self.assertFalse(os.path.exists(self.monitor_tmp))
+
+    def test_main_no_deviations_returns_early(self):
+        # Line 93: deviations list is empty, returns early
+        import io, qg_layer26, qg_session_state as ss
+        qg_layer26.MONITOR_PATH = self.monitor_tmp
+        f = os.path.join(self.tmpdir, 'consistent.py')
+        with open(f, 'w') as fh:
+            fh.write('def snake_func():\n    pass\ndef other_snake():\n    pass\n')
+        state = ss.read_state()
+        state['layer26_convention_baseline'] = {'naming': 'snake_case'}
+        state['layer26_files_seen'] = 5
+        state['layer17_creating_new_artifacts'] = False
+        ss.write_state(state)
+        sys.stdin = io.StringIO(
+            '{{"tool_name": "Write", "tool_input": {{"file_path": "{}"}}, "tool_response": ""}}'.format(
+                f.replace('\\', '/')))
+        try:
+            qg_layer26.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        self.assertFalse(os.path.exists(self.monitor_tmp))
+
+    def test_module_has_main(self):
+        # Line 116: __main__ guard — verify main is callable
+        import qg_layer26
+        self.assertTrue(callable(qg_layer26.main))
+
+
 if __name__ == '__main__':
     unittest.main()

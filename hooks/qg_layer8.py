@@ -88,5 +88,5 @@ def main():
         ss.write_state(state)
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     main()

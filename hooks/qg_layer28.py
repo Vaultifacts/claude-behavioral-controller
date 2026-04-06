@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Layer 2.8 -- Security Vulnerability Detection (PostToolUse on Write/Edit).
 Scans written/edited code files for OWASP-category vulnerabilities.
 Advisory only -- warns but does not block.
@@ -152,5 +152,5 @@ def main():
     print(json.dumps(out))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

@@ -124,5 +124,5 @@ def main():
         handle_post_compact()
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     main()

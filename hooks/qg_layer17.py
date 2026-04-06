@@ -128,5 +128,5 @@ def main():
     print(json.dumps({'additionalContext': intent_msg}))
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     main()

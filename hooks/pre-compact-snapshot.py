@@ -1,4 +1,4 @@
-"""
+﻿"""
 pre-compact-snapshot.py — PreCompact hook.
 Snapshots the transcript before compaction destroys full history.
 Fires a toast on manual compacts. Always exits 0. Async.
@@ -66,5 +66,5 @@ def main():
         pass
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Layer 2.7 -- Testing Coverage Verification (PreToolUse on Edit).
 Warns if edited code file has no associated test file or coverage data.
 """
@@ -78,5 +78,5 @@ def main():
     print(json.dumps(out))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

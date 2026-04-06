@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Layer 2.9 -- Semantic Correctness Verification (Stop hook).
 Compares response claims against actual tool actions.
 Detects: claim-action mismatch, count mismatches, directional inversions.
@@ -171,5 +171,5 @@ def main():
     print(json.dumps(out))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

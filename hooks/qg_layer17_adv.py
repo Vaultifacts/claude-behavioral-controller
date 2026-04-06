@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Layer 17 -- Adversarial Self-Testing (SessionStart)."""
 import json, os, sys, tempfile, time, uuid
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -149,5 +149,5 @@ def main():
     out = {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}}
     print(json.dumps(out))
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

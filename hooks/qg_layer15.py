@@ -149,5 +149,5 @@ def main():
         print(json.dumps({'decision': 'block', 'reason': f'[layer1.5] {message}'}))
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     main()

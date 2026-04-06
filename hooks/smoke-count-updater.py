@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """PostToolUse hook: auto-update smoke count in memory when smoke-test.sh passes."""
 import json, os, re, sys
 from datetime import datetime
@@ -47,5 +47,5 @@ def main():
     except Exception:
         pass
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

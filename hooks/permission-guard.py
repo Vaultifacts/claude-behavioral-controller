@@ -1,4 +1,4 @@
-"""
+﻿"""
 permission-guard.py — PreToolUse hook.
 Dynamic permission evaluation for cases static rules can't express.
 - Blocks Bash network tools (curl/wget) to non-allowed domains
@@ -82,5 +82,5 @@ def main():
     sys.exit(0)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

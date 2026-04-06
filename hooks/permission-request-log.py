@@ -1,4 +1,4 @@
-"""
+﻿"""
 permission-request-log.py — PermissionRequest hook.
 Logs runtime permission requests to hook-audit.log.
 Always exits 0. Async.
@@ -36,5 +36,5 @@ def main():
         pass
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

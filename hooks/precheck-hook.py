@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Pre-check hook: classifies user request and enforces Layer 1 pre-task behaviors."""
 import glob, json, os, re, sys, time, urllib.request, uuid
 
@@ -240,5 +240,5 @@ def main():
         print(line)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

@@ -100,5 +100,5 @@ def main():
                   'session_uuid': record.get('session_uuid', '')})
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     main()

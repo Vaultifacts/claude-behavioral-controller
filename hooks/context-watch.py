@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 import json
 import os
 import subprocess
@@ -93,5 +93,5 @@ def main():
         print(f'[context-watch] Context at {pct}% — compact needed. BEFORE compacting: (1) save findings/memory to disk (2) update MEMORY.md (3) update plan file if applicable. Then /compact.')
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

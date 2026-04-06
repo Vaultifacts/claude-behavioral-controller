@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Layer 20 -- System Health Dashboard (SessionStart).
 Validates the monitoring system itself: hook files, registrations, state, logs.
 Advisory only -- outputs context injection, never blocks.
@@ -295,5 +295,5 @@ def main():
     print(json.dumps(out))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

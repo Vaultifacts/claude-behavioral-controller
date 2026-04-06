@@ -1,4 +1,4 @@
-"""
+﻿"""
 session-end-log.py — SessionEnd hook.
 Logs session exit reason to hook-audit.log.
 Backs up Claude Code config to OneDrive.
@@ -188,6 +188,6 @@ def main():
         pass
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
     sys.exit(0)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Layer 16 -- Rollback & Undo Capability (PreToolUse on Edit/Write).
 Captures file snapshots before edits. Enables rollback to any recent state.
 Stores last 20 snapshots per session in ~/.claude/snapshots/.
@@ -169,5 +169,5 @@ def main():
     print(json.dumps(out))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

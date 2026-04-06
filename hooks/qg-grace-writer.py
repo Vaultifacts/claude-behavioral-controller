@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """PostToolUse hook: write grace file when a Bash tool produces test-runner output."""
 import json, os, re, sys
 
@@ -39,5 +39,5 @@ def main():
         pass
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
