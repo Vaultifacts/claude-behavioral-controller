@@ -1,4 +1,5 @@
-﻿import sys, os, tempfile, unittest
+﻿import sys, os, tempfile, unittest, io, json
+from unittest.mock import patch, MagicMock
 sys.path.insert(0, os.path.expanduser('~/.claude/hooks'))
 
 
@@ -5456,7 +5457,168 @@ class TestLayer20SystemHealth(unittest.TestCase):
         self.assertIn('stats', report)
         self.assertIn('issues', report)
 
+    # --- missing line coverage ---
 
+    def test_write_event_exception_swallowed(self):
+        """Lines 39-40: _write_event silently swallows exceptions."""
+        from qg_layer20 import _write_event
+        import qg_layer20 as l20
+        orig = l20.MONITOR_PATH
+        l20.MONITOR_PATH = "/nonexistent/dir/monitor.jsonl"
+        try:
+            _write_event({"event_id": "x", "layer": "layer20"})  # should not raise
+        finally:
+            l20.MONITOR_PATH = orig
+
+    def test_extract_hook_files_invalid_settings(self):
+        """Lines 48-49: _extract_hook_files returns empty set on bad JSON."""
+        from qg_layer20 import _extract_hook_files
+        bad_path = os.path.join(self.tmpdir, 'bad.json')
+        with open(bad_path, 'w') as f:
+            f.write('{not valid json')
+        result = _extract_hook_files(bad_path)
+        self.assertEqual(result, set())
+
+    def test_extract_hook_files_non_list_entries(self):
+        """Line 54: non-list entries in hooks are skipped."""
+        from qg_layer20 import _extract_hook_files
+        settings = {"hooks": {"SessionStart": "not_a_list"}}
+        path = os.path.join(self.tmpdir, 'settings_nonlist.json')
+        with open(path, 'w') as f:
+            import json; json.dump(settings, f)
+        result = _extract_hook_files(path)
+        self.assertEqual(result, set())
+
+    def test_state_stat_exception(self):
+        """Lines 111-113: os.path.getsize exception in check_state_health."""
+        from qg_layer20 import check_state_health
+        state_path = self._write_file('state.json', '{"schema_version": 1}')
+        with patch('os.path.getsize', side_effect=OSError("no stat")):
+            issues, size = check_state_health(state_path)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn("STATE_UNREADABLE", issues[0][1])
+
+    def test_state_not_dict(self):
+        """Line 120: state is valid JSON but not a dict."""
+        from qg_layer20 import check_state_health
+        state_path = self._write_file('state_list.json', '[1, 2, 3]')
+        issues, size = check_state_health(state_path)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('STATE_INVALID', issues[0][1])
+
+    def test_state_generic_exception(self):
+        """Lines 125-126: generic Exception (not JSONDecodeError) during state read."""
+        from qg_layer20 import check_state_health
+        state_path = self._write_file('state.json', '{"schema_version": 1}')
+        # Patch json.load to raise a non-JSONDecodeError exception
+        with patch('json.load', side_effect=RuntimeError("unexpected error")):
+            issues, size = check_state_health(state_path)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn('STATE_ERROR', issues[0][1])
+
+    def test_monitor_stat_exception(self):
+        """Lines 139-140: getsize exception in check_monitor_health."""
+        from qg_layer20 import check_monitor_health
+        mon_path = self._write_file('monitor.jsonl', '{"layer":"layer2"}\n')
+        with patch('os.path.getsize', side_effect=OSError("stat fail")):
+            issues, size, count = check_monitor_health(mon_path)
+        self.assertGreaterEqual(len(issues), 1)
+        self.assertIn("MONITOR_UNREADABLE", issues[0][1])
+
+    def test_monitor_line_read_exception(self):
+        """Lines 148-149: exception on open for line-counting is swallowed."""
+        from qg_layer20 import check_monitor_health
+        mon_path = self._write_file('monitor.jsonl', '{"layer":"layer2"}\n')
+        # getsize succeeds, but the line-counting open raises
+        with patch('os.path.getsize', return_value=100), \
+             patch('builtins.open', side_effect=IOError("read error")):
+            issues, size, count = check_monitor_health(mon_path)
+        self.assertEqual(count, 0)
+        self.assertEqual(size, 100)
+
+    def test_quarantine_read_exception(self):
+        """Lines 164-165: exception reading quarantine is swallowed."""
+        from qg_layer20 import check_quarantine
+        q_path = self._write_file('quarantine.jsonl', '{"reason":"bad"}\n')
+        with patch('builtins.open', side_effect=IOError("read error")):
+            issues, count = check_quarantine(q_path)
+        self.assertEqual(count, 0)
+
+    def test_layer_activity_json_parse_exception(self):
+        """Lines 190-191: malformed JSON lines in monitor are skipped (inner except)."""
+        from qg_layer20 import check_layer_activity
+        mon_path = self._write_file('monitor.jsonl', 'not json\n{"layer": "layer5"}\nalso bad\n')
+        issues, seen = check_layer_activity(mon_path)
+        self.assertIn('layer5', seen)
+
+    def test_layer_activity_open_exception(self):
+        """Lines 192-193: outer exception when open fails is swallowed."""
+        from qg_layer20 import check_layer_activity
+        mon_path = self._write_file('monitor2.jsonl', '{"layer":"layer2"}\n')
+        with patch('builtins.open', side_effect=IOError("read error")):
+            issues, seen = check_layer_activity(mon_path)
+        self.assertEqual(len(seen), 0)
+
+    def test_log_sizes_stat_exception(self):
+        """Lines 209-210: getsize exception on log file is swallowed."""
+        from qg_layer20 import check_log_sizes
+        self._write_file('quality-gate.log', 'x' * 100)
+        with patch('os.path.getsize', side_effect=OSError("stat error")):
+            issues = check_log_sizes(self.tmpdir)
+        self.assertEqual(issues, [])
+
+    def test_main_outputs_ok_status(self):
+        """Line 291: main outputs OK health text when no issues."""
+        import io, json
+        from unittest.mock import patch
+        import qg_session_state as ss
+        import tempfile
+        tmp = tempfile.mktemp(suffix='.json')
+        orig_path, orig_lock = ss.STATE_PATH, ss.LOCK_PATH
+        ss.STATE_PATH, ss.LOCK_PATH = tmp, tmp + '.lock'
+        try:
+            from qg_layer20 import main
+            import qg_layer20 as l20
+            hooks_dir = os.path.join(self.tmpdir, 'hooks2')
+            os.makedirs(hooks_dir, exist_ok=True)
+            py_path = self._write_file('hooks2/good.py', 'x = 1\n')
+            settings = self._write_settings(['python ' + py_path])
+            state_path = self._write_file('state2.json', json.dumps({"schema_version": 1}))
+            mon_path = self._write_file('monitor2.jsonl', json.dumps({"layer": "layer2"}) + '\n')
+            orig_settings = l20.SETTINGS_PATH
+            orig_hooks_dir = l20.HOOKS_DIR
+            orig_state = l20.STATE_PATH
+            orig_monitor = l20.MONITOR_PATH
+            orig_quarantine = l20.QUARANTINE_PATH
+            orig_claude_dir = l20.CLAUDE_DIR
+            l20.SETTINGS_PATH = settings
+            l20.HOOKS_DIR = hooks_dir
+            l20.STATE_PATH = state_path
+            l20.MONITOR_PATH = mon_path
+            l20.QUARANTINE_PATH = '/nonexistent/q.jsonl'
+            l20.CLAUDE_DIR = self.tmpdir
+            try:
+                payload = {}
+                cap = io.StringIO()
+                with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                     patch("sys.stdout", cap):
+                    main()
+                out = cap.getvalue()
+                data = json.loads(out)
+                context = data["hookSpecificOutput"]["additionalContext"]
+                self.assertIn("Layer 20", context)
+            finally:
+                l20.SETTINGS_PATH = orig_settings
+                l20.HOOKS_DIR = orig_hooks_dir
+                l20.STATE_PATH = orig_state
+                l20.MONITOR_PATH = orig_monitor
+                l20.QUARANTINE_PATH = orig_quarantine
+                l20.CLAUDE_DIR = orig_claude_dir
+        finally:
+            ss.STATE_PATH, ss.LOCK_PATH = orig_path, orig_lock
+            for p in [tmp, tmp + '.lock']:
+                try: os.unlink(p)
+                except: pass
 
 
 # ============================================================================
@@ -5827,7 +5989,119 @@ class TestLayer16RollbackUndo(unittest.TestCase):
         self.assertEqual(len(get_snapshots_for_file(p1, state)), 1)
         self.assertEqual(len(get_snapshots_for_file(p2, state)), 1)
 
+    # --- missing line coverage ---
 
+    def test_write_event_exception_swallowed(self):
+        """Lines 20-21: _write_event silently swallows exceptions."""
+        from qg_layer16 import _write_event
+        import qg_layer16 as l16
+        orig = l16.MONITOR_PATH
+        l16.MONITOR_PATH = "/nonexistent/dir/monitor.jsonl"
+        try:
+            _write_event({"event_id": "x", "layer": "layer16"})  # should not raise
+        finally:
+            l16.MONITOR_PATH = orig
+
+    def test_capture_snapshot_stat_exception(self):
+        """Lines 38-39: os.path.getsize exception in capture_snapshot → None."""
+        from qg_layer16 import capture_snapshot
+        p = self._write_file('test.py', 'x = 1\n')
+        with patch('os.path.getsize', side_effect=OSError("no stat")):
+            result = capture_snapshot(p, self.snap_dir)
+        self.assertIsNone(result)
+
+    def test_capture_snapshot_read_exception(self):
+        """Lines 43-44: file read exception in capture_snapshot → None."""
+        from qg_layer16 import capture_snapshot
+        p = self._write_file('test.py', 'x = 1\n')
+        with patch('builtins.open', side_effect=IOError("read error")):
+            result = capture_snapshot(p, self.snap_dir)
+        self.assertIsNone(result)
+
+    def test_capture_snapshot_write_exception(self):
+        """Lines 52-53: snap write exception in capture_snapshot → None."""
+        from qg_layer16 import capture_snapshot
+        p = self._write_file('test.py', 'x = 1\n')
+        orig_open = open
+        call_count = [0]
+        def mock_open(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return orig_open(*args, **kwargs)
+            raise IOError("write error")
+        with patch('builtins.open', side_effect=mock_open):
+            result = capture_snapshot(p, self.snap_dir)
+        self.assertIsNone(result)
+
+    def test_prune_snapshots_remove_exception_swallowed(self):
+        """Lines 74-75: os.remove exception during prune is swallowed."""
+        from qg_layer16 import prune_snapshots, MAX_SNAPSHOTS
+        # Create real files so os.path.exists returns True, then patch os.remove to raise
+        snaps = []
+        for i in range(MAX_SNAPSHOTS + 3):
+            p = self._write_file('snap_{}.snap'.format(i), 'content')
+            snaps.append({'snapshot_path': p, 'ts': i})
+        with patch('os.remove', side_effect=OSError("permission denied")):
+            result = prune_snapshots({'layer16_snapshots': snaps})
+        self.assertEqual(len(result), MAX_SNAPSHOTS)
+
+    def test_restore_snapshot_write_exception(self):
+        """Lines 93-94: exception during restore returns False."""
+        from qg_layer16 import capture_snapshot, restore_snapshot
+        p = self._write_file('test.py', 'x = 1\n')
+        meta = capture_snapshot(p, self.snap_dir)
+        with patch('builtins.open', side_effect=IOError("write error")):
+            result = restore_snapshot(meta)
+        self.assertFalse(result)
+
+    def test_get_snapshots_for_file_no_state_arg(self):
+        """Line 100: get_snapshots_for_file reads state when state=None."""
+        import qg_session_state as ss
+        import tempfile
+        from qg_layer16 import get_snapshots_for_file
+        tmp = tempfile.mktemp(suffix='.json')
+        orig_path, orig_lock = ss.STATE_PATH, ss.LOCK_PATH
+        ss.STATE_PATH, ss.LOCK_PATH = tmp, tmp + '.lock'
+        try:
+            state = ss.read_state()
+            state['layer16_snapshots'] = [{'file_path': '/a/test.py', 'ts': 1}]
+            ss.write_state(state)
+            matches = get_snapshots_for_file('/a/test.py')  # no state arg
+            self.assertEqual(len(matches), 1)
+        finally:
+            ss.STATE_PATH, ss.LOCK_PATH = orig_path, orig_lock
+            for p in [tmp, tmp + '.lock']:
+                try: os.unlink(p)
+                except: pass
+
+    def test_cleanup_remove_exception_swallowed(self):
+        """Lines 119-120: os.remove exception during cleanup is swallowed."""
+        from qg_layer16 import cleanup_session_snapshots
+        self._write_file('snapshots/a.snap', 'x')
+        with patch('os.remove', side_effect=OSError("permission denied")):
+            count = cleanup_session_snapshots(self.snap_dir)
+        # count stays 0 since remove failed, but no exception raised
+        self.assertEqual(count, 0)
+
+    def test_main_returns_when_no_snapshot(self):
+        """Line 140: main returns when capture_snapshot returns None."""
+        import io, json
+        from unittest.mock import patch
+        import qg_session_state as ss
+        import tempfile
+        tmp = tempfile.mktemp(suffix='.json')
+        orig_path, orig_lock = ss.STATE_PATH, ss.LOCK_PATH
+        ss.STATE_PATH, ss.LOCK_PATH = tmp, tmp + '.lock'
+        try:
+            from qg_layer16 import main
+            payload = {"tool_name": "Edit", "tool_input": {"file_path": "/nonexistent/file.py"}}
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))):
+                main()  # capture_snapshot returns None → should return early
+        finally:
+            ss.STATE_PATH, ss.LOCK_PATH = orig_path, orig_lock
+            for p in [tmp, tmp + '.lock']:
+                try: os.unlink(p)
+                except: pass
 
 
 # ============================================================================
@@ -5963,7 +6237,166 @@ class TestLayer12UserSatisfaction(unittest.TestCase):
         cat, score, sigs = classify_sentiment("WRONG! TRY AGAIN!")
         self.assertEqual(cat, "frustration")
 
+    # --- missing line coverage ---
 
+    def test_write_event_exception_swallowed(self):
+        """Lines 18-19: _write_event silently swallows exceptions."""
+        from qg_layer12 import _write_event
+        import qg_layer12 as l12
+        orig = l12.MONITOR_PATH
+        l12.MONITOR_PATH = "/nonexistent/dir/monitor.jsonl"
+        try:
+            _write_event({"event_id": "x", "layer": "layer12"})  # should not raise
+        finally:
+            l12.MONITOR_PATH = orig
+
+    def test_extract_message_list_with_dict_block(self):
+        """Line 58: dict block in list uses content/text fallback."""
+        from qg_layer12 import _extract_message
+        result = _extract_message({"message": [{"text": "hello"}, "world"]})
+        self.assertIn("hello", result)
+        self.assertIn("world", result)
+
+    def test_extract_message_unrecognized_type_returns_empty(self):
+        """Line 62: returns empty string for unrecognized message type."""
+        from qg_layer12 import _extract_message
+        result = _extract_message({"message": 42})
+        self.assertEqual(result, "")
+
+    def test_classify_mild_frustration_score_minus1(self):
+        """Line 103: score < 0 but > -2 and no confusion → frustration."""
+        from qg_layer12 import classify_sentiment
+        # 'again' triggers repetition (-1), no confusion
+        cat, score, sigs = classify_sentiment("again")
+        self.assertEqual(cat, "frustration")
+        self.assertLess(score, 0)
+
+    def test_classify_mild_satisfaction_score_plus1(self):
+        """Line 105: score > 0 but < 2 and no confusion → satisfaction."""
+        from qg_layer12 import classify_sentiment
+        # numbered selection (+1) only
+        cat, score, sigs = classify_sentiment("3")
+        self.assertEqual(cat, "satisfaction")
+        self.assertGreater(score, 0)
+
+    def test_classify_neutral_with_signals_score_zero(self):
+        """Line 106: signals exist, score=0, no confusion → neutral."""
+        from qg_layer12 import classify_sentiment
+        # "thanks" (+2, gratitude) + "no" (-2, rejection) = score 0, signals present, no confusion
+        cat, score, sigs = classify_sentiment("thanks but no")
+        self.assertEqual(cat, "neutral")
+        self.assertEqual(score, 0)
+        self.assertGreater(len(sigs), 0)
+
+    def test_main_returns_on_empty_text(self):
+        """Line 117: main returns when text is empty."""
+        import io, json
+        from unittest.mock import patch
+        import qg_session_state as ss
+        import tempfile
+        tmp = tempfile.mktemp(suffix='.json')
+        orig_path, orig_lock = ss.STATE_PATH, ss.LOCK_PATH
+        ss.STATE_PATH, ss.LOCK_PATH = tmp, tmp + '.lock'
+        try:
+            from qg_layer12 import main
+            payload = {"message": ""}
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))):
+                main()
+        finally:
+            ss.STATE_PATH, ss.LOCK_PATH = orig_path, orig_lock
+            for p in [tmp, tmp + '.lock']:
+                try: os.unlink(p)
+                except: pass
+
+    def test_main_returns_on_neutral_category(self):
+        """Line 121: main returns early when category is neutral."""
+        import io, json
+        from unittest.mock import patch
+        import qg_session_state as ss
+        import tempfile
+        tmp = tempfile.mktemp(suffix='.json')
+        orig_path, orig_lock = ss.STATE_PATH, ss.LOCK_PATH
+        ss.STATE_PATH, ss.LOCK_PATH = tmp, tmp + '.lock'
+        try:
+            from qg_layer12 import main
+            payload = {"message": "Add a login page with OAuth support"}
+            with patch("sys.stdin", io.StringIO(json.dumps(payload))):
+                main()  # neutral → should return without writing event
+        finally:
+            ss.STATE_PATH, ss.LOCK_PATH = orig_path, orig_lock
+            for p in [tmp, tmp + '.lock']:
+                try: os.unlink(p)
+                except: pass
+
+    def test_main_truncates_history_over_50(self):
+        """Lines 129-131: history capped at 50 entries."""
+        import io, json
+        from unittest.mock import patch
+        import qg_session_state as ss
+        import tempfile
+        tmp = tempfile.mktemp(suffix='.json')
+        orig_path, orig_lock = ss.STATE_PATH, ss.LOCK_PATH
+        ss.STATE_PATH, ss.LOCK_PATH = tmp, tmp + '.lock'
+        try:
+            state = ss.read_state()
+            # Pre-populate with 50 entries
+            state["layer12_satisfaction_history"] = [
+                {"category": "frustration", "score": -2, "ts": float(i)} for i in range(50)
+            ]
+            ss.write_state(state)
+            from qg_layer12 import main
+            import qg_layer12 as l12
+            orig_monitor = l12.MONITOR_PATH
+            l12.MONITOR_PATH = os.path.join(tempfile.mkdtemp(), "monitor.jsonl")
+            try:
+                payload = {"message": "No, that's wrong"}
+                with patch("sys.stdin", io.StringIO(json.dumps(payload))):
+                    main()
+            finally:
+                l12.MONITOR_PATH = orig_monitor
+            final_state = ss.read_state()
+            self.assertLessEqual(len(final_state.get("layer12_satisfaction_history", [])), 50)
+        finally:
+            ss.STATE_PATH, ss.LOCK_PATH = orig_path, orig_lock
+            for p in [tmp, tmp + '.lock']:
+                try: os.unlink(p)
+                except: pass
+
+    def test_main_frustration_threshold_message(self):
+        """Line 152: outputs consecutive frustration alert when >= 3 in last 5."""
+        import io, json
+        from unittest.mock import patch
+        import qg_session_state as ss
+        import tempfile
+        tmp = tempfile.mktemp(suffix='.json')
+        orig_path, orig_lock = ss.STATE_PATH, ss.LOCK_PATH
+        ss.STATE_PATH, ss.LOCK_PATH = tmp, tmp + '.lock'
+        try:
+            state = ss.read_state()
+            state["layer12_satisfaction_history"] = [
+                {"category": "frustration", "score": -2, "ts": float(i)} for i in range(4)
+            ]
+            ss.write_state(state)
+            from qg_layer12 import main
+            import qg_layer12 as l12
+            orig_monitor = l12.MONITOR_PATH
+            l12.MONITOR_PATH = os.path.join(tempfile.mkdtemp(), "monitor.jsonl")
+            try:
+                payload = {"message": "No, that's wrong again"}
+                cap = io.StringIO()
+                with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+                     patch("sys.stdout", cap):
+                    main()
+                out = cap.getvalue()
+                self.assertIn("FRUSTRATION", out)
+                self.assertIn("consecutive", out)
+            finally:
+                l12.MONITOR_PATH = orig_monitor
+        finally:
+            ss.STATE_PATH, ss.LOCK_PATH = orig_path, orig_lock
+            for p in [tmp, tmp + '.lock']:
+                try: os.unlink(p)
+                except: pass
 
 
 # ============================================================================

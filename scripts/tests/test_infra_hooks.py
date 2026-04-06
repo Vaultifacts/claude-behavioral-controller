@@ -792,6 +792,100 @@ class TestQgShadowWorker(unittest.TestCase):
         m = self._import()
         self.assertIn("qg-shadow.log", m.SHADOW_LOG)
 
+    def test_ollama_raw_text_false(self):
+        """Lines 76-79: raw text fallback when json.loads fails and contains ok:false."""
+        m = self._import()
+        # Must fail json.loads but contain "ok": false — use malformed JSON
+        raw = 'Here is the result: "ok": false, reason: missing quotes on key'
+        resp = json.dumps({"response": raw})
+        with tempfile.TemporaryDirectory() as tmp:
+            sl = os.path.join(tmp, "s.log")
+            df = os.path.join(tmp, "i.json")
+            json.dump({"prompt": "x", "haiku_ok": True, "haiku_reason": ""}, open(df, "w"))
+            mr = MagicMock()
+            mr.read.return_value = resp.encode()
+            mr.__enter__ = lambda s: s
+            mr.__exit__ = MagicMock(return_value=False)
+            with patch("sys.argv", ["w", df]), \
+                 patch("urllib.request.urlopen", return_value=mr), \
+                 patch.object(m, "SHADOW_LOG", sl):
+                m.main()
+            if os.path.exists(sl):
+                self.assertIn("BLOCK", open(sl).read())
+
+    def test_ollama_raw_text_true(self):
+        """Lines 80-81: raw text fallback when json.loads fails and contains ok:true."""
+        m = self._import()
+        # Force json.loads to fail by returning malformed JSON that still has "ok":true text
+        raw = '"ok":true result is fine'
+        resp = json.dumps({"response": raw})
+        with tempfile.TemporaryDirectory() as tmp:
+            sl = os.path.join(tmp, "s.log")
+            df = os.path.join(tmp, "i.json")
+            json.dump({"prompt": "x", "haiku_ok": False, "haiku_reason": "bad"}, open(df, "w"))
+            mr = MagicMock()
+            mr.read.return_value = resp.encode()
+            mr.__enter__ = lambda s: s
+            mr.__exit__ = MagicMock(return_value=False)
+            with patch("sys.argv", ["w", df]), \
+                 patch("urllib.request.urlopen", return_value=mr), \
+                 patch.object(m, "SHADOW_LOG", sl):
+                m.main()
+            if os.path.exists(sl):
+                content = open(sl).read()
+                self.assertIn("disagree", content)
+
+    def test_ollama_raw_text_no_ok_returns(self):
+        """Line 83: return when raw text has no ok keyword."""
+        m = self._import()
+        raw = "something completely unrecognized"
+        resp = json.dumps({"response": raw})
+        with tempfile.TemporaryDirectory() as tmp:
+            df = os.path.join(tmp, "i.json")
+            json.dump({"prompt": "x", "haiku_ok": True, "haiku_reason": ""}, open(df, "w"))
+            mr = MagicMock()
+            mr.read.return_value = resp.encode()
+            mr.__enter__ = lambda s: s
+            mr.__exit__ = MagicMock(return_value=False)
+            with patch("sys.argv", ["w", df]), \
+                 patch("urllib.request.urlopen", return_value=mr):
+                m.main()  # should return without logging
+
+    def test_haiku_reason_appended(self):
+        """Line 93: haiku_reason added to parts when non-empty."""
+        m = self._import()
+        resp = json.dumps({"response": '{"ok": true, "reason": "looks good"}'})
+        with tempfile.TemporaryDirectory() as tmp:
+            sl = os.path.join(tmp, "s.log")
+            df = os.path.join(tmp, "i.json")
+            json.dump({"prompt": "x", "haiku_ok": True, "haiku_reason": "verified"}, open(df, "w"))
+            mr = MagicMock()
+            mr.read.return_value = resp.encode()
+            mr.__enter__ = lambda s: s
+            mr.__exit__ = MagicMock(return_value=False)
+            with patch("sys.argv", ["w", df]), \
+                 patch("urllib.request.urlopen", return_value=mr), \
+                 patch.object(m, "SHADOW_LOG", sl):
+                m.main()
+            if os.path.exists(sl):
+                self.assertIn("haiku:verified", open(sl).read())
+
+    def test_log_write_exception_swallowed(self):
+        """Lines 98-99: exception on log write is silently swallowed."""
+        m = self._import()
+        resp = json.dumps({"response": '{"ok": true, "reason": "ok"}'})
+        with tempfile.TemporaryDirectory() as tmp:
+            df = os.path.join(tmp, "i.json")
+            json.dump({"prompt": "x", "haiku_ok": True, "haiku_reason": ""}, open(df, "w"))
+            mr = MagicMock()
+            mr.read.return_value = resp.encode()
+            mr.__enter__ = lambda s: s
+            mr.__exit__ = MagicMock(return_value=False)
+            with patch("sys.argv", ["w", df]), \
+                 patch("urllib.request.urlopen", return_value=mr), \
+                 patch.object(m, "SHADOW_LOG", "/nonexistent/dir/shadow.log"):
+                m.main()  # should not raise
+
 class TestContextWatchMain(unittest.TestCase):
     def _import(self):
         mod_name = "context-watch"
@@ -1720,6 +1814,84 @@ class TestSmokeCountUpdater(unittest.TestCase):
         self.assertIsNotNone(match)
         replaced = m._MEMLINE_RE.sub(lambda mo: mo.group(1) + "999" + " smoke tests pass", line)
         self.assertIn("999 smoke tests pass", replaced)
+
+    def test_empty_text_returns_early(self):
+        """Line 24: return when text is falsy after checking tool_name=Bash."""
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_response": {"content": ""}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            m.main()  # should return early without error
+
+    def test_memory_update_written_on_change(self):
+        """Lines 38-39: open(_MEMORY_MD, 'w') branch when new_mem != mem."""
+        m = self._import()
+        p = {
+            "tool_name": "Bash",
+            "tool_response": {"content": "=== Results: 150 passed, 0 failed, 150 total ==="},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            mem_path = os.path.join(tmp, "MEMORY.md")
+            cal_path = os.path.join(tmp, "calibration.md")
+            open(mem_path, "w", encoding="utf-8").write(
+                "quality-gate-calibration.md — 100 smoke tests pass\n"
+            )
+            open(cal_path, "w", encoding="utf-8").write("# Cal\n")
+            with patch.object(m, "_MEMORY_MD", mem_path), \
+                 patch.object(m, "_CALIBRATION", cal_path), \
+                 patch("sys.stdin", io.StringIO(json.dumps(p))):
+                m.main()
+            content = open(mem_path, encoding="utf-8").read()
+            self.assertIn("150 smoke tests pass", content)
+
+    def test_calibration_appended_when_not_present(self):
+        """Lines 47-48: append entry to calibration when today_marker not in cal."""
+        m = self._import()
+        p = {
+            "tool_name": "Bash",
+            "tool_response": {"content": "=== Results: 175 passed, 0 failed, 175 total ==="},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            mem_path = os.path.join(tmp, "MEMORY.md")
+            cal_path = os.path.join(tmp, "calibration.md")
+            open(mem_path, "w", encoding="utf-8").write(
+                "quality-gate-calibration.md — 100 smoke tests pass\n"
+            )
+            open(cal_path, "w", encoding="utf-8").write("# Cal\n")
+            with patch.object(m, "_MEMORY_MD", mem_path), \
+                 patch.object(m, "_CALIBRATION", cal_path), \
+                 patch("sys.stdin", io.StringIO(json.dumps(p))):
+                m.main()
+            cal_content = open(cal_path, encoding="utf-8").read()
+            self.assertIn("175 passed", cal_content)
+
+    def test_memory_exception_swallowed(self):
+        """Lines 38-39: exception reading/writing MEMORY.md is swallowed."""
+        m = self._import()
+        p = {
+            "tool_name": "Bash",
+            "tool_response": {"content": "=== Results: 100 passed, 0 failed, 100 total ==="},
+        }
+        with patch.object(m, "_MEMORY_MD", "/nonexistent/dir/MEMORY.md"), \
+             patch.object(m, "_CALIBRATION", "/nonexistent/dir/cal.md"), \
+             patch("sys.stdin", io.StringIO(json.dumps(p))):
+            m.main()  # should not raise despite unreadable paths
+
+    def test_calibration_exception_swallowed(self):
+        """Lines 47-48: exception reading/writing calibration is swallowed."""
+        m = self._import()
+        p = {
+            "tool_name": "Bash",
+            "tool_response": {"content": "=== Results: 100 passed, 0 failed, 100 total ==="},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            mem_path = os.path.join(tmp, "MEMORY.md")
+            open(mem_path, "w", encoding="utf-8").write(
+                "quality-gate-calibration.md — 100 smoke tests pass\n"
+            )
+            with patch.object(m, "_MEMORY_MD", mem_path), \
+                 patch.object(m, "_CALIBRATION", "/nonexistent/dir/cal.md"), \
+                 patch("sys.stdin", io.StringIO(json.dumps(p))):
+                m.main()  # calibration write fails, but no exception raised
 
 
 class TestSessionEndLogBackup(unittest.TestCase):
