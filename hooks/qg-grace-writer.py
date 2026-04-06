@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """PostToolUse hook: write grace file when a Bash tool produces test-runner output."""
 import json, os, re, sys
 

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Layer 6 -- Cross-session Pattern Analysis (Stop hook + qg analyze).
 Finds violation categories that recur across sessions; feeds Layer 0 context.
 """

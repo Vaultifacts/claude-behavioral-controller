@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Layer 2.7 -- Testing Coverage Verification (PreToolUse on Edit).
 Warns if edited code file has no associated test file or coverage data.
 """

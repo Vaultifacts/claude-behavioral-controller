@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Layer 13 -- Knowledge Freshness Verification (PostToolUse on Write/Edit).
 Checks if imported Python modules exist and if referenced attributes are valid.
 Advisory only -- warns but does not block.

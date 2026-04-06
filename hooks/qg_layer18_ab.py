@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Layer 18 -- A/B Rule Testing.
 Compares current vs proposed rule configurations by replaying monitor events.
 Runs on-demand (not as a hook) via: python qg_layer18_ab.py <proposed_rules.json>

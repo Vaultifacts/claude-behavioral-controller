@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Layer 5 - Subagent Coordination (PostToolUse on Agent tool).
 Records dispatch/return events and tracks parent_task_id linkage.
 """

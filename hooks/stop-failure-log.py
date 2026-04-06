@@ -1,4 +1,4 @@
-﻿"""
+"""
 stop-failure-log.py — StopFailure hook.
 Logs API errors (rate_limit, auth_failed, server_error, etc.) to hook-audit.log
 and sends a desktop notification for non-rate-limit failures.

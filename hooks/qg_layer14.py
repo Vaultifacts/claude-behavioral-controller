@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Layer 14 -- Response Efficiency Analysis (Stop hook).
 Measures tool call efficiency: redundant reads, excessive calls, verbose responses.
 Advisory only -- logs events, never blocks.

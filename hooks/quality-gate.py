@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Quality Gate Stop Hook — two-layer evaluation with full context.
 
 Layer 1: Mechanical checks (instant, no API call)

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Layer 12 -- User Satisfaction Tracking (UserPromptSubmit).
 Analyzes user messages as signals about the PREVIOUS response.
 Detects frustration, satisfaction, confusion, and neutral signals.

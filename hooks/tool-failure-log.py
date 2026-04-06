@@ -1,4 +1,4 @@
-﻿"""
+"""
 tool-failure-log.py — PostToolUseFailure hook.
 Logs tool failures to hook-audit.log for observability.
 Always exits 0. Async.

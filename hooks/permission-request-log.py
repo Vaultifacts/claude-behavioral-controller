@@ -1,4 +1,4 @@
-﻿"""
+"""
 permission-request-log.py — PermissionRequest hook.
 Logs runtime permission requests to hook-audit.log.
 Always exits 0. Async.

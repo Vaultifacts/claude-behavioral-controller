@@ -1,4 +1,4 @@
-﻿"""
+"""
 session-end-log.py — SessionEnd hook.
 Logs session exit reason to hook-audit.log.
 Backs up Claude Code config to OneDrive.

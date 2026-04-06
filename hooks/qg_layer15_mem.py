@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Layer 15 (Memory) -- Memory & State Integrity (SessionStart).
 Checks memory files for staleness, missing references, and basic integrity.
 Advisory only.

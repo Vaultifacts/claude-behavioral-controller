@@ -1,4 +1,4 @@
-﻿"""
+"""
 prune-permissions.py — SessionStart hook
 Removes one-off Bash permission entries from settings.local.json.
 
