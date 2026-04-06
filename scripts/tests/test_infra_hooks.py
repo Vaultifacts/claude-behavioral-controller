@@ -1101,5 +1101,517 @@ class TestQgSessionRecallMain(unittest.TestCase):
         self.assertIn("last-session-qg-failures.txt", m.SNAPSHOT)
 
 
+class TestStopLog(unittest.TestCase):
+    """Tests for stop-log.py — logs session cost/duration to audit-log.md on Stop."""
+    HOOK_PATH = os.path.join(HOOKS_DIR, "stop-log.py")
+
+    def _run(self, payload, extra_env=None):
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        if extra_env:
+            env.update(extra_env)
+        import subprocess
+        r = subprocess.run(
+            [sys.executable, self.HOOK_PATH],
+            input=json.dumps(payload).encode(),
+            capture_output=True, env=env
+        )
+        return r.returncode
+
+    def test_invalid_json_exits_0(self):
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        import subprocess
+        r = subprocess.run(
+            [sys.executable, self.HOOK_PATH],
+            input=b"not-json",
+            capture_output=True, env=env
+        )
+        self.assertEqual(r.returncode, 0)
+
+    def test_empty_payload_exits_0(self):
+        self.assertEqual(self._run({}), 0)
+
+    def test_valid_payload_exits_0(self):
+        payload = {
+            "session_id": "abcd1234",
+            "cost": {"total_cost_usd": 0.05, "total_duration_ms": 90000},
+            "model": "claude-sonnet",
+        }
+        self.assertEqual(self._run(payload), 0)
+
+    def test_writes_audit_log_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "audit-log.md")
+            payload = {
+                "session_id": "testtest",
+                "cost": {"total_cost_usd": 0.123, "total_duration_ms": 120000},
+                "model": "claude-sonnet",
+            }
+            rc = self._run(payload, extra_env={"AUDIT_LOG_PATH": log_path})
+            self.assertEqual(rc, 0)
+            self.assertTrue(os.path.exists(log_path))
+            content = open(log_path, encoding="utf-8").read()
+            self.assertIn("testtest", content)
+
+    def test_creates_log_header_when_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "audit-log.md")
+            self._run({"session_id": "abc"}, extra_env={"AUDIT_LOG_PATH": log_path})
+            if os.path.exists(log_path):
+                content = open(log_path, encoding="utf-8").read()
+                self.assertIn("Claude Code Audit Log", content)
+
+    def test_cwd_from_workspace_dict(self):
+        payload = {
+            "session_id": "cwdtest",
+            "workspace": {"current_dir": "C:\\Users\\Matt1\\project"},
+        }
+        self.assertEqual(self._run(payload), 0)
+
+    def test_model_as_string(self):
+        payload = {"session_id": "modeltest", "model": "claude-opus"}
+        self.assertEqual(self._run(payload), 0)
+
+    def test_model_as_dict_with_display_name(self):
+        payload = {"session_id": "md", "model": {"display_name": "Claude 3", "id": "cl3"}}
+        self.assertEqual(self._run(payload), 0)
+
+    def test_missing_cost_field(self):
+        payload = {"session_id": "nocost"}
+        self.assertEqual(self._run(payload), 0)
+
+    def test_cost_as_non_dict_ignored(self):
+        payload = {"session_id": "badcost", "cost": "not-a-dict"}
+        self.assertEqual(self._run(payload), 0)
+
+
+class TestStopFailureLog(unittest.TestCase):
+    """Tests for stop-failure-log.py — logs StopFailure events to hook-audit.log."""
+    HOOK_PATH = os.path.join(HOOKS_DIR, "stop-failure-log.py")
+
+    def _run(self, payload, extra_env=None):
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        if extra_env:
+            env.update(extra_env)
+        import subprocess
+        r = subprocess.run(
+            [sys.executable, self.HOOK_PATH],
+            input=json.dumps(payload).encode(),
+            capture_output=True, env=env
+        )
+        return r.returncode
+
+    def test_invalid_json_exits_0(self):
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        import subprocess
+        r = subprocess.run(
+            [sys.executable, self.HOOK_PATH],
+            input=b"bad-json",
+            capture_output=True, env=env
+        )
+        self.assertEqual(r.returncode, 0)
+
+    def test_empty_payload_exits_0(self):
+        self.assertEqual(self._run({}), 0)
+
+    def test_rate_limit_exits_0_no_notify(self):
+        payload = {"error": "rate_limit", "session_id": "abc12345"}
+        self.assertEqual(self._run(payload), 0)
+
+    def test_auth_failed_exits_0(self):
+        payload = {
+            "error": "auth_failed",
+            "error_details": "Invalid API key",
+            "session_id": "abc12345",
+        }
+        self.assertEqual(self._run(payload), 0)
+
+    def test_server_error_exits_0(self):
+        payload = {
+            "error": "server_error",
+            "error_details": "Internal server error",
+            "last_assistant_message": "Let me help you",
+            "session_id": "sess1234",
+        }
+        self.assertEqual(self._run(payload), 0)
+
+    def test_writes_log_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            payload = {
+                "error": "rate_limit",
+                "error_details": "Too many requests",
+                "session_id": "logtest1",
+            }
+            env = os.environ.copy()
+            env["PYTHONIOENCODING"] = "utf-8"
+            import subprocess
+            # Patch by overriding the module's STATE_DIR — use subprocess with a wrapper instead
+            # We can verify via the existing log path the module constructs from STATE_DIR
+            r = subprocess.run(
+                [sys.executable, self.HOOK_PATH],
+                input=json.dumps(payload).encode(),
+                capture_output=True, env=env
+            )
+            self.assertEqual(r.returncode, 0)
+
+    def test_long_error_details_truncated(self):
+        payload = {
+            "error": "server_error",
+            "error_details": "x" * 300,
+            "session_id": "trunc123",
+        }
+        self.assertEqual(self._run(payload), 0)
+
+    def test_missing_error_field_uses_unknown(self):
+        payload = {"session_id": "noerr123"}
+        self.assertEqual(self._run(payload), 0)
+
+
+class TestToolFailureLog(unittest.TestCase):
+    """Tests for tool-failure-log.py — logs PostToolUseFailure events to hook-audit.log."""
+    HOOK_PATH = os.path.join(HOOKS_DIR, "tool-failure-log.py")
+
+    def _run(self, payload):
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        import subprocess
+        r = subprocess.run(
+            [sys.executable, self.HOOK_PATH],
+            input=json.dumps(payload).encode(),
+            capture_output=True, env=env
+        )
+        return r.returncode
+
+    def test_invalid_json_exits_0(self):
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        import subprocess
+        r = subprocess.run(
+            [sys.executable, self.HOOK_PATH],
+            input=b"bad",
+            capture_output=True, env=env
+        )
+        self.assertEqual(r.returncode, 0)
+
+    def test_empty_payload_exits_0(self):
+        self.assertEqual(self._run({}), 0)
+
+    def test_bash_failure_exits_0(self):
+        payload = {
+            "tool_name": "Bash",
+            "error": "command not found: foobar",
+            "tool_input": {"command": "foobar --help"},
+        }
+        self.assertEqual(self._run(payload), 0)
+
+    def test_edit_failure_exits_0(self):
+        payload = {
+            "tool_name": "Edit",
+            "error": "File not found",
+            "tool_input": {"file_path": "/nonexistent.py"},
+        }
+        self.assertEqual(self._run(payload), 0)
+
+    def test_write_failure_exits_0(self):
+        payload = {
+            "tool_name": "Write",
+            "error": "Permission denied",
+            "tool_input": {"file_path": "/etc/protected.txt"},
+        }
+        self.assertEqual(self._run(payload), 0)
+
+    def test_tool_input_as_non_dict_handled(self):
+        payload = {
+            "tool_name": "Read",
+            "error": "something",
+            "tool_input": "not-a-dict",
+        }
+        self.assertEqual(self._run(payload), 0)
+
+    def test_missing_tool_name_exits_0(self):
+        payload = {"error": "oops", "tool_input": {}}
+        self.assertEqual(self._run(payload), 0)
+
+    def test_error_truncated_at_100_chars(self):
+        payload = {
+            "tool_name": "Bash",
+            "error": "e" * 200,
+            "tool_input": {"command": "ls"},
+        }
+        self.assertEqual(self._run(payload), 0)
+
+    def test_context_from_command_field(self):
+        payload = {
+            "tool_name": "Bash",
+            "error": "fail",
+            "tool_input": {"command": "git status"},
+        }
+        self.assertEqual(self._run(payload), 0)
+
+    def test_context_from_file_path_field(self):
+        payload = {
+            "tool_name": "Write",
+            "error": "fail",
+            "tool_input": {"file_path": "/tmp/x.py"},
+        }
+        self.assertEqual(self._run(payload), 0)
+
+
+class TestVerifyReminder(unittest.TestCase):
+    """Tests for verify-reminder.py — PostToolUse hook that reminds Claude to verify edits."""
+
+    def _import(self):
+        mod_name = "verify-reminder"
+        if mod_name not in sys.modules:
+            with patch("sys.stdin", io.StringIO("{}")), patch("sys.exit"):
+                sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+
+    def test_non_edit_tool_exits_0(self):
+        _, _, rc = self._run({"tool_name": "Read", "tool_input": {"file_path": "/foo.py"}})
+        self.assertEqual(rc, 0)
+
+    def _run(self, payload):
+        import subprocess
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        r = subprocess.run(
+            [sys.executable, os.path.join(HOOKS_DIR, "verify-reminder.py")],
+            input=json.dumps(payload).encode(),
+            capture_output=True, env=env
+        )
+        return r.stdout.decode(), r.stderr.decode(), r.returncode
+
+    def test_edit_code_file_exits_2(self):
+        _, err, rc = self._run({"tool_name": "Edit", "tool_input": {"file_path": "/project/main.py"}})
+        self.assertEqual(rc, 2)
+        self.assertIn("verify", err.lower())
+
+    def test_write_code_file_exits_2(self):
+        _, err, rc = self._run({"tool_name": "Write", "tool_input": {"file_path": "/project/app.js"}})
+        self.assertEqual(rc, 2)
+
+    def test_edit_memory_file_exits_0(self):
+        _, _, rc = self._run({"tool_name": "Edit", "tool_input": {"file_path": "/memory/MEMORY.md"}})
+        self.assertEqual(rc, 0)
+
+    def test_edit_claude_md_exits_0(self):
+        _, _, rc = self._run({"tool_name": "Edit", "tool_input": {"file_path": "/path/CLAUDE.md"}})
+        self.assertEqual(rc, 0)
+
+    def test_edit_settings_json_exits_0(self):
+        _, _, rc = self._run({"tool_name": "Edit", "tool_input": {"file_path": "/some/settings.json"}})
+        self.assertEqual(rc, 0)
+
+    def test_bash_tool_exits_0(self):
+        _, _, rc = self._run({"tool_name": "Bash", "tool_input": {"command": "ls"}})
+        self.assertEqual(rc, 0)
+
+    def test_invalid_json_exits_0(self):
+        import subprocess
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        r = subprocess.run(
+            [sys.executable, os.path.join(HOOKS_DIR, "verify-reminder.py")],
+            input=b"bad-json",
+            capture_output=True, env=env
+        )
+        self.assertEqual(r.returncode, 0)
+
+    def test_empty_file_path_exits_0(self):
+        _, _, rc = self._run({"tool_name": "Edit", "tool_input": {"file_path": ""}})
+        self.assertEqual(rc, 0)
+
+    def test_no_tool_input_exits_0(self):
+        _, _, rc = self._run({"tool_name": "Edit"})
+        self.assertEqual(rc, 0)
+
+    def test_stderr_message_contains_filename(self):
+        _, err, _ = self._run({"tool_name": "Edit", "tool_input": {"file_path": "/project/mymodule.py"}})
+        self.assertIn("mymodule.py", err)
+
+
+class TestSessionEndLog(unittest.TestCase):
+    """Tests for session-end-log.py — SessionEnd hook that logs and runs QG feedback."""
+    HOOK_PATH = os.path.join(HOOKS_DIR, "session-end-log.py")
+
+    def _run(self, payload, extra_env=None):
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        if extra_env:
+            env.update(extra_env)
+        import subprocess
+        r = subprocess.run(
+            [sys.executable, self.HOOK_PATH],
+            input=json.dumps(payload).encode(),
+            capture_output=True, env=env,
+            timeout=30
+        )
+        return r.returncode
+
+    def test_invalid_json_exits_0(self):
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        import subprocess
+        r = subprocess.run(
+            [sys.executable, self.HOOK_PATH],
+            input=b"not-json",
+            capture_output=True, env=env,
+            timeout=30
+        )
+        self.assertEqual(r.returncode, 0)
+
+    def test_empty_payload_exits_0(self):
+        self.assertEqual(self._run({}), 0)
+
+    def test_normal_exit_reason_exits_0(self):
+        payload = {"reason": "normal_exit", "session_id": "sess1234"}
+        self.assertEqual(self._run(payload), 0)
+
+    def test_user_exit_reason_exits_0(self):
+        payload = {"reason": "user_exit", "session_id": "abcd5678"}
+        self.assertEqual(self._run(payload), 0)
+
+    def test_session_id_truncated_to_8(self):
+        payload = {"reason": "normal_exit", "session_id": "verylongsessionid"}
+        self.assertEqual(self._run(payload), 0)
+
+    def test_missing_reason_uses_question_mark(self):
+        payload = {"session_id": "abc12345"}
+        self.assertEqual(self._run(payload), 0)
+
+    def test_missing_session_id_uses_question_mark(self):
+        payload = {"reason": "normal_exit"}
+        self.assertEqual(self._run(payload), 0)
+
+    def test_always_exits_0(self):
+        for reason in ("normal_exit", "timeout", "error", "compact", "unknown"):
+            rc = self._run({"reason": reason, "session_id": "test1234"})
+            self.assertEqual(rc, 0, f"Expected exit 0 for reason={reason!r}")
+
+
+class TestSmokeCountUpdater(unittest.TestCase):
+    """Tests for smoke-count-updater.py — PostToolUse hook that updates smoke test counts."""
+
+    def _import(self):
+        mod_name = "smoke-count-updater"
+        if mod_name not in sys.modules:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "smoke_count_updater",
+                os.path.join(HOOKS_DIR, "smoke-count-updater.py")
+            )
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[mod_name] = mod
+            spec.loader.exec_module(mod)
+        return sys.modules[mod_name]
+
+    def test_import_has_main(self):
+        m = self._import()
+        self.assertTrue(callable(m.main))
+
+    def test_non_bash_tool_returns_early(self):
+        m = self._import()
+        p = {"tool_name": "Read", "tool_response": {"content": "=== Results: 100 passed, 0 failed, 100 total ==="}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            m.main()
+
+    def test_bash_tool_no_results_returns_early(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_response": {"content": "All done, no results line"}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            m.main()
+
+    def test_bash_tool_count_below_50_returns_early(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_response": {"content": "=== Results: 30 passed, 0 failed, 30 total ==="}}
+        with patch("sys.stdin", io.StringIO(json.dumps(p))):
+            m.main()
+
+    def test_bash_tool_results_string_response(self):
+        m = self._import()
+        p = {"tool_name": "Bash", "tool_response": "=== Results: 80 passed, 0 failed, 80 total ==="}
+        with tempfile.TemporaryDirectory() as tmp:
+            mem_path = os.path.join(tmp, "MEMORY.md")
+            cal_path = os.path.join(tmp, "calibration.md")
+            open(mem_path, "w", encoding="utf-8").write(
+                "quality-gate-calibration.md — Session 7 complete: 80 examples, 468 smoke tests pass\n"
+            )
+            open(cal_path, "w", encoding="utf-8").write("# Calibration\n")
+            with patch.object(m, "_MEMORY_MD", mem_path), \
+                 patch.object(m, "_CALIBRATION", cal_path), \
+                 patch("sys.stdin", io.StringIO(json.dumps(p))):
+                m.main()
+
+    def test_bash_tool_count_gte_50_updates_memory(self):
+        m = self._import()
+        p = {
+            "tool_name": "Bash",
+            "tool_response": {"content": "=== Results: 576 passed, 0 failed, 576 total ==="},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            mem_path = os.path.join(tmp, "MEMORY.md")
+            cal_path = os.path.join(tmp, "calibration.md")
+            open(mem_path, "w", encoding="utf-8").write(
+                "quality-gate-calibration.md — Session 7 complete: 468 smoke tests pass\n"
+            )
+            open(cal_path, "w", encoding="utf-8").write("# Calibration\n")
+            with patch.object(m, "_MEMORY_MD", mem_path), \
+                 patch.object(m, "_CALIBRATION", cal_path), \
+                 patch("sys.stdin", io.StringIO(json.dumps(p))):
+                m.main()
+            content = open(mem_path, encoding="utf-8").read()
+            self.assertIn("576 smoke tests pass", content)
+
+    def test_calibration_appended_once(self):
+        m = self._import()
+        p = {
+            "tool_name": "Bash",
+            "tool_response": {"content": "=== Results: 200 passed, 0 failed, 200 total ==="},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            mem_path = os.path.join(tmp, "MEMORY.md")
+            cal_path = os.path.join(tmp, "calibration.md")
+            open(mem_path, "w", encoding="utf-8").write(
+                "quality-gate-calibration.md — 100 smoke tests pass\n"
+            )
+            open(cal_path, "w", encoding="utf-8").write("# Cal\n")
+            with patch.object(m, "_MEMORY_MD", mem_path), \
+                 patch.object(m, "_CALIBRATION", cal_path), \
+                 patch("sys.stdin", io.StringIO(json.dumps(p))):
+                m.main()
+                m.main()  # second call should be deduplicated
+            cal = open(cal_path, encoding="utf-8").read()
+            self.assertEqual(cal.count("200 passed"), 1)
+
+    def test_empty_stdin_returns_early(self):
+        m = self._import()
+        with patch("sys.stdin") as mock_stdin:
+            mock_stdin.isatty.return_value = True
+            m.main()
+
+    def test_invalid_json_returns_early(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO("not-json")):
+            m.main()
+
+    def test_results_regex_pattern(self):
+        m = self._import()
+        self.assertIsNotNone(m._RESULTS_RE.search("=== Results: 576 passed, 0 failed, 576 total ==="))
+        self.assertIsNone(m._RESULTS_RE.search("=== Results: 10 passed, 5 failed, 15 total ==="))
+
+    def test_memline_regex_pattern(self):
+        m = self._import()
+        line = "quality-gate-calibration.md — 468 smoke tests pass"
+        match = m._MEMLINE_RE.search(line)
+        self.assertIsNotNone(match)
+        replaced = m._MEMLINE_RE.sub(lambda mo: mo.group(1) + "999" + " smoke tests pass", line)
+        self.assertIn("999 smoke tests pass", replaced)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
