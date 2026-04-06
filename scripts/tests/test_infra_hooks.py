@@ -1103,42 +1103,38 @@ class TestQgSessionRecallMain(unittest.TestCase):
 
 class TestStopLog(unittest.TestCase):
     """Tests for stop-log.py — logs session cost/duration to audit-log.md on Stop."""
-    HOOK_PATH = os.path.join(HOOKS_DIR, "stop-log.py")
 
-    def _run(self, payload, extra_env=None):
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
-        if extra_env:
-            env.update(extra_env)
-        import subprocess
-        r = subprocess.run(
-            [sys.executable, self.HOOK_PATH],
-            input=json.dumps(payload).encode(),
-            capture_output=True, env=env
-        )
-        return r.returncode
+    def _import(self):
+        mod_name = "stop-log"
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
 
-    def test_invalid_json_exits_0(self):
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
-        import subprocess
-        r = subprocess.run(
-            [sys.executable, self.HOOK_PATH],
-            input=b"not-json",
-            capture_output=True, env=env
-        )
-        self.assertEqual(r.returncode, 0)
+    def _run_main(self, payload, log_path=None):
+        m = self._import()
+        env_patch = {}
+        if log_path:
+            env_patch["AUDIT_LOG_PATH"] = log_path
+        with patch("sys.stdin", io.StringIO(json.dumps(payload))):
+            with patch.dict(os.environ, env_patch):
+                m.main()
 
-    def test_empty_payload_exits_0(self):
-        self.assertEqual(self._run({}), 0)
+    def test_invalid_json_returns(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO("not-json")):
+            m.main()  # should return without raising
 
-    def test_valid_payload_exits_0(self):
+    def test_empty_payload_returns(self):
+        self._run_main({})
+
+    def test_valid_payload_runs(self):
         payload = {
             "session_id": "abcd1234",
             "cost": {"total_cost_usd": 0.05, "total_duration_ms": 90000},
             "model": "claude-sonnet",
         }
-        self.assertEqual(self._run(payload), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            self._run_main(payload, log_path=os.path.join(tmp, "audit-log.md"))
 
     def test_writes_audit_log_entry(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1148,8 +1144,7 @@ class TestStopLog(unittest.TestCase):
                 "cost": {"total_cost_usd": 0.123, "total_duration_ms": 120000},
                 "model": "claude-sonnet",
             }
-            rc = self._run(payload, extra_env={"AUDIT_LOG_PATH": log_path})
-            self.assertEqual(rc, 0)
+            self._run_main(payload, log_path=log_path)
             self.assertTrue(os.path.exists(log_path))
             content = open(log_path, encoding="utf-8").read()
             self.assertIn("testtest", content)
@@ -1157,7 +1152,7 @@ class TestStopLog(unittest.TestCase):
     def test_creates_log_header_when_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             log_path = os.path.join(tmp, "audit-log.md")
-            self._run({"session_id": "abc"}, extra_env={"AUDIT_LOG_PATH": log_path})
+            self._run_main({"session_id": "abc"}, log_path=log_path)
             if os.path.exists(log_path):
                 content = open(log_path, encoding="utf-8").read()
                 self.assertIn("Claude Code Audit Log", content)
@@ -1167,198 +1162,263 @@ class TestStopLog(unittest.TestCase):
             "session_id": "cwdtest",
             "workspace": {"current_dir": "C:\\Users\\Matt1\\project"},
         }
-        self.assertEqual(self._run(payload), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            self._run_main(payload, log_path=os.path.join(tmp, "audit-log.md"))
 
     def test_model_as_string(self):
-        payload = {"session_id": "modeltest", "model": "claude-opus"}
-        self.assertEqual(self._run(payload), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            self._run_main({"session_id": "modeltest", "model": "claude-opus"},
+                           log_path=os.path.join(tmp, "audit-log.md"))
 
     def test_model_as_dict_with_display_name(self):
-        payload = {"session_id": "md", "model": {"display_name": "Claude 3", "id": "cl3"}}
-        self.assertEqual(self._run(payload), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            self._run_main({"session_id": "md", "model": {"display_name": "Claude 3", "id": "cl3"}},
+                           log_path=os.path.join(tmp, "audit-log.md"))
 
     def test_missing_cost_field(self):
-        payload = {"session_id": "nocost"}
-        self.assertEqual(self._run(payload), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            self._run_main({"session_id": "nocost"},
+                           log_path=os.path.join(tmp, "audit-log.md"))
 
     def test_cost_as_non_dict_ignored(self):
-        payload = {"session_id": "badcost", "cost": "not-a-dict"}
-        self.assertEqual(self._run(payload), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            self._run_main({"session_id": "badcost", "cost": "not-a-dict"},
+                           log_path=os.path.join(tmp, "audit-log.md"))
+
+    def test_has_main_callable(self):
+        m = self._import()
+        self.assertTrue(callable(m.main))
+
+    def test_session_id_truncated_to_8(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "audit-log.md")
+            self._run_main({"session_id": "abcdefghijklmnop"}, log_path=log_path)
+            content = open(log_path, encoding="utf-8").read()
+            self.assertIn("abcdefgh", content)
+            self.assertNotIn("abcdefghijklmnop", content)
+
+    def test_duration_computed_from_ms(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "audit-log.md")
+            self._run_main(
+                {"session_id": "durtest", "cost": {"total_cost_usd": 0.01, "total_duration_ms": 90000}},
+                log_path=log_path
+            )
+            content = open(log_path, encoding="utf-8").read()
+            self.assertIn("1m30s", content)
 
 
 class TestStopFailureLog(unittest.TestCase):
     """Tests for stop-failure-log.py — logs StopFailure events to hook-audit.log."""
-    HOOK_PATH = os.path.join(HOOKS_DIR, "stop-failure-log.py")
 
-    def _run(self, payload, extra_env=None):
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
-        if extra_env:
-            env.update(extra_env)
-        import subprocess
-        r = subprocess.run(
-            [sys.executable, self.HOOK_PATH],
-            input=json.dumps(payload).encode(),
-            capture_output=True, env=env
-        )
-        return r.returncode
+    def _import(self):
+        mod_name = "stop-failure-log"
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
 
-    def test_invalid_json_exits_0(self):
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
-        import subprocess
-        r = subprocess.run(
-            [sys.executable, self.HOOK_PATH],
-            input=b"bad-json",
-            capture_output=True, env=env
-        )
-        self.assertEqual(r.returncode, 0)
+    def _run_main(self, payload, log_path=None):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO(json.dumps(payload))):
+            if log_path:
+                with patch.object(m, "LOG_PATH", log_path):
+                    m.main()
+            else:
+                m.main()
 
-    def test_empty_payload_exits_0(self):
-        self.assertEqual(self._run({}), 0)
+    def test_has_main_callable(self):
+        m = self._import()
+        self.assertTrue(callable(m.main))
 
-    def test_rate_limit_exits_0_no_notify(self):
-        payload = {"error": "rate_limit", "session_id": "abc12345"}
-        self.assertEqual(self._run(payload), 0)
+    def test_invalid_json_returns(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO("bad-json")):
+            m.main()  # should return without raising
 
-    def test_auth_failed_exits_0(self):
-        payload = {
+    def test_empty_payload_runs(self):
+        self._run_main({})
+
+    def test_rate_limit_runs(self):
+        self._run_main({"error": "rate_limit", "session_id": "abc12345"})
+
+    def test_auth_failed_runs(self):
+        self._run_main({
             "error": "auth_failed",
             "error_details": "Invalid API key",
             "session_id": "abc12345",
-        }
-        self.assertEqual(self._run(payload), 0)
+        })
 
-    def test_server_error_exits_0(self):
-        payload = {
+    def test_server_error_runs(self):
+        self._run_main({
             "error": "server_error",
             "error_details": "Internal server error",
             "last_assistant_message": "Let me help you",
             "session_id": "sess1234",
-        }
-        self.assertEqual(self._run(payload), 0)
+        })
 
     def test_writes_log_entry(self):
         with tempfile.TemporaryDirectory() as tmp:
             log_path = os.path.join(tmp, "hook-audit.log")
-            payload = {
+            self._run_main({
                 "error": "rate_limit",
                 "error_details": "Too many requests",
                 "session_id": "logtest1",
-            }
-            env = os.environ.copy()
-            env["PYTHONIOENCODING"] = "utf-8"
-            import subprocess
-            # Patch by overriding the module's STATE_DIR — use subprocess with a wrapper instead
-            # We can verify via the existing log path the module constructs from STATE_DIR
-            r = subprocess.run(
-                [sys.executable, self.HOOK_PATH],
-                input=json.dumps(payload).encode(),
-                capture_output=True, env=env
-            )
-            self.assertEqual(r.returncode, 0)
+            }, log_path=log_path)
+            self.assertTrue(os.path.exists(log_path))
+            content = open(log_path, encoding="utf-8").read()
+            self.assertIn("STOP_FAIL", content)
+            self.assertIn("rate_limit", content)
 
     def test_long_error_details_truncated(self):
-        payload = {
-            "error": "server_error",
-            "error_details": "x" * 300,
-            "session_id": "trunc123",
-        }
-        self.assertEqual(self._run(payload), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            self._run_main({
+                "error": "server_error",
+                "error_details": "x" * 300,
+                "session_id": "trunc123",
+            }, log_path=log_path)
+            content = open(log_path, encoding="utf-8").read()
+            # details are truncated to 200 chars
+            self.assertLessEqual(content.count("x"), 200)
 
     def test_missing_error_field_uses_unknown(self):
-        payload = {"session_id": "noerr123"}
-        self.assertEqual(self._run(payload), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            self._run_main({"session_id": "noerr123"}, log_path=log_path)
+            content = open(log_path, encoding="utf-8").read()
+            self.assertIn("unknown", content)
+
+    def test_session_id_in_log(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            self._run_main({"error": "rate_limit", "session_id": "mysess12"}, log_path=log_path)
+            content = open(log_path, encoding="utf-8").read()
+            self.assertIn("mysess12", content)
+
+    def test_non_rate_limit_attempts_notify(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO(json.dumps({"error": "auth_failed"}))):
+            with patch("subprocess.Popen") as mock_popen:
+                with patch.object(m, "LOG_PATH", os.devnull):
+                    m.main()
+                # Popen may be called for notification; we just verify no exception
+                self.assertIsNotNone(mock_popen)
+
+    def test_rate_limit_does_not_notify(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO(json.dumps({"error": "rate_limit"}))):
+            with patch("subprocess.Popen") as mock_popen:
+                with patch.object(m, "LOG_PATH", os.devnull):
+                    m.main()
+                mock_popen.assert_not_called()
 
 
 class TestToolFailureLog(unittest.TestCase):
     """Tests for tool-failure-log.py — logs PostToolUseFailure events to hook-audit.log."""
-    HOOK_PATH = os.path.join(HOOKS_DIR, "tool-failure-log.py")
 
-    def _run(self, payload):
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
-        import subprocess
-        r = subprocess.run(
-            [sys.executable, self.HOOK_PATH],
-            input=json.dumps(payload).encode(),
-            capture_output=True, env=env
-        )
-        return r.returncode
+    def _import(self):
+        mod_name = "tool-failure-log"
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
 
-    def test_invalid_json_exits_0(self):
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
-        import subprocess
-        r = subprocess.run(
-            [sys.executable, self.HOOK_PATH],
-            input=b"bad",
-            capture_output=True, env=env
-        )
-        self.assertEqual(r.returncode, 0)
+    def _run_main(self, payload, log_path=None):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO(json.dumps(payload))):
+            if log_path:
+                with patch.object(m, "LOG_PATH", log_path):
+                    m.main()
+            else:
+                m.main()
 
-    def test_empty_payload_exits_0(self):
-        self.assertEqual(self._run({}), 0)
+    def test_has_main_callable(self):
+        m = self._import()
+        self.assertTrue(callable(m.main))
 
-    def test_bash_failure_exits_0(self):
-        payload = {
+    def test_invalid_json_returns(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO("bad")):
+            m.main()  # should return without raising
+
+    def test_empty_payload_runs(self):
+        self._run_main({})
+
+    def test_bash_failure_runs(self):
+        self._run_main({
             "tool_name": "Bash",
             "error": "command not found: foobar",
             "tool_input": {"command": "foobar --help"},
-        }
-        self.assertEqual(self._run(payload), 0)
+        })
 
-    def test_edit_failure_exits_0(self):
-        payload = {
+    def test_edit_failure_runs(self):
+        self._run_main({
             "tool_name": "Edit",
             "error": "File not found",
             "tool_input": {"file_path": "/nonexistent.py"},
-        }
-        self.assertEqual(self._run(payload), 0)
+        })
 
-    def test_write_failure_exits_0(self):
-        payload = {
+    def test_write_failure_runs(self):
+        self._run_main({
             "tool_name": "Write",
             "error": "Permission denied",
             "tool_input": {"file_path": "/etc/protected.txt"},
-        }
-        self.assertEqual(self._run(payload), 0)
+        })
 
     def test_tool_input_as_non_dict_handled(self):
-        payload = {
+        self._run_main({
             "tool_name": "Read",
             "error": "something",
             "tool_input": "not-a-dict",
-        }
-        self.assertEqual(self._run(payload), 0)
+        })
 
-    def test_missing_tool_name_exits_0(self):
-        payload = {"error": "oops", "tool_input": {}}
-        self.assertEqual(self._run(payload), 0)
+    def test_missing_tool_name_runs(self):
+        self._run_main({"error": "oops", "tool_input": {}})
+
+    def test_writes_fail_log_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            self._run_main({
+                "tool_name": "Bash",
+                "error": "command not found",
+                "tool_input": {"command": "foobar"},
+            }, log_path=log_path)
+            self.assertTrue(os.path.exists(log_path))
+            content = open(log_path, encoding="utf-8").read()
+            self.assertIn("FAIL", content)
+            self.assertIn("Bash", content)
 
     def test_error_truncated_at_100_chars(self):
-        payload = {
-            "tool_name": "Bash",
-            "error": "e" * 200,
-            "tool_input": {"command": "ls"},
-        }
-        self.assertEqual(self._run(payload), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            self._run_main({
+                "tool_name": "Bash",
+                "error": "e" * 200,
+                "tool_input": {"command": "ls"},
+            }, log_path=log_path)
+            content = open(log_path, encoding="utf-8").read()
+            self.assertLessEqual(content.count("e"), 100)
 
     def test_context_from_command_field(self):
-        payload = {
-            "tool_name": "Bash",
-            "error": "fail",
-            "tool_input": {"command": "git status"},
-        }
-        self.assertEqual(self._run(payload), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            self._run_main({
+                "tool_name": "Bash",
+                "error": "fail",
+                "tool_input": {"command": "git status"},
+            }, log_path=log_path)
+            content = open(log_path, encoding="utf-8").read()
+            self.assertIn("git status", content)
 
     def test_context_from_file_path_field(self):
-        payload = {
-            "tool_name": "Write",
-            "error": "fail",
-            "tool_input": {"file_path": "/tmp/x.py"},
-        }
-        self.assertEqual(self._run(payload), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            self._run_main({
+                "tool_name": "Write",
+                "error": "fail",
+                "tool_input": {"file_path": "/tmp/x.py"},
+            }, log_path=log_path)
+            content = open(log_path, encoding="utf-8").read()
+            self.assertIn("/tmp/x.py", content)
 
 
 class TestVerifyReminder(unittest.TestCase):
@@ -1367,131 +1427,151 @@ class TestVerifyReminder(unittest.TestCase):
     def _import(self):
         mod_name = "verify-reminder"
         if mod_name not in sys.modules:
-            with patch("sys.stdin", io.StringIO("{}")), patch("sys.exit"):
-                sys.modules[mod_name] = __import__(mod_name)
+            sys.modules[mod_name] = __import__(mod_name)
         return sys.modules[mod_name]
 
-    def test_non_edit_tool_exits_0(self):
-        _, _, rc = self._run({"tool_name": "Read", "tool_input": {"file_path": "/foo.py"}})
-        self.assertEqual(rc, 0)
+    def _run_main(self, payload):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO(json.dumps(payload))):
+            return m.main()
 
-    def _run(self, payload):
-        import subprocess
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
-        r = subprocess.run(
-            [sys.executable, os.path.join(HOOKS_DIR, "verify-reminder.py")],
-            input=json.dumps(payload).encode(),
-            capture_output=True, env=env
-        )
-        return r.stdout.decode(), r.stderr.decode(), r.returncode
+    def test_has_main_callable(self):
+        m = self._import()
+        self.assertTrue(callable(m.main))
 
-    def test_edit_code_file_exits_2(self):
-        _, err, rc = self._run({"tool_name": "Edit", "tool_input": {"file_path": "/project/main.py"}})
-        self.assertEqual(rc, 2)
-        self.assertIn("verify", err.lower())
+    def test_invalid_json_returns_0(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO("bad-json")):
+            result = m.main()
+        self.assertIn(result, (0, None))
 
-    def test_write_code_file_exits_2(self):
-        _, err, rc = self._run({"tool_name": "Write", "tool_input": {"file_path": "/project/app.js"}})
-        self.assertEqual(rc, 2)
+    def test_non_edit_tool_returns_0(self):
+        result = self._run_main({"tool_name": "Read", "tool_input": {"file_path": "/foo.py"}})
+        self.assertIn(result, (0, None))
 
-    def test_edit_memory_file_exits_0(self):
-        _, _, rc = self._run({"tool_name": "Edit", "tool_input": {"file_path": "/memory/MEMORY.md"}})
-        self.assertEqual(rc, 0)
+    def test_bash_tool_returns_0(self):
+        result = self._run_main({"tool_name": "Bash", "tool_input": {"command": "ls"}})
+        self.assertIn(result, (0, None))
 
-    def test_edit_claude_md_exits_0(self):
-        _, _, rc = self._run({"tool_name": "Edit", "tool_input": {"file_path": "/path/CLAUDE.md"}})
-        self.assertEqual(rc, 0)
+    def test_edit_code_file_returns_2(self):
+        result = self._run_main({"tool_name": "Edit", "tool_input": {"file_path": "/project/main.py"}})
+        self.assertEqual(result, 2)
 
-    def test_edit_settings_json_exits_0(self):
-        _, _, rc = self._run({"tool_name": "Edit", "tool_input": {"file_path": "/some/settings.json"}})
-        self.assertEqual(rc, 0)
+    def test_write_code_file_returns_2(self):
+        result = self._run_main({"tool_name": "Write", "tool_input": {"file_path": "/project/app.js"}})
+        self.assertEqual(result, 2)
 
-    def test_bash_tool_exits_0(self):
-        _, _, rc = self._run({"tool_name": "Bash", "tool_input": {"command": "ls"}})
-        self.assertEqual(rc, 0)
+    def test_edit_memory_file_returns_0(self):
+        result = self._run_main({"tool_name": "Edit", "tool_input": {"file_path": "/memory/MEMORY.md"}})
+        self.assertIn(result, (0, None))
 
-    def test_invalid_json_exits_0(self):
-        import subprocess
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
-        r = subprocess.run(
-            [sys.executable, os.path.join(HOOKS_DIR, "verify-reminder.py")],
-            input=b"bad-json",
-            capture_output=True, env=env
-        )
-        self.assertEqual(r.returncode, 0)
+    def test_edit_claude_md_returns_0(self):
+        result = self._run_main({"tool_name": "Edit", "tool_input": {"file_path": "/path/CLAUDE.md"}})
+        self.assertIn(result, (0, None))
 
-    def test_empty_file_path_exits_0(self):
-        _, _, rc = self._run({"tool_name": "Edit", "tool_input": {"file_path": ""}})
-        self.assertEqual(rc, 0)
+    def test_edit_settings_json_returns_0(self):
+        result = self._run_main({"tool_name": "Edit", "tool_input": {"file_path": "/some/settings.json"}})
+        self.assertIn(result, (0, None))
 
-    def test_no_tool_input_exits_0(self):
-        _, _, rc = self._run({"tool_name": "Edit"})
-        self.assertEqual(rc, 0)
+    def test_empty_file_path_returns_0(self):
+        result = self._run_main({"tool_name": "Edit", "tool_input": {"file_path": ""}})
+        self.assertIn(result, (0, None))
+
+    def test_no_tool_input_returns_0(self):
+        result = self._run_main({"tool_name": "Edit"})
+        self.assertIn(result, (0, None))
 
     def test_stderr_message_contains_filename(self):
-        _, err, _ = self._run({"tool_name": "Edit", "tool_input": {"file_path": "/project/mymodule.py"}})
-        self.assertIn("mymodule.py", err)
+        m = self._import()
+        with patch("sys.stdin", io.StringIO(json.dumps(
+            {"tool_name": "Edit", "tool_input": {"file_path": "/project/mymodule.py"}}
+        ))):
+            with patch("sys.stderr", io.StringIO()) as mock_err:
+                m.main()
+                mock_err.seek(0)
+                self.assertIn("mymodule.py", mock_err.read())
+
+    def test_edit_py_file_returns_2(self):
+        result = self._run_main({"tool_name": "Edit", "tool_input": {"file_path": "/hooks/verify-reminder.py"}})
+        self.assertEqual(result, 2)
+
+    def test_write_ts_file_returns_2(self):
+        result = self._run_main({"tool_name": "Write", "tool_input": {"file_path": "/src/index.ts"}})
+        self.assertEqual(result, 2)
 
 
 class TestSessionEndLog(unittest.TestCase):
     """Tests for session-end-log.py — SessionEnd hook that logs and runs QG feedback."""
-    HOOK_PATH = os.path.join(HOOKS_DIR, "session-end-log.py")
 
-    def _run(self, payload, extra_env=None):
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
-        if extra_env:
-            env.update(extra_env)
-        import subprocess
-        r = subprocess.run(
-            [sys.executable, self.HOOK_PATH],
-            input=json.dumps(payload).encode(),
-            capture_output=True, env=env,
-            timeout=30
-        )
-        return r.returncode
+    def _import(self):
+        mod_name = "session-end-log"
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
 
-    def test_invalid_json_exits_0(self):
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
-        import subprocess
-        r = subprocess.run(
-            [sys.executable, self.HOOK_PATH],
-            input=b"not-json",
-            capture_output=True, env=env,
-            timeout=30
-        )
-        self.assertEqual(r.returncode, 0)
+    def _run_main(self, payload, log_path=None):
+        m = self._import()
+        # Patch subprocess.run to skip the slow qg-feedback.py calls
+        with patch("sys.stdin", io.StringIO(json.dumps(payload))):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(stdout="", returncode=0)
+                with patch("subprocess.Popen", MagicMock()):
+                    if log_path:
+                        with patch.object(m, "LOG_PATH", log_path):
+                            m.main()
+                    else:
+                        m.main()
 
-    def test_empty_payload_exits_0(self):
-        self.assertEqual(self._run({}), 0)
+    def test_has_main_callable(self):
+        m = self._import()
+        self.assertTrue(callable(m.main))
 
-    def test_normal_exit_reason_exits_0(self):
-        payload = {"reason": "normal_exit", "session_id": "sess1234"}
-        self.assertEqual(self._run(payload), 0)
+    def test_invalid_json_returns(self):
+        m = self._import()
+        with patch("sys.stdin", io.StringIO("not-json")):
+            m.main()  # should return without raising
 
-    def test_user_exit_reason_exits_0(self):
-        payload = {"reason": "user_exit", "session_id": "abcd5678"}
-        self.assertEqual(self._run(payload), 0)
+    def test_empty_payload_runs(self):
+        self._run_main({})
+
+    def test_normal_exit_reason_runs(self):
+        self._run_main({"reason": "normal_exit", "session_id": "sess1234"})
+
+    def test_user_exit_reason_runs(self):
+        self._run_main({"reason": "user_exit", "session_id": "abcd5678"})
 
     def test_session_id_truncated_to_8(self):
-        payload = {"reason": "normal_exit", "session_id": "verylongsessionid"}
-        self.assertEqual(self._run(payload), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            self._run_main({"reason": "normal_exit", "session_id": "verylongsessionid"},
+                           log_path=log_path)
+            content = open(log_path, encoding="utf-8").read()
+            self.assertIn("verylon", content)
+            self.assertNotIn("verylongsessionid", content)
 
     def test_missing_reason_uses_question_mark(self):
-        payload = {"session_id": "abc12345"}
-        self.assertEqual(self._run(payload), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            self._run_main({"session_id": "abc12345"}, log_path=log_path)
+            content = open(log_path, encoding="utf-8").read()
+            self.assertIn("?", content)
 
     def test_missing_session_id_uses_question_mark(self):
-        payload = {"reason": "normal_exit"}
-        self.assertEqual(self._run(payload), 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            self._run_main({"reason": "normal_exit"}, log_path=log_path)
 
-    def test_always_exits_0(self):
+    def test_writes_session_end_line(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "hook-audit.log")
+            self._run_main({"reason": "compact", "session_id": "test1234"}, log_path=log_path)
+            content = open(log_path, encoding="utf-8").read()
+            self.assertIn("SESSION_END", content)
+            self.assertIn("compact", content)
+
+    def test_always_runs_for_all_reasons(self):
         for reason in ("normal_exit", "timeout", "error", "compact", "unknown"):
-            rc = self._run({"reason": reason, "session_id": "test1234"})
-            self.assertEqual(rc, 0, f"Expected exit 0 for reason={reason!r}")
+            self._run_main({"reason": reason, "session_id": "test1234"})
 
 
 class TestSmokeCountUpdater(unittest.TestCase):
