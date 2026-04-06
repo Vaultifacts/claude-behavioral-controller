@@ -4027,9 +4027,17 @@ class TestQGMechanicalChecksAgent(unittest.TestCase):
     def setUp(self):
         self.qg = _load_qg()
 
-    def test_smoke14_agent_without_post_verify_blocks(self):
+    def test_smoke14_agent_last_skips_mechanical(self):
+        # Agent-last: subagent self-verifies internally — no MECHANICAL block
         result = self.qg.mechanical_checks(
             ['Agent'], [], [], [],
+            'The agent completed the task.', '')
+        self.assertIsNone(result)
+
+    def test_smoke14_agent_mid_without_post_verify_blocks(self):
+        # Agent mid-sequence without post-Bash → still blocks
+        result = self.qg.mechanical_checks(
+            ['Read', 'Agent', 'Read'], [], [], [],
             'The agent completed the task.', '')
         self.assertIsNotNone(result)
         self.assertIn('MECHANICAL', result)

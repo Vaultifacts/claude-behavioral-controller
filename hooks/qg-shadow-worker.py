@@ -54,6 +54,18 @@ def main():
     check_prompt = data.get('prompt', '')
     haiku_ok = data.get('haiku_ok', True)
     haiku_reason = data.get('haiku_reason', '')
+    user_request = data.get('user_request', '')
+
+    # Skip LAZINESS evaluation for trivial/greeting inputs — avoids false positives
+    _TRIVIAL_RE = re.compile(
+        r'^(?:hello|hi|hey|ok|okay|yes|no|thanks|thank\s+you|done|sure|great|got\s+it|'  
+        r'\d{1,2})$',
+        re.IGNORECASE
+    )
+    _user_words = user_request.strip().split()
+    if len(_user_words) <= 5 or _TRIVIAL_RE.match(user_request.strip()):
+        return  # trivial input — skip ollama to avoid LAZINESS false positives
+
 
     body = json.dumps({
         'model': _pick_model(), 'prompt': check_prompt + PHI4_NOTE, 'stream': False,

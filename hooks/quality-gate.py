@@ -482,14 +482,15 @@ def mechanical_checks(tool_names, edited_paths, bash_commands, failed_commands, 
     # Agent tool may contain edits — treat like code edit if no verification follows
     if has_agent and not has_code_edit:
         agent_idx = max(i for i, n in enumerate(tool_names) if n == 'Agent')
-        has_post_agent_verify = any(
-            n == 'Bash' for n in tool_names[agent_idx + 1:]
-        )
-        if not has_post_agent_verify:
-            # Check if agent description suggests code changes
-            # Can't see agent internals, so flag if no verification after agent
-            has_code_edit = True  # SMOKE:14
-            has_verification = False
+        # If Agent is the most recent tool call, subagent self-verifies internally — skip MECHANICAL
+        if tool_names[-1] != 'Agent':
+            has_post_agent_verify = any(
+                n == 'Bash' for n in tool_names[agent_idx + 1:]
+            )
+            if not has_post_agent_verify:
+                # Can't see agent internals, so flag if no verification after agent
+                has_code_edit = True  # SMOKE:14
+                has_verification = False
 
     if has_code_edit and not has_verification:  # SMOKE:2
         files = ", ".join(os.path.basename(p) for p in edited_paths[:3]) if edited_paths else "unknown"
@@ -676,7 +677,7 @@ If acceptable: {{"ok": true}}
 If real issue: {{"ok": false, "reason": "CATEGORY: specific issue"}}"""
 
     ok, reason, genuine = call_haiku_check(check_prompt)
-    _shadow_ollama_async(check_prompt, ok, reason)
+    _shadow_ollama_async(check_prompt, ok, reason, user_request)
     if genuine:
         write_cache(response, ok, reason)
     return ok, reason, genuine
@@ -819,13 +820,13 @@ FIX_DIRECTIVES = {
 # Shadow evaluation (Ollama, non-blocking)
 # ---------------------------------------------------------------------------
 
-def _shadow_ollama_async(check_prompt, haiku_ok, haiku_reason):
+def _shadow_ollama_async(check_prompt, haiku_ok, haiku_reason, user_request=''):
     """Spawn background process to evaluate with Ollama and log agreement."""
     import subprocess, tempfile
     worker = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'qg-shadow-worker.py')
     if not os.path.exists(worker):
         return
-    data = json.dumps({'haiku_ok': haiku_ok, 'haiku_reason': haiku_reason, 'prompt': check_prompt})
+    data = json.dumps({'haiku_ok': haiku_ok, 'haiku_reason': haiku_reason, 'prompt': check_prompt, 'user_request': user_request})
     tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8')
     tmp.write(data)
     tmp.close()
