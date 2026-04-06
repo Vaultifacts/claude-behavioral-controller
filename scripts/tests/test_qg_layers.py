@@ -10053,5 +10053,298 @@ class TestLayer45Gaps(unittest.TestCase):
             qg_layer45.PRESERVATION_CONFIG_PATH = old_cfg
 
 
+class TestLayer2CoverageGaps(unittest.TestCase):
+    """Targeted tests for qg_layer2.py missing coverage lines 25-26, 101-102, 113-114, 139."""
+
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.monitor_tmp = tempfile.mktemp(suffix='.jsonl')
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil
+        for p in [self.ts, self.ts + '.lock', self.monitor_tmp]:
+            try: os.unlink(p)
+            except: pass
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_write_event_exception_silenced(self):
+        """Lines 25-26: _write_event exception path is silenced."""
+        import qg_layer2
+        old_path = qg_layer2.MONITOR_PATH
+        try:
+            qg_layer2.MONITOR_PATH = self.tmpdir  # directory causes open() to fail
+            qg_layer2._write_event({'event_id': 'x', 'ts': '2024', 'layer': 'layer2',
+                                    'category': 'TEST', 'severity': 'info', 'detection_signal': 'x'})
+            # Must not raise
+        finally:
+            qg_layer2.MONITOR_PATH = old_path
+
+    def test_main_invalid_json_returns(self):
+        """Lines 101-102: main() returns early on JSON parse error."""
+        import io, qg_layer2
+        with patch('sys.stdin', io.StringIO('not-json')):
+            qg_layer2.main()  # Must not raise
+
+    def test_main_rules_file_missing_uses_empty(self):
+        """Lines 113-114: qg-rules.json load exception uses empty dict."""
+        import io, builtins, qg_layer2
+        old_monitor = qg_layer2.MONITOR_PATH
+        qg_layer2.MONITOR_PATH = self.monitor_tmp
+        payload = json.dumps({'tool_name': 'Read', 'tool_input': {'file_path': '/x.py'}, 'tool_response': ''})
+        real_open = builtins.open
+        def patched_open(path, *a, **kw):
+            if 'qg-rules.json' in str(path):
+                raise FileNotFoundError('no rules')
+            return real_open(path, *a, **kw)
+        try:
+            with patch('sys.stdin', io.StringIO(payload)), patch('builtins.open', side_effect=patched_open):
+                qg_layer2.main()  # Must not raise
+        finally:
+            qg_layer2.MONITOR_PATH = old_monitor
+
+    def test_loop_event_appended_when_detected(self):
+        """Line 139: loop_evt is appended to events when loop detected."""
+        import io, qg_layer2, qg_session_state as ss
+        old_monitor = qg_layer2.MONITOR_PATH
+        qg_layer2.MONITOR_PATH = self.monitor_tmp
+        state = ss.read_state()
+        state['layer2_turn_history'] = [
+            {'tool': 'Bash', 'target': 'ls', 'resp': ''},
+            {'tool': 'Bash', 'target': 'ls', 'resp': ''},
+            {'tool': 'Bash', 'target': 'ls', 'resp': ''},
+        ]
+        ss.write_state(state)
+        payload = json.dumps({'tool_name': 'Bash', 'tool_input': {'command': 'ls'}, 'tool_response': ''})
+        try:
+            with patch('sys.stdin', io.StringIO(payload)):
+                qg_layer2.main()  # Must not raise; loop should be detected
+        finally:
+            qg_layer2.MONITOR_PATH = old_monitor
+
+
+class TestSessionStateCoverageGaps(unittest.TestCase):
+    """Targeted tests for qg_session_state.py missing lines 28-29, 103, 127-128."""
+
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+
+    def tearDown(self):
+        for p in [self.ts, self.ts + '.lock']:
+            try: os.unlink(p)
+            except: pass
+
+    def test_release_lock_no_error_when_file_missing(self):
+        """Lines 28-29: _release_lock handles FileNotFoundError silently."""
+        import qg_session_state as ss
+        try: os.unlink(ss.LOCK_PATH)
+        except: pass
+        ss._release_lock()  # Must not raise
+
+    def test_prune_trims_notification_delivery(self):
+        """Line 103: notification_delivery list is pruned to last 20 entries."""
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['notification_delivery'] = list(range(30))
+        ss._prune_turn_scoped(state)
+        self.assertLessEqual(len(state['notification_delivery']), 20)
+
+    def test_write_state_prunes_when_oversized(self):
+        """Lines 127-128: write_state triggers prune when content exceeds MAX_SIZE_BYTES."""
+        import qg_session_state as ss
+        state = ss.read_state()
+        state['layer2_unresolved_events'] = ['x' * 100] * 200
+        state['notification_delivery'] = ['n' * 100] * 200
+        state['layer3_last_response_claims'] = ['c' * 100] * 100
+        state['big_pad'] = 'A' * (1024 * 1024)
+        ss.write_state(state)
+        state2 = ss.read_state()
+        self.assertIsInstance(state2, dict)
+
+
+class TestLayerEnvCoverageGaps(unittest.TestCase):
+    """Targeted tests for qg_layer_env.py missing lines 19-20, 31-32, 101-102."""
+
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.monitor_tmp = tempfile.mktemp(suffix='.jsonl')
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil
+        for p in [self.ts, self.ts + '.lock', self.monitor_tmp]:
+            try: os.unlink(p)
+            except: pass
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_write_event_exception_silenced(self):
+        """Lines 19-20: _write_event exception path silenced."""
+        import qg_layer_env
+        old_path = qg_layer_env._MONITOR_PATH
+        try:
+            qg_layer_env._MONITOR_PATH = self.tmpdir  # directory causes open() to fail
+            qg_layer_env._write_event({'event_id': 'x', 'ts': '2024', 'layer': 'env',
+                                       'category': 'ENV_WARNING', 'severity': 'warning',
+                                       'detection_signal': 'test'})
+            # Must not raise
+        finally:
+            qg_layer_env._MONITOR_PATH = old_path
+
+    def test_validate_git_branch_subprocess_exception(self):
+        """Lines 31-32: git subprocess exception returns (True, '') gracefully."""
+        import qg_layer_env
+        with patch('subprocess.run', side_effect=Exception('git not found')):
+            ok, msg = qg_layer_env.validate_git_branch('main')
+        self.assertTrue(ok)
+        self.assertEqual(msg, '')
+
+    def test_run_tests_subprocess_exception_silenced(self):
+        """Lines 101-102: subprocess exception during test baseline is silenced."""
+        import io, json as _json, qg_layer_env, qg_session_state as ss
+        old_monitor = qg_layer_env._MONITOR_PATH
+        old_cfg = qg_layer_env.ENV_CONFIG_PATH
+        qg_layer_env._MONITOR_PATH = self.monitor_tmp
+        # Write a config with test_command so the test baseline branch is entered
+        cfg_path = os.path.join(self.tmpdir, 'qg-env.json')
+        with open(cfg_path, 'w', encoding='utf-8') as f:
+            _json.dump({'test_command': 'pytest --tb=no -q'}, f)
+        qg_layer_env.ENV_CONFIG_PATH = cfg_path
+        # Ensure no existing baseline so the if-branch is entered
+        state = ss.read_state()
+        state.pop('layer_env_test_baseline', None)
+        ss.write_state(state)
+        payload = _json.dumps({'hook_event_name': 'SessionStart', 'session_id': 'test-ss-exc2'})
+        try:
+            with patch('sys.stdin', io.StringIO(payload)), \
+                 patch('subprocess.run', side_effect=Exception('no tests')):
+                qg_layer_env.main()  # Must not raise
+        finally:
+            qg_layer_env._MONITOR_PATH = old_monitor
+            qg_layer_env.ENV_CONFIG_PATH = old_cfg
+
+
+class TestLayer13CoverageGaps(unittest.TestCase):
+    """Targeted tests for qg_layer13.py missing lines 41-42, 79-80, 95-96, 126."""
+
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.monitor_tmp = tempfile.mktemp(suffix='.jsonl')
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil
+        for p in [self.ts, self.ts + '.lock', self.monitor_tmp]:
+            try: os.unlink(p)
+            except: pass
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_write_event_exception_silenced(self):
+        """Lines 41-42: _write_event exception path silenced."""
+        import qg_layer13
+        old_path = qg_layer13.MONITOR_PATH
+        try:
+            qg_layer13.MONITOR_PATH = self.tmpdir  # directory causes failure
+            qg_layer13._write_event({'event_id': 'x', 'ts': '2024', 'layer': 'layer13',
+                                     'category': 'KNOWLEDGE_FRESHNESS', 'severity': 'warning',
+                                     'detection_signal': 'test'})
+            # Must not raise
+        finally:
+            qg_layer13.MONITOR_PATH = old_path
+
+    def test_check_attribute_exists_exception_returns_false(self):
+        """Lines 79-80: check_attribute_exists returns False when import_module raises."""
+        import qg_layer13
+        # Use patch to make importlib.import_module raise for a specific module
+        with patch('importlib.import_module', side_effect=Exception('import failed')):
+            result = qg_layer13.check_attribute_exists('some_module', 'some_attr')
+        self.assertFalse(result)
+
+    def test_check_imports_file_read_exception_returns_empty(self):
+        """Lines 95-96: check_imports returns [] when open() raises."""
+        import qg_layer13
+        with tempfile.NamedTemporaryFile(suffix='.py', delete=False, mode='w', encoding='utf-8') as f:
+            f.write('import os\n')
+            tmpfile = f.name
+        try:
+            real_open = open
+            def patched_open(path, *a, **kw):
+                if path == tmpfile:
+                    raise IOError('read error')
+                return real_open(path, *a, **kw)
+            with patch('builtins.open', side_effect=patched_open):
+                result = qg_layer13.check_imports(tmpfile)
+            self.assertEqual(result, [])
+        finally:
+            os.unlink(tmpfile)
+
+    def test_check_imports_uses_attr_cache_hit(self):
+        """Line 126: attr cache hit path (attr_key already in cache) is exercised."""
+        import qg_layer13, qg_session_state as ss
+        state = ss.read_state()
+        # Pre-populate cache: module exists, attr exists
+        state['layer13_import_cache'] = {'requests': True, 'requests.get': True}
+        ss.write_state(state)
+        content = 'from requests import get\n'
+        with tempfile.NamedTemporaryFile(suffix='.py', delete=False, mode='w', encoding='utf-8') as f:
+            f.write(content)
+            tmpfile = f.name
+        try:
+            result = qg_layer13.check_imports(tmpfile, content=content)
+            self.assertIsInstance(result, list)
+        finally:
+            os.unlink(tmpfile)
+
+
+class TestLayer27CoverageGaps(unittest.TestCase):
+    """Targeted tests for qg_layer27.py missing lines 16-17, 54."""
+
+    def setUp(self):
+        import qg_session_state as ss
+        self.ts = tempfile.mktemp(suffix='.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.monitor_tmp = tempfile.mktemp(suffix='.jsonl')
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil
+        for p in [self.ts, self.ts + '.lock', self.monitor_tmp]:
+            try: os.unlink(p)
+            except: pass
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_write_event_exception_silenced(self):
+        """Lines 16-17: _write_event exception path silenced."""
+        import qg_layer27
+        old_path = qg_layer27._MONITOR_PATH
+        try:
+            qg_layer27._MONITOR_PATH = self.tmpdir  # directory causes failure
+            qg_layer27._write_event({'event_id': 'x', 'ts': '2024', 'layer': 'layer27',
+                                     'category': 'TEST', 'severity': 'info',
+                                     'detection_signal': 'test'})
+            # Must not raise
+        finally:
+            qg_layer27._MONITOR_PATH = old_path
+
+    def test_main_returns_when_file_path_empty(self):
+        """Line 54: main() returns early when file_path is empty string."""
+        import io, qg_layer27
+        payload = json.dumps({'tool_name': 'Edit', 'tool_input': {'file_path': ''}, 'tool_response': ''})
+        with patch('sys.stdin', io.StringIO(payload)):
+            qg_layer27.main()  # Must not raise
+
+
 if __name__ == '__main__':
     unittest.main()

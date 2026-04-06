@@ -107,6 +107,9 @@ ide/
 chrome/
 plugins/
 
+# Session plan files (ephemeral, auto-generated)
+plans/*.md
+
 # Temp/generated
 audit-log-test.md
 audit-summary.py

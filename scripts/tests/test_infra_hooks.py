@@ -7417,5 +7417,37 @@ class TestQualityGate(unittest.TestCase):
             pass  # Real implementations may have different signatures
 
 
+class TestContextWatchCoverageGaps(unittest.TestCase):
+    """Targeted tests for context-watch.py missing lines 67-68, 88-89."""
+
+    def _import(self):
+        mod_name = "context-watch"
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = __import__(mod_name)
+        return sys.modules[mod_name]
+
+    def test_toast_state_write_exception_silenced(self):
+        """Lines 67-68: exception during toast state write is silenced."""
+        m = self._import()
+        p = {"session_id": "s77", "context": {"tokens_used": 770, "context_window": 1000}}
+        with tempfile.TemporaryDirectory() as tmp:
+            # Patch os.replace to raise so the except block (lines 67-68) fires
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), \
+                 patch.object(m, "STATE_DIR", tmp), \
+                 patch("os.replace", side_effect=OSError("replace failed")), \
+                 patch("subprocess.Popen"):
+                m.main()  # Must not raise
+
+    def test_popen_exception_silenced(self):
+        """Lines 88-89: exception during subprocess.Popen is silenced."""
+        m = self._import()
+        p = {"session_id": "s78", "context": {"tokens_used": 780, "context_window": 1000}}
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("sys.stdin", io.StringIO(json.dumps(p))), \
+                 patch.object(m, "STATE_DIR", tmp), \
+                 patch("subprocess.Popen", side_effect=OSError("popen failed")):
+                m.main()  # Must not raise
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
