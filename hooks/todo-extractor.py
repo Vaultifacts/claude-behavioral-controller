@@ -19,7 +19,7 @@ PROJECTS_DIR = os.path.join(CLAUDE_DIR, 'projects')
 
 try:
     sys.path.insert(0, HOOKS_DIR)
-except ImportError:
+except ImportError:  # pragma: no cover
     def detect_project_name(payload):
         cwd = payload.get('workspace', {}).get('current_dir', '') or payload.get('cwd', '')
         if not cwd:

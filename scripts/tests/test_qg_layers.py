@@ -9919,5 +9919,139 @@ class TestFinalGapMicrofixes(unittest.TestCase):
         from qg_layer28 import check_security
         self.assertEqual(check_security('node_modules/vuln.py'), [])
 
+
+# ============================================================================
+# qg_layer45 targeted gap tests
+# ============================================================================
+class TestLayer45Gaps(unittest.TestCase):
+    """Targeted tests for qg_layer45.py missing coverage lines."""
+
+    def setUp(self):
+        import qg_session_state as ss
+        self.tmpdir = tempfile.mkdtemp()
+        self.ts = os.path.join(self.tmpdir, 'state.json')
+        ss.STATE_PATH = self.ts
+        ss.LOCK_PATH = self.ts + '.lock'
+        self.preserve_tmp = os.path.join(self.tmpdir, 'preserve.json')
+        self.monitor_tmp = os.path.join(self.tmpdir, 'monitor.jsonl')
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_write_event_exception_silenced(self):
+        """_write_event silently catches exceptions (lines 21-22)."""
+        import qg_layer45
+        old_path = qg_layer45._MONITOR_PATH
+        try:
+            # Point to a directory so open() raises
+            qg_layer45._MONITOR_PATH = self.tmpdir  # directory, not file
+            qg_layer45._write_event({'event_id': 'x', 'ts': '2024-01-01', 'layer': 'test',
+                                     'category': 'TEST', 'severity': 'info',
+                                     'detection_signal': 'test', 'session_uuid': ''})
+            # Must not raise
+        finally:
+            qg_layer45._MONITOR_PATH = old_path
+
+    def test_pre_compact_config_load_exception_silenced(self):
+        """handle_pre_compact silences config-load exception (lines 53, 56-57)."""
+        import qg_layer45, qg_session_state as ss
+        state = ss.read_state()
+        state['session_uuid'] = 'uuid-cfg-exc'
+        ss.write_state(state)
+        qg_layer45.PRESERVE_PATH = self.preserve_tmp
+        old_cfg = qg_layer45.PRESERVATION_CONFIG_PATH
+        try:
+            # Point config path to a directory to force JSON load exception
+            qg_layer45.PRESERVATION_CONFIG_PATH = self.tmpdir
+            qg_layer45._MONITOR_PATH = self.monitor_tmp
+            qg_layer45.handle_pre_compact()  # Must not raise
+            # Verify preserve file was still written
+            self.assertTrue(os.path.exists(self.preserve_tmp))
+        finally:
+            qg_layer45.PRESERVATION_CONFIG_PATH = old_cfg
+
+    def test_pre_compact_preserve_write_exception_silenced(self):
+        """handle_pre_compact silences PRESERVE_PATH write exception (lines 74-75)."""
+        import qg_layer45, qg_session_state as ss
+        state = ss.read_state()
+        state['session_uuid'] = 'uuid-write-exc'
+        ss.write_state(state)
+        qg_layer45._MONITOR_PATH = self.monitor_tmp
+        old_cfg = qg_layer45.PRESERVATION_CONFIG_PATH
+        try:
+            # Point PRESERVATION_CONFIG_PATH to nonexistent to skip config load
+            qg_layer45.PRESERVATION_CONFIG_PATH = os.path.join(self.tmpdir, 'nope.json')
+            # Point PRESERVE_PATH to a directory to force write failure
+            qg_layer45.PRESERVE_PATH = self.tmpdir  # directory raises on json.dump
+            qg_layer45.handle_pre_compact()  # Must not raise
+        finally:
+            qg_layer45.PRESERVE_PATH = self.preserve_tmp
+            qg_layer45.PRESERVATION_CONFIG_PATH = old_cfg
+
+    def test_post_compact_no_preserved_uuid_returns_early(self):
+        """handle_post_compact returns early when preserved_uuid is missing (line 92)."""
+        import json, qg_layer45, qg_session_state as ss
+        # Write a preserve file with no session_uuid
+        preserved = {'pre_compact_hash': '', 'active_task_description': 'task'}
+        with open(self.preserve_tmp, 'w', encoding='utf-8') as f:
+            json.dump(preserved, f)
+        state = ss.read_state()
+        state['session_uuid'] = 'some-uuid'
+        ss.write_state(state)
+        qg_layer45.PRESERVE_PATH = self.preserve_tmp
+        qg_layer45._MONITOR_PATH = self.monitor_tmp
+        # Should return early without modifying state
+        qg_layer45.handle_post_compact()
+        state2 = ss.read_state()
+        # active_task_description should NOT be injected from preserve (early return)
+        # The state may have '' as default, but not 'task' from the preserve file
+        self.assertNotEqual(state2.get('active_task_description'), 'task')
+
+    def test_pre_compact_config_with_valid_always_preserve(self):
+        """handle_pre_compact loads config and adds always_preserve keys (lines 51-52)."""
+        import json, qg_layer45, qg_session_state as ss
+        state = ss.read_state()
+        state['session_uuid'] = 'uuid-valid-cfg'
+        state['custom_extra_key'] = 'custom_value'
+        ss.write_state(state)
+        cfg_path = os.path.join(self.tmpdir, 'preservation-config.json')
+        with open(cfg_path, 'w', encoding='utf-8') as f:
+            json.dump({'always_preserve': ['custom_extra_key'], 'skip_preserve': []}, f)
+        qg_layer45.PRESERVE_PATH = self.preserve_tmp
+        qg_layer45._MONITOR_PATH = self.monitor_tmp
+        old_cfg = qg_layer45.PRESERVATION_CONFIG_PATH
+        try:
+            qg_layer45.PRESERVATION_CONFIG_PATH = cfg_path
+            qg_layer45.handle_pre_compact()
+            with open(self.preserve_tmp, 'r', encoding='utf-8') as f:
+                preserved = json.load(f)
+            self.assertEqual(preserved.get('custom_extra_key'), 'custom_value')
+        finally:
+            qg_layer45.PRESERVATION_CONFIG_PATH = old_cfg
+
+    def test_pre_compact_config_with_skip_preserve(self):
+        """handle_pre_compact removes skip_preserve keys (line 54-55)."""
+        import json, qg_layer45, qg_session_state as ss
+        state = ss.read_state()
+        state['session_uuid'] = 'uuid-skip-cfg'
+        state['active_task_id'] = 'task-to-skip'
+        ss.write_state(state)
+        cfg_path = os.path.join(self.tmpdir, 'preservation-config2.json')
+        with open(cfg_path, 'w', encoding='utf-8') as f:
+            json.dump({'always_preserve': [], 'skip_preserve': ['active_task_id']}, f)
+        qg_layer45.PRESERVE_PATH = self.preserve_tmp
+        qg_layer45._MONITOR_PATH = self.monitor_tmp
+        old_cfg = qg_layer45.PRESERVATION_CONFIG_PATH
+        try:
+            qg_layer45.PRESERVATION_CONFIG_PATH = cfg_path
+            qg_layer45.handle_pre_compact()
+            with open(self.preserve_tmp, 'r', encoding='utf-8') as f:
+                preserved = json.load(f)
+            self.assertNotIn('active_task_id', preserved)
+        finally:
+            qg_layer45.PRESERVATION_CONFIG_PATH = old_cfg
+
+
 if __name__ == '__main__':
     unittest.main()
