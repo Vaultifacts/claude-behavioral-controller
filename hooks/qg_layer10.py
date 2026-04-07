@@ -38,8 +38,24 @@ def validate_jsonl(path, quarantine_path=None):
                                 'raw': line[:200], 'error': str(ex)})
     if corrupt:
         ts = time.strftime('%Y-%m-%dT%H:%M:%S')
+        # Load existing quarantine keys to avoid re-quarantining same lines
+        seen_qkeys = set()
+        if os.path.exists(qpath):
+            try:
+                with open(qpath, 'r', encoding='utf-8', errors='replace') as f:
+                    for ql in f:
+                        try:
+                            qe = json.loads(ql.strip())
+                            seen_qkeys.add((qe.get('raw', '')[:200], qe.get('source', '')))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
         with open(qpath, 'a', encoding='utf-8') as f:
             for c in corrupt:
+                qkey = (c.get('raw', '')[:200], path)
+                if qkey in seen_qkeys:
+                    continue
                 c.update({'quarantine_ts': ts, 'source': path})
                 f.write(json.dumps(c, ensure_ascii=False) + chr(10))
     return valid, corrupt

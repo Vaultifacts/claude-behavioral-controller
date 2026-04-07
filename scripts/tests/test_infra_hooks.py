@@ -5320,7 +5320,7 @@ class TestQualityGate(unittest.TestCase):
         m = self._import()
         with patch("sys.stdin", io.StringIO(json.dumps(payload))):
             with patch.object(m, "LOG_PATH", log_path or os.devnull):
-                with patch.object(m, "get_tool_summary", return_value=([], [], [])):
+                with patch.object(m, "get_tool_summary", return_value=([], [], [], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value="fix the bug"):
                             with patch.object(m, "get_bash_results", return_value=[]):
@@ -5339,7 +5339,7 @@ class TestQualityGate(unittest.TestCase):
         m = self._import()
         with patch("sys.stdin", io.StringIO("not-json")):
             with patch.object(m, "LOG_PATH", os.devnull):
-                with patch.object(m, "get_tool_summary", return_value=([], [], [])):
+                with patch.object(m, "get_tool_summary", return_value=([], [], [], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value=""):
                             with patch.object(m, "get_bash_results", return_value=[]):
@@ -5354,7 +5354,7 @@ class TestQualityGate(unittest.TestCase):
             payload = {"transcript_path": "/nonexistent/transcript.jsonl", "last_assistant_message": "response"}
             with patch("sys.stdin", io.StringIO(json.dumps(payload))):
                 with patch.object(m, "LOG_PATH", log_file):
-                    with patch.object(m, "get_tool_summary", return_value=([], [], [])):
+                    with patch.object(m, "get_tool_summary", return_value=([], [], [], [])):
                         with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                             with patch.object(m, "get_user_request", return_value=""):
                                 with patch.object(m, "get_bash_results", return_value=[]):
@@ -5370,7 +5370,7 @@ class TestQualityGate(unittest.TestCase):
         output = []
         with patch("sys.stdin", io.StringIO(json.dumps({"last_assistant_message": "All done."}))):
             with patch.object(m, "LOG_PATH", os.devnull):
-                with patch.object(m, "get_tool_summary", return_value=(["Edit"], ["/app.py"], [])):
+                with patch.object(m, "get_tool_summary", return_value=(["Edit"], ["/app.py"], [], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value="fix"):
                             with patch.object(m, "get_failed_commands", return_value=[]):
@@ -5387,7 +5387,7 @@ class TestQualityGate(unittest.TestCase):
         m = self._import()
         with patch("sys.stdin", io.StringIO(json.dumps({"last_assistant_message": "response"}))):
             with patch.object(m, "LOG_PATH", os.devnull):
-                with patch.object(m, "get_tool_summary", return_value=([], [], [])):
+                with patch.object(m, "get_tool_summary", return_value=([], [], [], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value="fix"):
                             with patch.object(m, "get_bash_results", return_value=[]):
@@ -5405,7 +5405,7 @@ class TestQualityGate(unittest.TestCase):
         m = self._import()
         with patch("sys.stdin", io.StringIO(json.dumps({"last_assistant_message": "response"}))):
             with patch.object(m, "LOG_PATH", os.devnull):
-                with patch.object(m, "get_tool_summary", return_value=([], [], [])):
+                with patch.object(m, "get_tool_summary", return_value=([], [], [], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value="fix"):
                             with patch.object(m, "get_bash_results", return_value=[]):
@@ -5425,7 +5425,7 @@ class TestQualityGate(unittest.TestCase):
         m = self._import()
         with patch("sys.stdin", io.StringIO(json.dumps({"last_assistant_message": "response"}))):
             with patch.object(m, "LOG_PATH", os.devnull):
-                with patch.object(m, "get_tool_summary", return_value=([], [], [])):
+                with patch.object(m, "get_tool_summary", return_value=([], [], [], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value="Stop hook feedback: retry"):
                             with patch.object(m, "get_bash_results", return_value=[]):
@@ -5445,7 +5445,7 @@ class TestQualityGate(unittest.TestCase):
         m = self._import()
         with patch("sys.stdin", io.StringIO(json.dumps({"last_assistant_message": "response"}))):
             with patch.object(m, "LOG_PATH", os.devnull):
-                with patch.object(m, "get_tool_summary", return_value=([], [], [])):
+                with patch.object(m, "get_tool_summary", return_value=([], [], [], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value="Stop hook feedback: retry"):
                             with patch.object(m, "get_bash_results", return_value=[]):
@@ -5464,7 +5464,7 @@ class TestQualityGate(unittest.TestCase):
         m = self._import()
         with patch("sys.stdin", io.StringIO(json.dumps({"last_assistant_message": "response"}))):
             with patch.object(m, "LOG_PATH", os.devnull):
-                with patch.object(m, "get_tool_summary", return_value=([], [], [])):
+                with patch.object(m, "get_tool_summary", return_value=([], [], [], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value="fix"):
                             with patch.object(m, "get_bash_results", return_value=[]):
@@ -6326,7 +6326,7 @@ class TestQualityGate(unittest.TestCase):
         recorded = []
         with patch("sys.stdin", io.StringIO(json.dumps({"last_assistant_message": "5 passed, 0 failed, 5 total"}))):
             with patch.object(m, "LOG_PATH", os.devnull):
-                with patch.object(m, "get_tool_summary", return_value=(["Bash"], [], ["pytest"])):
+                with patch.object(m, "get_tool_summary", return_value=(["Bash"], [], ["pytest"], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value="run tests"):
                             with patch.object(m, "get_bash_results", return_value=[]):
@@ -6349,7 +6349,7 @@ class TestQualityGate(unittest.TestCase):
         response = "=== Results: 3 passed ==="
         with patch("sys.stdin", io.StringIO(json.dumps({"last_assistant_message": response}))):
             with patch.object(m, "LOG_PATH", os.devnull):
-                with patch.object(m, "get_tool_summary", return_value=([], [], [])):
+                with patch.object(m, "get_tool_summary", return_value=([], [], [], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value="run tests"):
                             with patch.object(m, "get_bash_results", return_value=[]):
@@ -6380,7 +6380,7 @@ class TestQualityGate(unittest.TestCase):
             payload = {"transcript_path": tf, "last_assistant_message": "response"}
             with patch("sys.stdin", io.StringIO(json.dumps(payload))):
                 with patch.object(m, "LOG_PATH", log_file):
-                    with patch.object(m, "get_tool_summary", return_value=([], [], [])):
+                    with patch.object(m, "get_tool_summary", return_value=([], [], [], [])):
                         with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                             with patch.object(m, "get_user_request", return_value=""):
                                 with patch.object(m, "get_bash_results", return_value=[]):
@@ -6722,7 +6722,7 @@ class TestQualityGate(unittest.TestCase):
     def test_get_tool_summary_no_file(self):
         """Lines 195-216: get_tool_summary with nonexistent path → all empty."""
         m = self._import()
-        names, paths, cmds = m.get_tool_summary("/nonexistent/t.jsonl")
+        names, paths, cmds, _ = m.get_tool_summary("/nonexistent/t.jsonl")
         self.assertEqual(names, [])
         self.assertEqual(paths, [])
         self.assertEqual(cmds, [])
@@ -6744,7 +6744,7 @@ class TestQualityGate(unittest.TestCase):
                 ]}},
             ]
             self._write_jsonl(tf, records)
-            names, paths, cmds = m.get_tool_summary(tf)
+            names, paths, cmds, _ = m.get_tool_summary(tf)
         self.assertIn("Edit", names)
         self.assertIn("Bash", names)
         self.assertIn("Write", names)
@@ -6766,7 +6766,7 @@ class TestQualityGate(unittest.TestCase):
                 ]}},
             ]
             self._write_jsonl(tf, records)
-            names, paths, cmds = m.get_tool_summary(tf)
+            names, paths, cmds, _ = m.get_tool_summary(tf)
         self.assertIn("Read", names)
         self.assertEqual(paths, [])
         self.assertEqual(cmds, [])
@@ -7033,7 +7033,7 @@ class TestQualityGate(unittest.TestCase):
         output = []
         with patch("sys.stdin", io.StringIO(json.dumps({"last_assistant_message": "done"}))):
             with patch.object(m, "LOG_PATH", os.devnull):
-                with patch.object(m, "get_tool_summary", return_value=(["Edit"], ["/f.py"], [])):
+                with patch.object(m, "get_tool_summary", return_value=(["Edit"], ["/f.py"], [], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value="fix"):
                             with patch.object(m, "get_failed_commands", return_value=[]):
@@ -7050,7 +7050,7 @@ class TestQualityGate(unittest.TestCase):
         output = []
         with patch("sys.stdin", io.StringIO(json.dumps({"last_assistant_message": "response"}))):
             with patch.object(m, "LOG_PATH", os.devnull):
-                with patch.object(m, "get_tool_summary", return_value=([], [], [])):
+                with patch.object(m, "get_tool_summary", return_value=([], [], [], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value="fix"):
                             with patch.object(m, "get_bash_results", return_value=[]):
@@ -7074,7 +7074,7 @@ class TestQualityGate(unittest.TestCase):
         output = []
         with patch("sys.stdin", io.StringIO(json.dumps({"last_assistant_message": "response"}))):
             with patch.object(m, "LOG_PATH", os.devnull):
-                with patch.object(m, "get_tool_summary", return_value=([], [], [])):
+                with patch.object(m, "get_tool_summary", return_value=([], [], [], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value="fix"):
                             with patch.object(m, "get_bash_results", return_value=[]):
@@ -7094,7 +7094,7 @@ class TestQualityGate(unittest.TestCase):
         output = []
         with patch("sys.stdin", io.StringIO(json.dumps({"last_assistant_message": "response"}))):
             with patch.object(m, "LOG_PATH", os.devnull):
-                with patch.object(m, "get_tool_summary", return_value=([], [], [])):
+                with patch.object(m, "get_tool_summary", return_value=([], [], [], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value="fix"):
                             with patch.object(m, "get_bash_results", return_value=[]):
@@ -7434,7 +7434,7 @@ class TestQualityGate(unittest.TestCase):
                     raise OSError("log write fail")
                 return orig_open(path, *args, **kwargs)
             with patch("sys.stdin", io.StringIO(json.dumps(payload))):
-                with patch.object(m, "get_tool_summary", return_value=([], [], [])):
+                with patch.object(m, "get_tool_summary", return_value=([], [], [], [])):
                     with patch.object(m, "get_last_complexity", return_value="MODERATE"):
                         with patch.object(m, "get_user_request", return_value=""):
                             with patch.object(m, "get_bash_results", return_value=[]):
