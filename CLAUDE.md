@@ -79,6 +79,16 @@ Substitute evidence (e.g., "smoke test passes") does NOT address specific contra
 - Node.js and Python conventions are in `.claude/rules/` (path-scoped, load on demand)
 - New projects: `newproject <name>` (shell alias)
 
+## Web Research Rules
+When any task requires fetching web content:
+- **Search first**: Use `WebSearch` to find current valid URLs before `WebFetch` — never guess or construct URLs from memory
+- **Bot-blocked domains** (will 403 every time — use `mcp__claude-in-chrome` or `chrome-devtools-mcp` instead):
+  - All `canada.ca` / CRA pages
+  - `bdo.ca`, `pwc.com`, `kpmg.com`, `deloitte.ca`, `ey.com`
+- **Never retry a 403** — it's a server-side bot block, not a transient error
+- **301/302**: Follow the redirect URL in a new `WebFetch` call — don't treat the redirect response as content
+- **Responses under ~500 bytes**: Treat as failure — almost always a redirect stub, not real content
+
 ## Rules for Claude
 - Read project CLAUDE.md first — it overrides everything here
 - Always check file existence before writing to avoid overwrites of unknown files

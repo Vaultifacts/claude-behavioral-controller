@@ -39,7 +39,13 @@
       "WebFetch(domain:docs.mistral.ai)",
       "WebFetch(domain:ised-isde.canada.ca)",
       "WebFetch(domain:corporationscanada.ic.gc.ca)",
-      "WebFetch(domain:tpsfirm.com)"
+      "WebFetch(domain:tpsfirm.com)",
+      "Skill(hookify:hookify)",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "mcp__claude_ai_Supabase__deploy_edge_function",
+      "mcp__claude_ai_Supabase__get_project_url",
+      "mcp__claude_ai_Supabase__get_publishable_keys"
     ]
   },
   "remote": {
