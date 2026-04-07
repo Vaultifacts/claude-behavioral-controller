@@ -89,6 +89,28 @@ When any task requires fetching web content:
 - **301/302**: Follow the redirect URL in a new `WebFetch` call — don't treat the redirect response as content
 - **Responses under ~500 bytes**: Treat as failure — almost always a redirect stub, not real content
 
+## Source Credibility & Recency
+
+**Source tiers** — apply when fetching or citing web content:
+- **Tier 1 (preferred)**: Official primary sources — government portals (canada.ca, gc.ca, irs.gov), standards bodies (ISO, NIST, IETF/RFC), regulators (CRA, OSC, SEC), official library/framework/language docs, peer-reviewed papers (via publisher DOI).
+- **Tier 2 (acceptable)**: Established publishers — major newspapers (CBC, Globe and Mail, Reuters, AP), recognized trade press, professional associations (CPA Canada, CBA), official academic institutions.
+- **Tier 3 (with corroboration only)**: Wikipedia (stable non-regulatory facts only), Stack Overflow (vote count > 50 + recent), MDN for web APIs.
+- **Do not cite**: Personal blogs, vendor/marketing pages, undated content, press releases as primary fact, SEO content farms.
+
+**Recency thresholds** — re-search or flag stale content when:
+- Tax rates, RRSP/TFSA limits, benefit amounts, regulatory thresholds: **current calendar year required** — prior-year figures must be flagged as potentially outdated.
+- Software versions, API references, SDK docs: **within 12 months**, unless user specifies an exact version.
+- Legal/regulatory guidance (non-numeric): **within 24 months** — flag older content as potentially superseded.
+- Historical facts, mathematical constants, stable technical concepts: **no threshold**.
+
+**Operational rules:**
+- When fetched content has no visible publication or "last updated" date, state this explicitly. Do not assume it is current.
+- If Tier 1 conflicts with Tier 2/3, Tier 1 wins. State the conflict and your resolution.
+- If no current source exists for a time-sensitive figure, say so. Give the most recent verified value with its date.
+- **User override**: If the user says the data can be old or asks for a rough estimate, skip freshness requirements. Do not repeat the caveat more than once.
+- **Exempt tasks**: These rules apply only when fetching or citing web content. Code edits, file operations, and reasoning tasks are exempt.
+- **Subagents**: If dispatching an Agent to do web research, include source credibility requirements in the agent's prompt.
+
 ## Rules for Claude
 - Read project CLAUDE.md first — it overrides everything here
 - Always check file existence before writing to avoid overwrites of unknown files

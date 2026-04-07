@@ -45,7 +45,8 @@
       "mcp__claude_ai_Supabase__apply_migration",
       "mcp__claude_ai_Supabase__deploy_edge_function",
       "mcp__claude_ai_Supabase__get_project_url",
-      "mcp__claude_ai_Supabase__get_publishable_keys"
+      "mcp__claude_ai_Supabase__get_publishable_keys",
+      "mcp__claude_ai_Supabase__search_docs"
     ]
   },
   "remote": {
