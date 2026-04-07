@@ -38,7 +38,8 @@
       "WebFetch(domain:ai.google.dev)",
       "WebFetch(domain:docs.mistral.ai)",
       "WebFetch(domain:ised-isde.canada.ca)",
-      "WebFetch(domain:corporationscanada.ic.gc.ca)"
+      "WebFetch(domain:corporationscanada.ic.gc.ca)",
+      "WebFetch(domain:tpsfirm.com)"
     ]
   },
   "remote": {

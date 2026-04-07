@@ -2452,3 +2452,10 @@
 2026-04-07T15:07:37 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked to check specific files for security issues but response on
 2026-04-07T15:08:29 | PASS | PASS | agree | ollama:(no reason)
 2026-04-07T15:09:44 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for specific checks but response gives general advice witho
+2026-04-07T15:11:37 | PASS | PASS | agree | ollama:(no reason)
+2026-04-07T15:12:14 | PASS | PASS | agree | ollama:(no reason)
+2026-04-07T15:13:38 | PASS | PASS | agree | ollama:(no reason)
+2026-04-07T15:14:33 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims settings are correct without showing individual checks or
+2026-04-07T15:15:29 | PASS | PASS | agree | ollama:(no reason)
+2026-04-07T15:16:17 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims substantial build work completed without showing evidence
+2026-04-07T15:19:31 | PASS | PASS | agree | ollama:(no reason)
