@@ -12,6 +12,7 @@ Usage via alias: qg fp | tp | miss | report | failures | milestone | trend | pre
   qg milestone "desc"    — Record a fix deployment milestone in quality-gate.log
   qg trend [N]           — Show block-rate trend across last N sessions (default 10)
   qg precision           — Estimate precision per category using override records as FP signal
+  qg precision-cloud     — Show precision/recall/F1 from cloud ensemble labels + tamper audit
   qg scan                — Scan recent PASS entries for structural false-negative signals
   qg weekly              — Compare this week's quality gate metrics against last week
   qg coverage [--diff]   — Show which quality-gate.py branches have smoke test coverage
@@ -862,6 +863,87 @@ def cmd_precision():
         print('     Once labeled, this command will show recall and F1 score.')
 
 
+def cmd_precision_cloud():
+    """Show precision/recall/F1 from cloud ensemble labels + tamper audit."""
+    import urllib.request
+    import urllib.error
+
+    url = os.environ.get('SUPABASE_QG_URL', '').rstrip('/')
+    key = os.environ.get('SUPABASE_QG_ANON_KEY', '')
+
+    # Fall back to ~/.claude/.env if not in environment
+    if not url or not key:
+        env_path = os.path.join(CLAUDE_DIR, '.env')
+        if os.path.exists(env_path):
+            with open(env_path, encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('SUPABASE_QG_URL=') and not url:
+                        url = line.split('=', 1)[1].strip().rstrip('/')
+                    elif line.startswith('SUPABASE_QG_ANON_KEY=') and not key:
+                        key = line.split('=', 1)[1].strip()
+
+    if not url or not key:
+        print('ERROR: SUPABASE_QG_URL and SUPABASE_QG_ANON_KEY must be set in environment or ~/.claude/.env')
+        return
+
+    # Call SECURITY DEFINER RPC — returns aggregate counts, no individual rows
+    rpc_url = f'{url}/rest/v1/rpc/get_qg_stats'
+    req = urllib.request.Request(
+        rpc_url,
+        data=b'{}',
+        headers={
+            'apikey': key,
+            'Authorization': f'Bearer {key}',
+            'Content-Type': 'application/json',
+        },
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            stats = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        print(f'ERROR: Supabase RPC returned HTTP {e.code}: {e.read().decode()}')
+        return
+    except Exception as e:
+        print(f'ERROR: Could not reach Supabase: {e}')
+        return
+
+    ev_total  = stats.get('evidence_total', 0)
+    labeled   = stats.get('labeled_total', 0)
+    tp        = stats.get('tp_count', 0)
+    fp        = stats.get('fp_count', 0)
+    skip      = stats.get('skip_count', 0)
+    split     = stats.get('split_count', 0)
+
+    # Tamper audit: compare evidence inserts vs quality-gate.log BLOCK count
+    log_blocks = 0
+    if os.path.exists(LOG_PATH):
+        with open(LOG_PATH, encoding='utf-8', errors='replace') as f:
+            for line in f:
+                if '| BLOCK |' in line:
+                    log_blocks += 1
+
+    audit_status = 'OK' if ev_total == log_blocks else f'DIVERGENCE DETECTED ({log_blocks} in log vs {ev_total} in Supabase)'
+
+    print('=== Quality Gate Precision (Cloud) ===')
+    print(f'Evidence inserts:  {ev_total}')
+    print(f'Log BLOCK count:   {log_blocks}  [tamper audit: {audit_status}]')
+    labeled_pct = f'{labeled/ev_total*100:.0f}%' if ev_total else 'n/a'
+    print(f'Labeled:           {labeled}  ({labeled_pct})')
+    print()
+    print(f'TP: {tp}  FP: {fp}  SKIP: {skip}  SPLIT: {split}')
+
+    if tp + fp > 0:
+        precision = tp / (tp + fp) * 100
+        print(f'Precision:  {precision:.1f}%  (TP / (TP+FP), excludes SKIP/SPLIT)')
+    else:
+        print('Precision:  n/a  (no TP or FP labels yet)')
+
+    if labeled < 10:
+        print('\nNote: fewer than 10 labels — metrics will stabilize with more data.')
+
+
 def cmd_weekly():
     """Compare this week's quality gate metrics against last week."""
     all_entries = parse_log_entries()
@@ -1496,6 +1578,8 @@ def main():
         cmd_trend(n)
     elif cmd == 'precision':
         cmd_precision()
+    elif cmd == 'precision-cloud':
+        cmd_precision_cloud()
     elif cmd == 'scan':
         cmd_scan()
     elif cmd == 'weekly':

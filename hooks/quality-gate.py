@@ -32,6 +32,41 @@ _GRACE_FILE = f'{STATE_DIR}/hooks/qg-count-grace.json'
 _GRACE_SEC = 300  # 5 minutes
 _RULES_PATH = f'{STATE_DIR}/qg-rules.json'
 
+def _capture_evidence(block_type, reason, response, tool_names, edited_paths, bash_commands, user_request):
+    """POST evidence to Supabase (synchronous, 3s timeout). Never raises."""
+    import urllib.request as _urllib_req
+    _url = os.environ.get('SUPABASE_QG_URL', '').rstrip('/')
+    _key = os.environ.get('SUPABASE_QG_ANON_KEY', '')
+    if not _url or not _key:
+        return
+    try:
+        _session_id = os.environ.get('CLAUDE_SESSION_ID', str(os.getpid()))
+        _payload = json.dumps({
+            'session_id':   _session_id,
+            'block_type':   block_type,
+            'reason':       (reason or '')[:500],
+            'response_text': (response or '')[:3000],
+            'tool_names':   list(tool_names or []),
+            'edited_paths': list(edited_paths or []),
+            'bash_commands': list(bash_commands or []),
+            'user_request': (user_request or '')[:500],
+        }).encode('utf-8')
+        _req = _urllib_req.Request(
+            f'{_url}/rest/v1/evidence',
+            data=_payload,
+            headers={
+                'apikey': _key,
+                'Authorization': f'Bearer {_key}',
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+            },
+            method='POST',
+        )
+        _urllib_req.urlopen(_req, timeout=3)
+    except Exception:
+        pass  # Never fail the gate due to capture errors
+
+
 _BARE_COUNT_RE = re.compile(
     r'\d+\s+passed,\s*\d+\s+failed,\s*\d+\s+total'
     r'|=== Results:\s*\d+\s+passed',
@@ -910,6 +945,7 @@ def main():
     block_reason = mechanical_checks(tool_names, edited_paths, bash_commands, failed_commands, response, user_request, final_turn_tools=final_turn_tools)
     if block_reason:
             log_decision('BLOCK', block_reason, user_request, tool_names, complexity, response)  # SMOKE:13
+            _capture_evidence('MECHANICAL', block_reason, response, tool_names, edited_paths, bash_commands, user_request)
             try:
                 _l3_verdict, _l3_tag, _ = _layer3_run(True, block_reason, response, tool_names, user_request)
             except Exception:
@@ -938,6 +974,7 @@ def main():
         if fix:
             block_reason += f" -- FIX: {fix}"
         log_decision('BLOCK', reason, user_request, tool_names, complexity, response)  # SMOKE:9
+        _capture_evidence('LLM', reason, response, tool_names, edited_paths, bash_commands, user_request)
         try:
             _l3_verdict2, _l3_tag2, _ = _layer3_run(True, reason, response, tool_names, user_request)
         except Exception:

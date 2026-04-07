@@ -27,7 +27,16 @@
       "mcp__plugin_serena_serena__search_for_pattern",
       "mcp__plugin_serena_serena__replace_symbol_body",
       "mcp__plugin_serena_serena__insert_after_symbol",
-      "WebFetch(domain:blog.poshmark.com)"
+      "WebFetch(domain:blog.poshmark.com)",
+      "WebFetch(domain:platform.openai.com)",
+      "WebFetch(domain:openai.com)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "mcp__claude_ai_Figma__whoami",
+      "mcp__claude_ai_Figma__create_new_file",
+      "mcp__claude_ai_Figma__use_figma",
+      "WebFetch(domain:supabase.com)",
+      "WebFetch(domain:ai.google.dev)",
+      "WebFetch(domain:docs.mistral.ai)"
     ]
   },
   "remote": {
