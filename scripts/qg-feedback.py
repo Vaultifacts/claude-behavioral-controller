@@ -18,6 +18,7 @@ Usage via alias: qg fp | tp | miss | report | failures | milestone | trend | pre
   qg auto-detect         — Auto-detect potential false positives from recent session block rate
   qg cross-check         — Cross-check quality-gate.py vs quality-gate-analyst.py for consistency
   qg shadow [N]          — Show Ollama shadow vs Haiku agreement (last N); --diff, --clear, --trend
+  qg label [N]           — Interactive labeling: mark recent BLOCK decisions as TP or FP (default N=20)
   qg monitor             — Unified quality gate dashboard (L2 events, TP/FP/FN/TN, trends, patterns)
   qg analyze             — Trigger cross-session pattern analysis (Layer 6)
   qg integrity           — Audit trail integrity check and quarantine report (Layer 10)
@@ -137,6 +138,110 @@ def cmd_miss():
     }
     write_feedback(record)
     print(f"Recorded FALSE NEGATIVE (missed block) for: \"{(req or 'unknown')[:60]}\"")
+
+
+def cmd_label(n=20):
+    """Interactive labeling: review recent BLOCK decisions as TP or FP."""
+    all_entries = parse_log_entries()
+    all_entries, _ = filter_smoke_tests(all_entries)
+    blocks = [e for e in all_entries if e['decision'] == 'BLOCK']
+    blocks.sort(key=lambda e: e['ts'], reverse=True)
+
+    # Load already-labeled hashes (from feedback + overrides)
+    labeled_hashes = set()
+    if os.path.exists(FEEDBACK_PATH):
+        try:
+            with open(FEEDBACK_PATH, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    r = json.loads(line)
+                    h = r.get('hash', '')
+                    if h and r.get('type') in ('fp', 'tp'):
+                        labeled_hashes.add(h)
+        except Exception:
+            pass
+    if os.path.exists(OVERRIDES_PATH):
+        try:
+            with open(OVERRIDES_PATH, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    h = json.loads(line).get('response_hash', '')
+                    if h:
+                        labeled_hashes.add(h)
+        except Exception:
+            pass
+
+    unlabeled = [b for b in blocks if b.get('hash') and b['hash'] not in labeled_hashes]
+    if not unlabeled:
+        print('All recent BLOCK decisions are already labeled. No new items to review.')
+        return
+
+    to_label = unlabeled[:n]
+    print(f'=== Quality Gate Labeling Session ===')
+    print(f'Reviewing {len(to_label)} unlabeled BLOCK decisions (newest first)')
+    print(f'Commands:  y = TP (block was correct)   n = FP (false positive)   s = skip   q = quit')
+    print()
+
+    tp_count = fp_count = skip_count = 0
+    for i, entry in enumerate(to_label, 1):
+        ts_str = entry['ts'].strftime('%Y-%m-%d %H:%M')
+        print(f'[{i}/{len(to_label)}] {ts_str}  |  {entry["category"]}')
+        req_display = entry.get('req', '').strip()
+        if req_display:
+            print(f'  Request:  {req_display[:80]}')
+        print(f'  Reason:   {entry["reason"][:100]}')
+        try:
+            choice = input('  Label [y/n/s/q]: ').strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            print()
+            break
+        if choice == 'q':
+            break
+        elif choice == 'y':
+            record = {
+                'ts': datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+                'type': 'tp',
+                'hash': entry['hash'],
+                'category': entry['category'],
+                'reason': entry['reason'],
+                'req': entry.get('req', ''),
+                'labeled_via': 'label',
+            }
+            write_feedback(record)
+            tp_count += 1
+            print('  -> Labeled TP\n')
+        elif choice == 'n':
+            record = {
+                'ts': datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+                'type': 'fp',
+                'hash': entry['hash'],
+                'category': entry['category'],
+                'reason': entry['reason'],
+                'req': entry.get('req', ''),
+                'labeled_via': 'label',
+            }
+            write_feedback(record)
+            fp_count += 1
+            print('  -> Labeled FP\n')
+        else:
+            skip_count += 1
+            print('  -> Skipped\n')
+
+    labeled = tp_count + fp_count
+    if labeled > 0:
+        session_prec = tp_count / labeled * 100
+        print(f'Session: {labeled} labeled — {tp_count} TP, {fp_count} FP, {skip_count} skipped')
+        print(f'Session precision: {session_prec:.0f}%')
+        remaining = len(unlabeled) - labeled - skip_count
+        if remaining > 0:
+            print(f'{remaining} more unlabeled decisions remain. Run "qg label" again to continue.')
+        print('Run "qg precision" for updated full-history metrics.')
+    else:
+        print('No decisions labeled this session.')
 
 
 def cmd_report():
@@ -721,6 +826,40 @@ def cmd_precision():
             print(f'  {r["ts"][:10]} | {r.get("block_reason","")[:60]}')
     if confirmed_tps:
         print(f'Confirmed TPs (qg tp): {len(confirmed_tps)}')
+
+    # Recall and F1 using labeled TPs and miss records
+    miss_count = 0
+    tp_labeled = len(confirmed_tps)
+    fp_labeled = len(confirmed_fps)
+    if os.path.exists(FEEDBACK_PATH):
+        try:
+            with open(FEEDBACK_PATH, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    r = json.loads(line)
+                    if r.get('type') == 'miss':
+                        miss_count += 1
+        except Exception:
+            pass
+
+    if miss_count > 0 or tp_labeled > 0:
+        print()
+        print(f'False negatives recorded (qg miss): {miss_count}')
+        if tp_labeled > 0:
+            recall = tp_labeled / (tp_labeled + miss_count) * 100 if (tp_labeled + miss_count) > 0 else 0.0
+            print(f'Recall estimate (labeled TPs only):  {recall:.1f}%  ({tp_labeled} TP / {tp_labeled + miss_count} TP+FN)')
+            if precision > 0 and recall > 0:
+                p_frac = precision / 100
+                r_frac = recall / 100
+                f1 = 2 * p_frac * r_frac / (p_frac + r_frac) * 100
+                print(f'F1 estimate:                         {f1:.1f}%')
+        else:
+            print('Tip: Run "qg label" to label BLOCK decisions as TP/FP for recall and F1 metrics.')
+    elif total > 0:
+        print(f'\nTip: Run "qg label" to label BLOCK decisions, then "qg miss" when gate misses a bad response.')
+        print('     Once labeled, this command will show recall and F1 score.')
 
 
 def cmd_weekly():
@@ -1425,6 +1564,9 @@ def main():
         else:
             n = int(sys.argv[2]) if len(sys.argv) >= 3 and sys.argv[2].isdigit() else 50
             cmd_shadow(n, diff='--diff' in sys.argv)
+    elif cmd == 'label':
+        n = int(sys.argv[2]) if len(sys.argv) >= 3 and sys.argv[2].isdigit() else 20
+        cmd_label(n)
     elif cmd == 'monitor':
         cmd_monitor()
     elif cmd == 'analyze':
@@ -1442,7 +1584,7 @@ def main():
             cmd_rules()
     else:
         print(f'Unknown command: {cmd}')
-        print('Usage: qg fp | tp | miss | report | failures | milestone | auto-detect | cross-check | trend [N] | precision | scan | weekly | coverage [--diff] | shadow [N] [--diff] [--clear] [--trend] | monitor | analyze | integrity | rules [apply|reject N]')
+        print('Usage: qg fp | tp | miss | report | failures | milestone | auto-detect | cross-check | trend [N] | precision | scan | weekly | coverage [--diff] | shadow [N] [--diff] [--clear] [--trend] | label [N] | monitor | analyze | integrity | rules [apply|reject N]')
         sys.exit(1)
 
 
