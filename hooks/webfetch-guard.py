@@ -1,6 +1,14 @@
 import sys, json, re
 
 # Exact domains known to block automated requests (verified 403s)
+# Use mcp__claude-in-chrome or chrome-devtools-mcp for these instead.
+#
+# IMPORTANT: This is EXACT match only (not subdomain matching).
+# Verified-accessible Canada subdomains (return 200 OK -- do NOT add here):
+#   ised-isde.canada.ca, ic.gc.ca, canada.ca subdomains generally vary --
+#   test each one individually before blocking.
+# To add a domain: verify it returns 403 on a real fetch, then add the
+# exact host string (e.g. 'www.example.com' and 'example.com' separately).
 BLOCKED_DOMAINS = [
     'www.canada.ca',
     'canada.ca',

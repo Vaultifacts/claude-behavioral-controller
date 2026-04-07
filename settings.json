@@ -9,7 +9,7 @@
     "MAX_MCP_OUTPUT_TOKENS": "25000",
     "CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS": "10000",
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "90",
-    "SUPABASE_QG_URL": "-NotePropertyValuehttps://qkuswxdvidajrqqizwdr.supabase.co",
+    "SUPABASE_QG_URL": "https://qkuswxdvidajrqqizwdr.supabase.co",
     "SUPABASE_QG_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrdXN3eGR2aWRhanJxcWl6d2RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NzM1MzYsImV4cCI6MjA5MTE0OTUzNn0.0EdWwAWrnx9eKJn68wSrUMPPvMHrp4Wofl9SQ2CLCgA"
   },
   "attribution": {
@@ -404,7 +404,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell.exe -WindowStyle Hidden -File C:/Users/Matt1/.claude/hooks/notify.ps1 -Title 'Claude Code \u2014 Session Failed' -Message 'Rate limit or billing error. Check your Anthropic dashboard.' -Level Error -Duration 8000 2>/dev/null || true"
+            "command": "powershell.exe -WindowStyle Hidden -File C:/Users/Matt1/.claude/hooks/notify.ps1 -Title 'Claude Code — Session Failed' -Message 'Rate limit or billing error. Check your Anthropic dashboard.' -Level Error -Duration 8000 2>/dev/null || true"
           }
         ]
       }
@@ -663,7 +663,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'PLAN=$(find C:/Users/Matt1/.claude/plans/ -maxdepth 1 -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); CTX=\"Memory index: ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md. RULE: Never assume or guess \u2014 verify by reading code, or escalate to the user.\"; if [ -n \"$PLAN\" ]; then CTX=\"$CTX. Active plan: $PLAN\"; fi; jq -n --arg ctx \"$CTX\" \"{hookSpecificOutput:{hookEventName:\\\"SubagentStart\\\",additionalContext:\\$ctx}}\"'",
+            "command": "bash -c 'PLAN=$(find C:/Users/Matt1/.claude/plans/ -maxdepth 1 -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); CTX=\"Memory index: ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md. RULE: Never assume or guess — verify by reading code, or escalate to the user.\"; if [ -n \"$PLAN\" ]; then CTX=\"$CTX. Active plan: $PLAN\"; fi; jq -n --arg ctx \"$CTX\" \"{hookSpecificOutput:{hookEventName:\\\"SubagentStart\\\",additionalContext:\\$ctx}}\"'",
             "async": false
           }
         ]
@@ -697,7 +697,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'INPUT=$(cat); SUMMARY=$(echo \"$INPUT\" | jq -r \".compact_summary // empty\" 2>/dev/null); PLAN=$(find C:/Users/Matt1/.claude/plans/ -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); if [ -n \"$PLAN\" ]; then echo \"[post-compact] Active plan: $PLAN \u2014 re-read it to resume work.\"; fi; echo \"[post-compact] Memory at ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md\"; if [ -n \"$SUMMARY\" ]; then echo \"[post-compact] Summary: $SUMMARY\"; fi'"
+            "command": "bash -c 'INPUT=$(cat); SUMMARY=$(echo \"$INPUT\" | jq -r \".compact_summary // empty\" 2>/dev/null); PLAN=$(find C:/Users/Matt1/.claude/plans/ -name \"*.md\" -printf \"%T@ %p\\n\" 2>/dev/null | sort -rn | head -1 | cut -d\" \" -f2); if [ -n \"$PLAN\" ]; then echo \"[post-compact] Active plan: $PLAN — re-read it to resume work.\"; fi; echo \"[post-compact] Memory at ~/.claude/projects/C--Users-Matt1/memory/MEMORY.md\"; if [ -n \"$SUMMARY\" ]; then echo \"[post-compact] Summary: $SUMMARY\"; fi'"
           }
         ]
       },

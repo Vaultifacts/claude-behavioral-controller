@@ -43,7 +43,7 @@ interface ModelResult {
 
 // ── model callers ──────────────────────────────────────────────────────────────
 async function callGemini(prompt: string): Promise<ModelResult> {
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
   const body = {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
@@ -64,7 +64,7 @@ async function callGemini(prompt: string): Promise<ModelResult> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
+    if (!res.ok) { const errBody = await res.text(); throw new Error(`Gemini HTTP ${res.status}: ${errBody}`); }
     const data = await res.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     const parsed = JSON.parse(text);
