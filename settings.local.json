@@ -36,7 +36,9 @@
       "mcp__claude_ai_Figma__use_figma",
       "WebFetch(domain:supabase.com)",
       "WebFetch(domain:ai.google.dev)",
-      "WebFetch(domain:docs.mistral.ai)"
+      "WebFetch(domain:docs.mistral.ai)",
+      "WebFetch(domain:ised-isde.canada.ca)",
+      "WebFetch(domain:corporationscanada.ic.gc.ca)"
     ]
   },
   "remote": {
