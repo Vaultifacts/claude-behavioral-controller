@@ -2463,3 +2463,7 @@
 2026-04-07T15:40:48 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked to replace Mistral with Grok in multiple files but response
 2026-04-07T15:42:41 | PASS | PASS | agree | ollama:(no reason)
 2026-04-07T15:44:52 | PASS | PASS | agree | ollama:(no reason)
+2026-04-07T15:46:06 | BLOCK | BLOCK | agree | haiku:LAZINESS: User asked to upgrade PowerShell and use Supabase, but the response on | ollama:OVERCONFIDENCE: Absolute claims without evidence. Response makes completion clai
+2026-04-07T15:46:55 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims fixes are sound general approaches but does not show work
+2026-04-07T15:47:24 | PASS | PASS | agree | ollama:(no reason)
+2026-04-07T15:51:32 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for N things but response doesn't address each one individu
