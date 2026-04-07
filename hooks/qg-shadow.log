@@ -2476,3 +2476,6 @@
 2026-04-07T16:14:28 | PASS | PASS | agree | ollama:(no reason)
 2026-04-07T16:16:01 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for verification of multiple items but response only addres
 2026-04-07T16:17:39 | PASS | PASS | agree | ollama:(no reason)
+2026-04-07T16:23:41 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all steps are done without showing verification output fo
+2026-04-07T16:24:40 | PASS | BLOCK | disagree | ollama:LAZINESS: User asked for an exhaustive review of multiple files but response onl
+2026-04-07T16:26:43 | PASS | BLOCK | disagree | ollama:OVERCONFIDENCE: Claims all three domains are correctly handled without showing i
