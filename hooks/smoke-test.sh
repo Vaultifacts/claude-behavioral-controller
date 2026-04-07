@@ -1697,7 +1697,7 @@ spec = importlib.util.spec_from_file_location('qg', os.path.expanduser('~/.claud
 qg = importlib.util.module_from_spec(spec); spec.loader.exec_module(qg)
 # Write fresh grace file with key=388
 gf = qg._GRACE_FILE
-with open(gf, 'w') as f: json.dump({'ts': time.time(), 'key': '388'}, f)
+with open(gf, 'w') as f: json.dump({'ts': time.time(), 'key': '388,0'}, f)
 # Response cites 388 passed with no verification -> grace should suppress
 resp = 'Smoke tests pass -- 388 passed, 0 failed, 388 total'
 result = qg.mechanical_checks([], [], [], [], resp)
@@ -1710,7 +1710,7 @@ spec = importlib.util.spec_from_file_location('qg', os.path.expanduser('~/.claud
 qg = importlib.util.module_from_spec(spec); spec.loader.exec_module(qg)
 # Grace key=388, response mentions 200 AND 388 (findall should find 388)
 gf = qg._GRACE_FILE
-with open(gf, 'w') as f: json.dump({'ts': time.time(), 'key': '388'}, f)
+with open(gf, 'w') as f: json.dump({'ts': time.time(), 'key': '388,0'}, f)
 resp = 'Old run: 200 passed. Current: 388 passed, 0 failed, 388 total'
 result = qg.mechanical_checks([], [], [], [], resp)
 assert result is None, f'multi-count grace failed: {result}'
@@ -1777,7 +1777,7 @@ try:
     qg._record_verified_counts('=== Results: 400 passed, 0 failed, 400 total ===', [])
     assert os.path.exists(gf_tmp), 'grace file not written via fallback'
     with open(gf_tmp) as f: d = json.load(f)
-    assert d['key'] == '400', f'wrong key: {d}'
+    assert d['key'] == '400,0', f'wrong key: {d}'
     with open(tmp) as f: log = f.read()
     assert 'GRACE-WRITE' in log, 'GRACE-WRITE not logged for fallback'
     print('fallback_ok')
@@ -1812,7 +1812,7 @@ qg.LOG_PATH = tmp
 gf_tmp = tempfile.mktemp(suffix='.json')
 qg._GRACE_FILE = gf_tmp
 try:
-    with open(gf_tmp, 'w') as f: json.dump({'ts': time.time(), 'key': '396'}, f)
+    with open(gf_tmp, 'w') as f: json.dump({'ts': time.time(), 'key': '396,0'}, f)
     result = qg._check_count_grace('396 passed, 0 failed, 396 total')
     assert result is True, 'grace check should return True'
     with open(tmp) as f: log = f.read()
@@ -1934,7 +1934,7 @@ try:
     gw.main()
     assert os.path.exists(gf), 'grace file not written'
     d = json.load(open(gf))
-    assert d.get('key') == '37', f'wrong key: {d}'
+    assert d.get('key') == '37,0', f'wrong key: {d}'
     assert time.time() - d.get('ts', 0) < 5, 'ts too old'
     log = open(lf).read()
     assert 'GRACE-WRITE' in log, 'GRACE-WRITE not in log'

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """PostToolUse hook: write grace file when a Bash tool produces test-runner output."""
-import json, os, re, sys
+import json
+import re, os, re, sys
 
 _GRACE_FILE = os.path.join(os.path.expanduser("~/.claude"), "hooks", "qg-count-grace.json").replace("\\", "/")
 _LOG_PATH = os.path.join(os.path.expanduser("~/.claude"), "quality-gate.log")
@@ -23,10 +24,11 @@ def main():
     if not text or not _BARE_COUNT_RE.search(text):
         return
     m = _COUNT_NUM_RE.search(text)
-    if not m:
-        return
+    if not m:  # pragma: no cover
+        return  # pragma: no cover
     import time
-    key = m.group(1)
+    mf = re.search(r'(\d+)\s+failed', text, re.IGNORECASE)
+    key = '{},{}'.format(m.group(1), mf.group(1) if mf else '0')
     try:
         with open(_GRACE_FILE, "w") as gf:
             import json as _j
@@ -35,8 +37,8 @@ def main():
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with open(_LOG_PATH, "a", encoding="utf-8") as lf:
             lf.write(now + " | GRACE-WRITE | key=" + key + " | source=PostToolUse" + chr(10))
-    except Exception:
-        pass
+    except Exception:  # pragma: no cover
+        pass  # pragma: no cover
 
 
 if __name__ == "__main__":  # pragma: no cover

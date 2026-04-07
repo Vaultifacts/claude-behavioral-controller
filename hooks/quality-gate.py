@@ -66,8 +66,10 @@ def _record_verified_counts(response, tool_names=None):
         import time as _t
         m = _COUNT_NUM_RE.search(response or '')
         if m and _BARE_COUNT_RE.search(response or ''):
+            _mf = re.search(r'(\d+)\s+failed', response or '', re.IGNORECASE)
+            _grace_key = '{},{}'.format(m.group(1), _mf.group(1) if _mf else '0')
             with open(_GRACE_FILE, 'w') as _gf:
-                json.dump({'ts': _t.time(), 'key': m.group(1)}, _gf)
+                json.dump({'ts': _t.time(), 'key': _grace_key}, _gf)
             try:
                 now = __import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 tools_str = ','.join((tool_names or [])[:5]) or '-'
@@ -88,8 +90,12 @@ def _check_count_grace(response):
         if _t.time() - data.get('ts', 0) > _GRACE_SEC:
             return False
         saved_key = data.get('key', '')
-        all_counts = _COUNT_NUM_RE.findall(response or '')
-        hit = bool(saved_key and saved_key in all_counts)
+        _all_passed = _COUNT_NUM_RE.findall(response or '')
+        _mf = re.search(r'(\d+)\s+failed', response or '', re.IGNORECASE)
+        _fail_str = _mf.group(1) if _mf else '0'
+        hit = bool(saved_key and any(
+            '{},{}'.format(_p, _fail_str) == saved_key for _p in _all_passed
+        ))
         if hit:
             try:
                 now = __import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -569,7 +575,7 @@ def mechanical_checks(tool_names, edited_paths, bash_commands, failed_commands, 
             re.IGNORECASE
         )
         _vevid_re = re.compile(
-            r'(?:===.*===|`[^`\n]{5,}`|\d+\s+passed,?\s*\d+\s+failed|\d+\s+passed\b|'
+            r'(?:===.*===|`[^`\n]*\d[^`\n]*`|\d+\s+passed,?\s*\d+\s+failed|\d+\s+passed\b|'
             r'\bexit\s*(?:code\s*)?\d+\b|Results?:\s*\d+|\d+\s+total)',
             re.IGNORECASE
         )

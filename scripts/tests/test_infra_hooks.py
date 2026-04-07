@@ -121,6 +121,16 @@ class TestBlockSecrets(unittest.TestCase):
         with patch("sys.stdin", io.StringIO(json.dumps(p))):
             with self.assertRaises(SystemExit) as ctx: m.main()
         self.assertEqual(ctx.exception.code, 2)
+    def test_is_allowlisted_star_prefix_pattern(self):
+        """Lines 82-84: elif pattern.startswith('*') branch — pattern like '*.key' matches basename ending."""
+        m = self._import()
+        orig = list(m.ALLOWLIST_PATHS)
+        m.ALLOWLIST_PATHS.append("*.key")
+        try:
+            self.assertTrue(m.is_allowlisted("/some/path/private.key"))
+            self.assertFalse(m.is_allowlisted("/some/path/private.pem"))
+        finally:
+            m.ALLOWLIST_PATHS[:] = orig
 
 class TestContextWatch(unittest.TestCase):
     HOOK_PATH = os.path.join(HOOKS_DIR, "context-watch.py")
@@ -880,7 +890,7 @@ class TestQgGraceWriter(unittest.TestCase):
             gf = os.path.join(tmp, "g.json"); lf = os.path.join(tmp, "q.log")
             with patch.object(m, "_GRACE_FILE", gf), patch.object(m, "_LOG_PATH", lf), \
                  patch("sys.stdin", io.StringIO(json.dumps(p))): m.main()
-            self.assertEqual(json.load(open(gf))["key"], "42")
+            self.assertEqual(json.load(open(gf))["key"], "42,0")
     def test_invalid_json_noop(self):
         m = self._import()
         with patch("sys.stdin", io.StringIO("bad")): m.main()
@@ -4989,7 +4999,7 @@ class TestQualityGate(unittest.TestCase):
             log_file = os.path.join(tmp, "qg.log")
             import time
             with open(grace_file, "w") as f:
-                json.dump({"ts": time.time(), "key": "42"}, f)
+                json.dump({"ts": time.time(), "key": "42,0"}, f)
             with patch.object(m, "_GRACE_FILE", grace_file), \
                  patch.object(m, "LOG_PATH", log_file):
                 result = m._check_count_grace("42 passed, 0 failed, 42 total")
@@ -5870,7 +5880,7 @@ class TestQualityGate(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             grace_file = os.path.join(tmp, "grace.json")
             with open(grace_file, "w") as f:
-                json.dump({"ts": _t.time(), "key": "42"}, f)
+                json.dump({"ts": _t.time(), "key": "42,0"}, f)
             import builtins as _bt
             orig_open = _bt.open
             def patched_open(path, *args, **kwargs):
