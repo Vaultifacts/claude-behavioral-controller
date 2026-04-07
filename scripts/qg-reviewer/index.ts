@@ -8,7 +8,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const GEMINI_KEY   = Deno.env.get('GEMINI_API_KEY')!;
 const OPENAI_KEY   = Deno.env.get('OPENAI_API_KEY')!;
-const MISTRAL_KEY  = Deno.env.get('MISTRAL_API_KEY')!;
+const GROK_KEY     = Deno.env.get('XAI_API_KEY')!;
 
 const db = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -99,22 +99,22 @@ async function callOpenAI(prompt: string): Promise<ModelResult> {
   }
 }
 
-async function callMistral(prompt: string): Promise<ModelResult> {
+async function callGrok(prompt: string): Promise<ModelResult> {
   const body = {
-    model: 'mistral-large-latest',
+    model: 'grok-3',
     messages: [{ role: 'user', content: prompt }],
     response_format: { type: 'json_object' },
   };
   try {
-    const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+    const res = await fetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${MISTRAL_KEY}`,
+        'Authorization': `Bearer ${GROK_KEY}`,
       },
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error(`Mistral HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`Grok HTTP ${res.status}`);
     const data = await res.json();
     const text = data?.choices?.[0]?.message?.content ?? '';
     const parsed = JSON.parse(text);
@@ -172,13 +172,13 @@ async function reviewEvidence(evidenceId: string): Promise<void> {
     return fn(prompt); // one retry
   };
 
-  const [gemini, openai, mistral] = await Promise.all([
+  const [gemini, openai, grok] = await Promise.all([
     callWithRetry(callGemini),
     callWithRetry(callOpenAI),
-    callWithRetry(callMistral),
+    callWithRetry(callGrok),
   ]);
 
-  const results = [gemini, openai, mistral];
+  const results = [gemini, openai, grok];
   const { verdict, confidence } = majorityVote(results);
   const errors = results.filter(r => r.error).map(r => r.error);
 
@@ -189,7 +189,7 @@ async function reviewEvidence(evidenceId: string): Promise<void> {
     model_verdicts: {
       gemini:  { verdict: gemini.verdict,  reason: gemini.reason,  error: gemini.error },
       openai:  { verdict: openai.verdict,  reason: openai.reason,  error: openai.error },
-      mistral: { verdict: mistral.verdict, reason: mistral.reason, error: mistral.error },
+      grok:    { verdict: grok.verdict,    reason: grok.reason,    error: grok.error },
     },
     confidence:    confidence,
     notes:         errors.length ? `Model errors: ${errors.join('; ')}` : null,

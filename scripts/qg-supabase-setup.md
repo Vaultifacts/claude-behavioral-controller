@@ -34,7 +34,7 @@ In the Supabase dashboard → Edge Functions → Manage Secrets, add:
 |------------------|------------------------------|
 | `GEMINI_API_KEY`  | Your Google AI Studio key    |
 | `OPENAI_API_KEY`  | Your OpenAI key              |
-| `MISTRAL_API_KEY` | Your Mistral AI key          |
+| `XAI_API_KEY`     | Your xAI (Grok) key         |
 
 > Note: `SUPABASE_SERVICE_ROLE_KEY` is auto-injected — do NOT add it manually.
 
@@ -130,7 +130,7 @@ Precision:  XX.X%  (TP / (TP+FP))
 Based on 129 BLOCKs/day observed (≈3,782/month):
 - Gemini 2.0 Flash: ~$0.00 (free tier covers this volume)
 - GPT-4o-mini: ~$0.150/1M input tokens
-- Mistral Large: ~$0.002/1K tokens
+- Grok-3: ~$3/1M input tokens
 
 **Total: ~$9.72/month** at observed block rate (within $2–10 budget).
 
