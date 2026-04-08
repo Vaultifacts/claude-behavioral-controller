@@ -4,7 +4,7 @@ import json, os, re, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-THRESHOLD = 90
+THRESHOLD = 80
 
 def _load_api_key():
     try:
@@ -41,7 +41,7 @@ def _extract_last_exchange(transcript_path):
                 content = msg.get('content', '')
                 if isinstance(content, str) and content.strip():
                     text = content.strip()
-                    if text.startswith('Stop hook feedback:') or 'CSCA GATE:' in text or 'QUALITY GATE:' in text:
+                    if text.startswith('Stop hook feedback:') or (len(text) < 500 and ('CSCA GATE:' in text or 'QUALITY GATE:' in text)):
                         continue
                     user_req = text[:500]
                     break
@@ -50,7 +50,7 @@ def _extract_last_exchange(transcript_path):
                              if isinstance(item, dict) and item.get('type') == 'text']
                     if texts:
                         joined = ' '.join(texts).strip()
-                        if joined.startswith('Stop hook feedback:') or 'CSCA GATE:' in joined or 'QUALITY GATE:' in joined:
+                        if joined.startswith('Stop hook feedback:') or (len(joined) < 500 and ('CSCA GATE:' in joined or 'QUALITY GATE:' in joined)):
                             continue
                         user_req = joined[:500]
                         break

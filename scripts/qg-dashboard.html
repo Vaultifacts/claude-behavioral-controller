@@ -3,222 +3,1350 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Quality Gate Dashboard</title>
+<title>Claude Behavioral Control Dashboard</title>
 <style>
+  /* === Reset & Base === */
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #0f0f0f; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; }
-  header { background: #1a1a1a; border-bottom: 1px solid #2a2a2a; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
-  header h1 { font-size: 18px; font-weight: 600; color: #fff; }
-  #refresh-btn { margin-left: auto; background: #2a2a2a; border: 1px solid #3a3a3a; color: #ccc; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-  #refresh-btn:hover { background: #333; }
-  #last-updated { color: #555; font-size: 12px; }
+  body { background: #0a0a0a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+
+  /* === Header === */
+  header { background: #111; border-bottom: 1px solid #222; padding: 14px 24px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100; }
+  header h1 { font-size: 17px; font-weight: 600; color: #fff; }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .header-meta { font-size: 12px; color: #888; white-space: nowrap; }
+  #refresh-btn { background: #1e1e1e; border: 1px solid #333; color: #ccc; padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  #refresh-btn:hover { background: #2a2a2a; }
+
+  /* === Status pill (local server) === */
+  .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  .status-pill.online { background: #0f2e1a; color: #4ade80; border: 1px solid #166534; }
+  .status-pill.offline { background: #2a1a0a; color: #fbbf24; border: 1px solid #78350f; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* === Tabs === */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid #222; background: #0f0f0f; padding: 0 24px; }
+  .tab-btn { background: none; border: none; color: #888; padding: 12px 20px; cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .15s; }
+  .tab-btn:hover { color: #ccc; }
+  .tab-btn.active { color: #fff; border-bottom-color: #4ade80; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* === Layout === */
   main { padding: 24px; max-width: 1400px; margin: 0 auto; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 28px; }
-  .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 18px 20px; }
-  .card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #666; margin-bottom: 8px; }
-  .card .value { font-size: 32px; font-weight: 700; line-height: 1; }
-  .card.precision .value { color: #4ade80; }
-  .card.tp .value { color: #4ade80; }
-  .card.fp .value { color: #f87171; }
-  .card.neutral .value { color: #94a3b8; }
-  .card .sub { font-size: 11px; color: #555; margin-top: 6px; }
-  .audit { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 14px 20px; margin-bottom: 28px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
-  .audit .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .audit.ok .dot { background: #4ade80; }
-  .audit.warn .dot { background: #fbbf24; }
-  .section-title { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; }
-  .table-wrap { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; overflow: hidden; }
+  .section { margin-bottom: 32px; }
+  .section-title { font-size: 12px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .section-title .title-badge { font-size: 11px; font-weight: 500; background: #1e1e1e; color: #888; padding: 2px 8px; border-radius: 10px; text-transform: none; letter-spacing: 0; }
+
+  /* === Cards === */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+  .cards-5 { grid-template-columns: repeat(5, 1fr); }
+  .cards-4 { grid-template-columns: repeat(4, 1fr); }
+  .cards-3 { grid-template-columns: repeat(3, 1fr); }
+  .card { background: #141414; border: 1px solid #222; border-radius: 10px; padding: 16px 18px; }
+  .card .c-label { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: #666; margin-bottom: 10px; }
+  .card .c-value { font-size: 30px; font-weight: 700; line-height: 1; color: #fff; }
+  .card .c-sub { font-size: 11px; color: #666; margin-top: 6px; line-height: 1.4; }
+  .card.green .c-value { color: #4ade80; }
+  .card.red .c-value { color: #f87171; }
+  .card.yellow .c-value { color: #fbbf24; }
+  .card.blue .c-value { color: #60a5fa; }
+
+  /* === Tables === */
+  .table-wrap { background: #141414; border: 1px solid #222; border-radius: 10px; overflow: hidden; }
   table { width: 100%; border-collapse: collapse; }
-  th { background: #141414; color: #555; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 10px 14px; text-align: left; border-bottom: 1px solid #2a2a2a; white-space: nowrap; }
-  td { padding: 10px 14px; border-bottom: 1px solid #1e1e1e; vertical-align: top; }
+  th { background: #0f0f0f; color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 10px 14px; text-align: left; border-bottom: 1px solid #222; white-space: nowrap; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: #aaa; }
+  th.sort-active { color: #e0e0e0; }
+  .sort-arrow { font-size: 10px; margin-left: 3px; }
+  td { padding: 10px 14px; border-bottom: 1px solid #1a1a1a; vertical-align: middle; font-size: 13px; }
   tr:last-child td { border-bottom: none; }
-  tr:hover td { background: #1f1f1f; }
+  tr:hover td { background: #1a1a1a; }
+  tr[data-clickable] { cursor: pointer; }
+  .empty-cell { padding: 32px; text-align: center; color: #555; font-size: 13px; }
+
+  /* === Badges === */
   .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
   .badge-TP { background: #14532d; color: #4ade80; }
   .badge-FP { background: #450a0a; color: #f87171; }
-  .badge-SKIP { background: #1c1917; color: #78716c; }
+  .badge-SKIP { background: #1c1917; color: #aaa; }
   .badge-SPLIT { background: #1e1a07; color: #fbbf24; }
+  .badge-critical { background: #450a0a; color: #f87171; }
+  .badge-warning { background: #1e1a07; color: #fbbf24; }
+  .badge-info { background: #0f1a2e; color: #60a5fa; }
+
+  /* === Model dots === */
   .model-dots { display: flex; gap: 4px; align-items: center; }
   .model-dot { width: 10px; height: 10px; border-radius: 50%; }
   .dot-TP { background: #4ade80; }
   .dot-FP { background: #f87171; }
-  .dot-null, .dot-error { background: #3f3f46; }
-  .dot-SKIP { background: #78716c; }
-  .reason-strong { color: #e0e0e0; font-size: 12px; display: block; line-height: 1.4; max-width: 320px; word-break: break-word; }
-  .reason-sub { color: #555; font-size: 11px; display: block; margin-top: 2px; max-width: 320px; word-break: break-word; }
-  .ts { color: #555; font-size: 12px; white-space: nowrap; }
-  .btype { color: #666; font-size: 12px; }
-  .conf { font-size: 12px; color: #666; }
-  .empty-cell { padding: 40px; text-align: center; color: #555; }
-  .error-bar { background: #1a0a0a; border: 1px solid #450a0a; color: #f87171; padding: 14px 20px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }
+  .dot-SKIP { background: #888; }
+  .dot-null, .dot-error { background: #333; }
+
+  /* === Bar chart (div-based) === */
+  .bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 80px; padding: 0 4px; }
+  .bar-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+  .bar-fill { width: 100%; background: #2a3a4a; border-radius: 3px 3px 0 0; min-height: 2px; transition: height .3s; }
+  .bar-label { font-size: 10px; color: #555; white-space: nowrap; }
+  .bar-val { font-size: 10px; color: #888; }
+
+  /* === Horizontal bars (confidence dist) === */
+  .hbar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .hbar-label { font-size: 12px; color: #aaa; width: 120px; flex-shrink: 0; }
+  .hbar-track { flex: 1; background: #1a1a1a; border-radius: 4px; height: 16px; overflow: hidden; }
+  .hbar-fill { height: 100%; border-radius: 4px; transition: width .4s; }
+  .hbar-count { font-size: 12px; color: #888; width: 35px; text-align: right; flex-shrink: 0; }
+
+  /* === Audit bar === */
+  .audit-bar { background: #141414; border: 1px solid #222; border-radius: 8px; padding: 12px 18px; display: flex; align-items: center; gap: 10px; font-size: 13px; margin-bottom: 20px; }
+  .audit-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* === Filter bar === */
+  .filter-bar { display: flex; gap: 16px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .filter-group { display: flex; align-items: center; gap: 8px; }
+  .filter-label { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: #666; }
+  .filter-select { background: #141414; border: 1px solid #333; color: #e0e0e0; padding: 5px 10px; border-radius: 5px; font-size: 13px; cursor: pointer; outline: none; }
+  .filter-select:hover { border-color: #555; }
+  .filter-select option { background: #141414; }
+
+  /* === Modal === */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.8); z-index: 1000; align-items: center; justify-content: center; }
+  .modal-overlay.active { display: flex; }
+  .modal { background: #141414; border: 1px solid #2a2a2a; border-radius: 12px; padding: 28px 32px; max-width: 700px; width: 90%; max-height: 88vh; overflow-y: auto; position: relative; }
+  .modal-close { position: absolute; top: 14px; right: 16px; background: none; border: none; color: #666; font-size: 20px; cursor: pointer; padding: 4px 8px; }
+  .modal-close:hover { color: #e0e0e0; }
+  .modal-title { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 20px; padding-right: 32px; }
+  .modal-section { margin-bottom: 18px; }
+  .modal-label { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: #666; margin-bottom: 5px; }
+  .modal-value { font-size: 13px; color: #e0e0e0; line-height: 1.5; word-break: break-word; }
+  .modal-models { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .modal-model { background: #0f0f0f; border: 1px solid #222; border-radius: 8px; padding: 12px; }
+  .modal-model-name { font-size: 12px; font-weight: 700; color: #aaa; margin-bottom: 6px; }
+  .modal-model-verdict { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .modal-model-reason { font-size: 11px; color: #888; line-height: 1.4; }
+  .modal-model-error { font-size: 11px; color: #f87171; margin-top: 4px; }
+  .modal-meta { display: flex; gap: 20px; flex-wrap: wrap; }
+
+  /* === Feedback === */
+  .feedback-section { margin-top: 24px; border-top: 1px solid #222; padding-top: 18px; }
+  .feedback-section textarea { width: 100%; background: #0f0f0f; border: 1px solid #222; border-radius: 6px; color: #e0e0e0; font-family: inherit; font-size: 13px; padding: 10px 12px; resize: vertical; min-height: 72px; margin-bottom: 10px; }
+  .feedback-section textarea:focus { outline: none; border-color: #444; }
+  .feedback-buttons { display: flex; gap: 8px; align-items: center; }
+  .fb-btn { background: #1e1e1e; border: 1px solid #333; color: #e0e0e0; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .fb-btn:hover { background: #2a2a2a; }
+  .fb-btn.fb-correct.active { border-color: #4ade80; color: #4ade80; background: #0f2e1a; }
+  .fb-btn.fb-wrong.active { border-color: #f87171; color: #f87171; background: #2a0a0a; }
+  .fb-confirm { font-size: 12px; color: #4ade80; display: none; margin-left: 8px; }
+  .fb-confirm.visible { display: inline; }
+
+  /* === Misc === */
+  .error-bar { background: #1a0808; border: 1px solid #450a0a; color: #f87171; padding: 12px 18px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; }
+  .conf { font-size: 12px; }
+  .ts { font-size: 12px; color: #888; white-space: nowrap; }
+  .reason-strong { color: #e0e0e0; font-size: 12px; display: block; line-height: 1.4; max-width: 340px; word-break: break-word; }
+  .reason-sub { color: #888; font-size: 11px; display: block; margin-top: 2px; max-width: 340px; }
+  .legend { display: flex; gap: 16px; font-size: 11px; color: #888; flex-wrap: wrap; margin-bottom: 20px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } .cards-5,.cards-4,.cards-3 { grid-template-columns: repeat(2,1fr); } }
 </style>
 </head>
 <body>
+
 <header>
-  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#4ade80" stroke-width="1.5"/><path d="M6 10l3 3 5-5" stroke="#4ade80" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  <h1>Quality Gate Dashboard</h1>
-  <span id="last-updated"></span>
-  <button id="refresh-btn">Refresh</button>
+  <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#4ade80" stroke-width="1.5"/><path d="M6 10l3 3 5-5" stroke="#4ade80" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <h1>Claude Behavioral Control Dashboard</h1>
+  <div class="header-right">
+    <span id="local-pill" class="status-pill offline"><span class="status-dot"></span><span id="local-pill-text">Local Offline</span></span>
+    <span class="header-meta" id="header-meta"></span>
+    <button id="refresh-btn">Refresh</button>
+  </div>
 </header>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="overview">Overview</button>
+  <button class="tab-btn" data-tab="behavior">Behavior</button>
+  <button class="tab-btn" data-tab="verdicts">AI Verdicts</button>
+</div>
+
+<!-- ══════════ TAB: OVERVIEW ══════════ -->
+<div class="tab-content active" id="tab-overview">
 <main>
   <div id="error-bar" class="error-bar" style="display:none"></div>
-  <div class="cards">
-    <div class="card precision"><div class="label">Precision</div><div class="value" id="v-precision">—</div><div class="sub">TP / (TP+FP)</div></div>
-    <div class="card tp"><div class="label">True Positives</div><div class="value" id="v-tp">—</div><div class="sub">Block was correct</div></div>
-    <div class="card fp"><div class="label">False Positives</div><div class="value" id="v-fp">—</div><div class="sub">Block was wrong</div></div>
-    <div class="card neutral"><div class="label">Skip / Split</div><div class="value" id="v-skip">—</div><div class="sub">Undecidable</div></div>
-    <div class="card neutral"><div class="label">Evidence Captured</div><div class="value" id="v-evidence">—</div><div class="sub">Total inserts</div></div>
-    <div class="card neutral"><div class="label">Labels Written</div><div class="value" id="v-labeled">—</div><div class="sub">Ensemble verdicts</div></div>
+
+  <!-- Top stats row -->
+  <div class="section">
+    <div class="section-title">System Health</div>
+    <div class="cards cards-5">
+      <div class="card green"><div class="c-label">AI Verdict Precision</div><div class="c-value" id="ov-precision">—</div><div class="c-sub">Correct blocks ÷ (Correct + Wrong)</div></div>
+      <div class="card"><div class="c-label">Gate Block Rate</div><div class="c-value" id="ov-blockrate" style="color:#fbbf24">—</div><div class="c-sub">% of all decisions that were blocked</div></div>
+      <div class="card red"><div class="c-label">Incorrect Tool Use</div><div class="c-value" id="ov-incorrecttool">—</div><div class="c-sub">All-time Bash-instead-of-tool detections</div></div>
+      <div class="card red"><div class="c-label">Errors Ignored</div><div class="c-value" id="ov-errignored">—</div><div class="c-sub">All-time ignored tool failures</div></div>
+      <div class="card yellow"><div class="c-label">Critical Events</div><div class="c-value" id="ov-criticals">—</div><div class="c-sub">Total critical severity detections</div></div>
+      <div class="card" id="ov-captured-card"><div class="c-label">Blocks Captured</div><div class="c-value" id="ov-captured-value">—/—</div><div class="c-sub" id="ov-captured-sub">evidence / gate blocks</div></div>
+    </div>
   </div>
-  <div class="audit" id="audit-bar">
-    <div class="dot"></div>
-    <span id="audit-text"></span>
+
+  <!-- Persistent patterns + Current session side by side -->
+  <div class="two-col">
+    <div class="section">
+      <div class="section-title">Persistent Cross-session Patterns <span class="title-badge" id="ov-sessions-badge"></span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Pattern</th><th>Sessions</th><th>Event Share</th></tr></thead>
+          <tbody id="ov-pattern-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Current Session</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+          <tbody id="ov-session-tbody"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
-  <div class="section-title">Recent Verdicts</div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr>
-        <th>Time</th><th>Block Type</th><th>Reason / Request</th>
-        <th>Verdict</th><th>G · O · X</th><th>Conf</th>
-      </tr></thead>
-      <tbody id="tbody"></tbody>
-    </table>
+
+  <!-- Recent critical events -->
+  <div class="section">
+    <div class="section-title">Recent Critical Events</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Time</th><th>Layer</th><th>Category</th><th>Signal</th></tr></thead>
+        <tbody id="ov-criticals-tbody"></tbody>
+      </table>
+    </div>
   </div>
 </main>
+</div>
+
+<!-- ══════════ TAB: BEHAVIOR ══════════ -->
+<div class="tab-content" id="tab-behavior">
+<main>
+  <div id="local-offline-note" style="display:none" class="error-bar">
+    Local server offline. Run <strong>python C:\Users\Matt1\.claude\scripts\qg-serve.py</strong> to see behavioral data.
+  </div>
+
+  <!-- Gate activity -->
+  <div class="section">
+    <div class="section-title">Gate Activity</div>
+    <div class="cards cards-4">
+      <div class="card"><div class="c-label">Total Decisions</div><div class="c-value" id="gl-total" style="color:#aaa">—</div><div class="c-sub">PASS + BLOCK events</div></div>
+      <div class="card green"><div class="c-label">Passed</div><div class="c-value" id="gl-passes">—</div><div class="c-sub">No block fired</div></div>
+      <div class="card red"><div class="c-label">Blocked</div><div class="c-value" id="gl-blocks">—</div><div class="c-sub">Gate triggered</div></div>
+      <div class="card yellow"><div class="c-label">Block Rate</div><div class="c-value" id="gl-rate">—</div><div class="c-sub">% of decisions blocked</div></div>
+    </div>
+  </div>
+
+  <!-- Behavioral detections + severity side by side -->
+  <div class="two-col">
+    <div class="section">
+      <div class="section-title">Behavioral Detections</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Behavior</th><th>All-time</th><th>Last 24h</th></tr></thead>
+          <tbody id="behavior-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Event Severity Breakdown</div>
+      <div class="table-wrap" style="padding: 20px">
+        <div id="severity-wrap"></div>
+      </div>
+      <div class="section-title" style="margin-top: 20px">Audit Trail Integrity</div>
+      <div class="table-wrap">
+        <table><tbody id="integrity-tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Daily activity chart -->
+  <div class="section">
+    <div class="section-title">Daily Event Activity <span class="title-badge">Last 7 Days</span></div>
+    <div class="table-wrap" style="padding: 20px 20px 12px">
+      <div class="bar-chart" id="daily-chart"></div>
+    </div>
+  </div>
+
+  <!-- Layer activity -->
+  <div class="section">
+    <div class="section-title">Most Active Detection Layers</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Layer</th><th>Events</th><th>Description</th><th>Share</th></tr></thead>
+        <tbody id="layer-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Cross-session patterns + session detail side by side -->
+  <div class="two-col">
+    <div class="section">
+      <div class="section-title">Persistent Patterns <span class="title-badge" id="b-sessions-badge"></span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Category</th><th>Sessions</th><th>Event %</th></tr></thead>
+          <tbody id="b-pattern-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Session State Detail</div>
+      <div class="table-wrap">
+        <table><tbody id="b-session-tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Precheck classification -->
+  <div class="section" id="section-precheck">
+    <div class="section-title">Precheck Classification</div>
+    <div id="precheck-wrap"></div>
+  </div>
+
+  <!-- Layer 12 satisfaction -->
+  <div class="section" id="section-satisfaction">
+    <div class="section-title">User Satisfaction Signal (Layer 12)</div>
+    <div id="satisfaction-wrap"></div>
+  </div>
+
+  <!-- Session quality history -->
+  <div class="section" id="section-session-history">
+    <div class="section-title">Session Quality History</div>
+    <div id="session-history-wrap"></div>
+  </div>
+
+  <!-- Overrides panel -->
+  <div class="section" id="section-overrides">
+    <div class="section-title">Override Self-Labels (quality-gate-overrides.jsonl)</div>
+    <div id="overrides-wrap"></div>
+  </div>
+
+</main>
+</div>
+
+<!-- ══════════ TAB: AI VERDICTS ══════════ -->
+<div class="tab-content" id="tab-verdicts">
+<main>
+
+  <!-- Precision stats -->
+  <div class="section">
+    <div class="section-title">Verdict Statistics</div>
+    <div class="cards cards-5">
+      <div class="card green"><div class="c-label">Precision</div><div class="c-value" id="v-precision">—</div><div class="c-sub">Correct blocks ÷ (Correct + Wrong)</div></div>
+      <div class="card green"><div class="c-label">True Positives</div><div class="c-value" id="v-tp">—</div><div class="c-sub">Block was correctly fired</div></div>
+      <div class="card red"><div class="c-label">False Positives</div><div class="c-value" id="v-fp">—</div><div class="c-sub">Block was incorrectly fired</div></div>
+      <div class="card"><div class="c-label">Skip / Split</div><div class="c-value" id="v-skip" style="color:#aaa">—</div><div class="c-sub">Undecidable or models disagreed</div></div>
+      <div class="card"><div class="c-label">Evidence Captured</div><div class="c-value" id="v-evidence" style="color:#60a5fa">—</div><div class="c-sub">Blocks sent to Supabase</div></div>
+    </div>
+    <div class="legend" style="margin-top:14px">
+      <span><strong style="color:#4ade80">True Positive</strong> — block was correct, response had unverified claim</span>
+      <span><strong style="color:#f87171">False Positive</strong> — block was wrong, response was fine</span>
+      <span><strong style="color:#aaa">Skip</strong> — not enough info to decide</span>
+      <span><strong style="color:#fbbf24">Split</strong> — 3 models disagreed with each other</span>
+    </div>
+  </div>
+
+  <!-- Audit bar -->
+  <div class="audit-bar" id="audit-bar">
+    <div class="audit-dot" id="audit-dot"></div>
+    <span id="audit-text"></span>
+  </div>
+
+  <!-- Model performance + confidence side by side -->
+  <div class="two-col">
+    <div class="section">
+      <div class="section-title">Model Performance</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Model</th><th>Precision</th><th>True Pos</th><th>False Pos</th><th>Skip</th><th>Errors</th></tr></thead>
+          <tbody id="model-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Confidence Distribution</div>
+      <div class="table-wrap" style="padding: 20px">
+        <div id="conf-dist-wrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Daily precision trend -->
+  <div class="section">
+    <div class="section-title">Daily Precision Trend <span class="title-badge">Last 7 Days</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Total Verdicts</th><th>True Positives</th><th>False Positives</th><th>Daily Precision</th></tr></thead>
+        <tbody id="trend-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Recent verdicts -->
+  <div class="section">
+    <div class="section-title">Recent Verdicts <span class="title-badge" id="verdict-count-badge"></span></div>
+    <div class="filter-bar">
+      <div class="filter-group">
+        <label class="filter-label" for="filter-verdict">Verdict:</label>
+        <select id="filter-verdict" class="filter-select">
+          <option value="all">All</option>
+          <option value="TP">True Positive</option>
+          <option value="FP">False Positive</option>
+          <option value="SKIP">Skip</option>
+          <option value="SPLIT">Split</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label class="filter-label" for="filter-btype">Block Type:</label>
+        <select id="filter-btype" class="filter-select">
+          <option value="all">All</option>
+          <option value="Mechanical">Mechanical</option>
+          <option value="LLM">LLM</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th class="sortable" data-sort="created_at">Time <span class="sort-arrow">↓</span></th>
+          <th class="sortable" data-sort="block_type">Block Type <span class="sort-arrow"></span></th>
+          <th>Reason / Request</th>
+          <th class="sortable" data-sort="verdict">Verdict <span class="sort-arrow"></span></th>
+          <th>Models</th>
+          <th class="sortable" data-sort="confidence">Confidence <span class="sort-arrow"></span></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal-box">
+    <button class="modal-close" id="modal-close">&#x2715;</button>
+    <div class="modal-title" id="modal-title"></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
 <script>
 const SUPABASE_URL  = 'https://qkuswxdvidajrqqizwdr.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrdXN3eGR2aWRhanJxcWl6d2RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NzM1MzYsImV4cCI6MjA5MTE0OTUzNn0.0EdWwAWrnx9eKJn68wSrUMPPvMHrp4Wofl9SQ2CLCgA';
+const LOCAL_URL     = 'http://localhost:7821';
 
-function txt(el, value) { el.textContent = String(value ?? ''); }
+// ── State ─────────────────────────────────────────────────────────────────────
+let allRows = [];
+let activeVerdict = 'all';
+let activeBtype   = 'all';
+let sortCol = 'created_at';
+let sortDir = 'desc';
+let countdown = 60;
+let lastUpdatedText = '';
+let _capturedEvidenceTotal = null;
+let _capturedGateLogBlockCount = null;
 
-function setCard(id, value) { txt(document.getElementById(id), value); }
+function renderCapturedCard() {
+  var card = document.getElementById('ov-captured-card');
+  var valEl = document.getElementById('ov-captured-value');
+  var subEl = document.getElementById('ov-captured-sub');
+  if (!card || !valEl || !subEl) return;
+  var ev = _capturedEvidenceTotal;
+  var bl = _capturedGateLogBlockCount;
+  if (ev === null || bl === null) {
+    valEl.textContent = '\u2014/\u2014';
+    valEl.style.color = '#aaa';
+    subEl.textContent = bl === null ? 'Requires local server' : 'Loading\u2026';
+    card.className = 'card';
+    return;
+  }
+  valEl.textContent = String(ev) + ' / ' + String(bl);
+  var pct = bl > 0 ? (ev / bl * 100) : 0;
+  var pctStr = pct.toFixed(1) + '%';
+  subEl.textContent = pctStr + ' captured';
+  if (pct < 50) { card.className = 'card red'; valEl.style.color = '#f87171'; }
+  else if (pct < 90) { card.className = 'card yellow'; valEl.style.color = '#fbbf24'; }
+  else { card.className = 'card green'; valEl.style.color = '#4ade80'; }
+}
 
+// ── Tab navigation ────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.getAttribute('data-tab')).classList.add('active');
+  });
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function txt(el, value) { if (el) el.textContent = String(value ?? ''); }
 function makeEl(tag, cls, content) {
-  const el = document.createElement(tag);
+  var el = document.createElement(tag);
   if (cls) el.className = cls;
   if (content !== undefined) el.textContent = content;
   return el;
 }
 
-function renderAudit(s) {
-  const bar = document.getElementById('audit-bar');
-  const span = document.getElementById('audit-text');
-  const ev = +s.evidence_total, lab = +s.labeled_total;
-  if (lab >= ev) {
-    bar.className = 'audit ok';
-    span.textContent = `Tamper audit: ${ev} evidence rows → ${lab} labels (all labeled)`;
-  } else {
-    bar.className = 'audit warn';
-    span.textContent = `Tamper audit: ${ev - lab} evidence rows awaiting verdict (${ev} captured, ${lab} labeled)`;
-  }
+function confColor(pct) {
+  if (pct == null) return '#888';
+  if (pct >= 90) return '#4ade80';
+  if (pct >= 67) return '#fbbf24';
+  if (pct >= 34) return '#fb923c';
+  return '#f87171';
 }
 
-function renderRows(rows) {
-  const tbody = document.getElementById('tbody');
-  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+// ── Countdown ─────────────────────────────────────────────────────────────────
+function updateHeaderMeta() {
+  var el = document.getElementById('header-meta');
+  var parts = [];
+  if (lastUpdatedText) parts.push(lastUpdatedText);
+  parts.push('Refreshing in ' + countdown + 's');
+  el.textContent = parts.join('  \u00B7  ');
+}
+function resetCountdown() { countdown = 60; updateHeaderMeta(); }
+setInterval(function() { if (countdown > 0) countdown--; updateHeaderMeta(); }, 1000);
 
-  if (!rows || rows.length === 0) {
-    const tr = document.createElement('tr');
-    const td = document.createElement('td');
-    td.colSpan = 6;
-    td.className = 'empty-cell';
-    td.textContent = 'No verdicts yet — waiting for BLOCKs to accumulate.';
-    tr.appendChild(td);
-    tbody.appendChild(tr);
-    return;
+// ── Feedback ──────────────────────────────────────────────────────────────────
+function fbKey(id) { return 'qg_feedback_' + id; }
+function loadFeedback(id) { try { var r = localStorage.getItem(fbKey(id)); return r ? JSON.parse(r) : null; } catch(e) { return null; } }
+function saveFeedback(id, data) { try { localStorage.setItem(fbKey(id), JSON.stringify(data)); } catch(e) {} }
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+var modalOverlay = document.getElementById('modal-overlay');
+var modalTitle   = document.getElementById('modal-title');
+var modalBody    = document.getElementById('modal-body');
+
+function openModal(r) {
+  while (modalBody.firstChild) modalBody.removeChild(modalBody.firstChild);
+  var ts = new Date(r.created_at).toLocaleString();
+  modalTitle.textContent = (r.block_type || 'Block') + ' \u2014 ' + ts;
+
+  function addSection(label, text) {
+    if (text == null || text === '') return;
+    var sec = document.createElement('div');
+    sec.className = 'modal-section';
+    sec.appendChild(makeEl('div', 'modal-label', label));
+    sec.appendChild(makeEl('div', 'modal-value', String(text)));
+    modalBody.appendChild(sec);
   }
 
-  rows.forEach(r => {
-    const tr = document.createElement('tr');
+  function metaItem(label, value, color) {
+    var wrap = document.createElement('div');
+    wrap.appendChild(makeEl('div', 'modal-label', label));
+    var v = makeEl('div', 'modal-value');
+    v.style.fontWeight = '700';
+    if (color) v.style.color = color;
+    v.textContent = String(value ?? '\u2014');
+    wrap.appendChild(v);
+    return wrap;
+  }
 
-    // Time
-    const ts = new Date(r.created_at).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  var confPct = r.confidence != null ? Math.round(r.confidence * 100) : null;
+  var metaSec = document.createElement('div');
+  metaSec.className = 'modal-section';
+  metaSec.appendChild(makeEl('div', 'modal-label', 'Summary'));
+  var metaRow = makeEl('div', 'modal-meta');
+  metaRow.appendChild(metaItem('Overall Verdict', r.verdict || '\u2014'));
+  metaRow.appendChild(metaItem('Confidence', confPct != null ? confPct + '%' : '\u2014', confColor(confPct)));
+  metaRow.appendChild(metaItem('Block Type', r.block_type || '\u2014'));
+  metaRow.appendChild(metaItem('Timestamp', ts));
+  metaSec.appendChild(metaRow);
+  modalBody.appendChild(metaSec);
+
+  addSection('Reason', r.reason || '');
+  addSection('User Request', r.user_request || '');
+  addSection('Response Snippet', r.response_snippet || '');
+
+  if (r.tool_names && r.tool_names.length) addSection('Tools Used', r.tool_names.join(', '));
+  if (r.edited_paths && r.edited_paths.length) addSection('Files Edited', r.edited_paths.join(', '));
+
+  var modelsSec = document.createElement('div');
+  modelsSec.className = 'modal-section';
+  modelsSec.appendChild(makeEl('div', 'modal-label', 'Per-Model Verdicts'));
+  var grid = makeEl('div', 'modal-models');
+  [
+    { name: 'Gemini 2.5 Flash', verdict: r.gemini_verdict, reason: r.gemini_reason, error: r.gemini_error },
+    { name: 'OpenAI GPT-4o-mini', verdict: r.openai_verdict, reason: r.openai_reason, error: r.openai_error },
+    { name: 'Grok 3',            verdict: r.grok_verdict,   reason: r.grok_reason,   error: r.grok_error   },
+  ].forEach(function(m) {
+    var card = makeEl('div', 'modal-model');
+    card.appendChild(makeEl('div', 'modal-model-name', m.name));
+    var verd = makeEl('div', 'modal-model-verdict', m.verdict || '\u2014');
+    if (m.verdict === 'TP') verd.style.color = '#4ade80';
+    else if (m.verdict === 'FP') verd.style.color = '#f87171';
+    else verd.style.color = '#888';
+    card.appendChild(verd);
+    if (m.reason) card.appendChild(makeEl('div', 'modal-model-reason', m.reason));
+    if (m.error) card.appendChild(makeEl('div', 'modal-model-error', 'Error: ' + m.error));
+    grid.appendChild(card);
+  });
+  modelsSec.appendChild(grid);
+  modalBody.appendChild(modelsSec);
+
+  // Feedback
+  var rowId = r.id || (r.created_at + '_' + (r.block_type || ''));
+  var savedFb = loadFeedback(rowId);
+  var fbSec = document.createElement('div');
+  fbSec.className = 'feedback-section';
+  fbSec.appendChild(makeEl('div', 'modal-label', 'Your Feedback'));
+  var fbTextarea = document.createElement('textarea');
+  fbTextarea.placeholder = 'Was this verdict correct? Add context\u2026';
+  if (savedFb && savedFb.notes) fbTextarea.value = savedFb.notes;
+  fbSec.appendChild(fbTextarea);
+  var fbButtons = makeEl('div', 'feedback-buttons');
+  var btnCorrect = document.createElement('button');
+  btnCorrect.className = 'fb-btn fb-correct'; btnCorrect.textContent = 'Mark Correct';
+  if (savedFb && savedFb.verdict === 'correct') btnCorrect.classList.add('active');
+  var btnWrong = document.createElement('button');
+  btnWrong.className = 'fb-btn fb-wrong'; btnWrong.textContent = 'Mark Wrong';
+  if (savedFb && savedFb.verdict === 'wrong') btnWrong.classList.add('active');
+  var fbConfirm = makeEl('span', 'fb-confirm', 'Saved locally');
+  function doSave(v) {
+    saveFeedback(rowId, { verdict: v, notes: fbTextarea.value });
+    btnCorrect.classList.toggle('active', v === 'correct');
+    btnWrong.classList.toggle('active', v === 'wrong');
+    fbConfirm.classList.add('visible');
+    setTimeout(function() { fbConfirm.classList.remove('visible'); }, 2000);
+  }
+  btnCorrect.addEventListener('click', function() { doSave('correct'); });
+  btnWrong.addEventListener('click', function() { doSave('wrong'); });
+  fbButtons.appendChild(btnCorrect); fbButtons.appendChild(btnWrong); fbButtons.appendChild(fbConfirm);
+  fbSec.appendChild(fbButtons);
+  modalBody.appendChild(fbSec);
+
+  modalOverlay.classList.add('active');
+}
+
+function closeModal() { modalOverlay.classList.remove('active'); }
+document.getElementById('modal-close').addEventListener('click', closeModal);
+modalOverlay.addEventListener('click', function(e) { if (e.target === modalOverlay) closeModal(); });
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+
+// ── Sort ──────────────────────────────────────────────────────────────────────
+function sortRows(rows) {
+  return rows.slice().sort(function(a, b) {
+    var av = a[sortCol], bv = b[sortCol];
+    if (sortCol === 'confidence') { av = av == null ? -1 : av; bv = bv == null ? -1 : bv; }
+    else if (sortCol === 'created_at') { av = new Date(av || 0); bv = new Date(bv || 0); }
+    else { av = String(av || '').toLowerCase(); bv = String(bv || '').toLowerCase(); }
+    if (av < bv) return sortDir === 'asc' ? -1 : 1;
+    if (av > bv) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+function updateSortHeaders() {
+  document.querySelectorAll('th[data-sort]').forEach(function(th) {
+    var col = th.getAttribute('data-sort');
+    var arrow = th.querySelector('.sort-arrow');
+    th.classList.toggle('sort-active', col === sortCol);
+    if (arrow) arrow.textContent = col === sortCol ? (sortDir === 'asc' ? '\u2191' : '\u2193') : '';
+  });
+}
+document.querySelectorAll('th[data-sort]').forEach(function(th) {
+  th.addEventListener('click', function() {
+    var col = th.getAttribute('data-sort');
+    if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    else { sortCol = col; sortDir = (col === 'confidence' || col === 'created_at') ? 'desc' : 'asc'; }
+    updateSortHeaders(); applyFilters();
+  });
+});
+updateSortHeaders();
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+document.getElementById('filter-verdict').addEventListener('change', function() { activeVerdict = this.value; applyFilters(); });
+document.getElementById('filter-btype').addEventListener('change', function() { activeBtype = this.value; applyFilters(); });
+
+function applyFilters() {
+  var filtered = allRows.filter(function(r) {
+    var vm = activeVerdict === 'all' || r.verdict === activeVerdict;
+    var bm = activeBtype === 'all' || (r.block_type || '').toLowerCase().indexOf(activeBtype.toLowerCase()) !== -1;
+    return vm && bm;
+  });
+  renderRows(sortRows(filtered));
+}
+
+// ── Render verdicts table ─────────────────────────────────────────────────────
+function renderRows(rows) {
+  var tbody = document.getElementById('tbody');
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+  if (!rows || rows.length === 0) {
+    var tr = document.createElement('tr');
+    var td = makeEl('td', 'empty-cell', 'No verdicts match the current filters.');
+    td.colSpan = 6; tr.appendChild(td); tbody.appendChild(tr); return;
+  }
+  rows.forEach(function(r) {
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-clickable', '1');
+    tr._rowData = r;
+    tr.addEventListener('click', function() { openModal(tr._rowData); });
+
+    var ts = new Date(r.created_at).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
     tr.appendChild(makeEl('td', 'ts', ts));
+    tr.appendChild(makeEl('td', '', r.block_type || ''));
 
-    // Block type
-    tr.appendChild(makeEl('td', 'btype', r.block_type || ''));
-
-    // Reason + request
-    const reasonTd = document.createElement('td');
-    const reason = (r.reason || '').replace(/^(QUALITY GATE: |MECHANICAL: |OVERCONFIDENCE: |ASSUMPTION: |LAZINESS: )/, '');
-    const s1 = makeEl('span', 'reason-strong', reason.length > 90 ? reason.slice(0,90)+'…' : reason);
-    reasonTd.appendChild(s1);
-    if (r.user_request) {
-      const req = r.user_request.length > 70 ? r.user_request.slice(0,70)+'…' : r.user_request;
-      reasonTd.appendChild(makeEl('span', 'reason-sub', req));
-    }
+    var reasonTd = document.createElement('td');
+    var reason = (r.reason || '').replace(/^(QUALITY GATE: |MECHANICAL: |OVERCONFIDENCE: |ASSUMPTION: |LAZINESS: )/, '');
+    reasonTd.appendChild(makeEl('span', 'reason-strong', reason.length > 90 ? reason.slice(0,90)+'\u2026' : reason));
+    if (r.user_request) reasonTd.appendChild(makeEl('span', 'reason-sub', r.user_request.length > 70 ? r.user_request.slice(0,70)+'\u2026' : r.user_request));
     tr.appendChild(reasonTd);
 
-    // Verdict badge
-    const verdictTd = document.createElement('td');
-    const badge = makeEl('span', `badge badge-${r.verdict}`, r.verdict);
-    verdictTd.appendChild(badge);
-    tr.appendChild(verdictTd);
+    var vTd = document.createElement('td');
+    vTd.appendChild(makeEl('span', 'badge badge-' + r.verdict, r.verdict));
+    tr.appendChild(vTd);
 
-    // Model dots
-    const dotsTd = document.createElement('td');
-    const dotsDiv = makeEl('div', 'model-dots');
-    [
-      [r.gemini_verdict, r.gemini_error, 'Gemini'],
-      [r.openai_verdict, null, 'OpenAI'],
-      [r.grok_verdict,   null, 'Grok'],
-    ].forEach(([v, err, label]) => {
-      const cls = err ? 'error' : (v || 'null');
-      const dot = makeEl('div', `model-dot dot-${cls}`);
-      dot.title = `${label}: ${err ? 'Error' : (v || 'No verdict')}`;
+    var dotsTd = document.createElement('td');
+    var dotsDiv = makeEl('div', 'model-dots');
+    [[r.gemini_verdict, r.gemini_error, 'Gemini'], [r.openai_verdict, null, 'OpenAI'], [r.grok_verdict, null, 'Grok']].forEach(function(item) {
+      var dot = makeEl('div', 'model-dot dot-' + (item[1] ? 'error' : (item[0] || 'null')));
+      dot.title = item[2] + ': ' + (item[1] ? 'Error' : (item[0] || 'No verdict'));
       dotsDiv.appendChild(dot);
     });
-    dotsTd.appendChild(dotsDiv);
-    tr.appendChild(dotsTd);
+    dotsTd.appendChild(dotsDiv); tr.appendChild(dotsTd);
 
-    // Confidence
-    const conf = r.confidence != null ? Math.round(r.confidence * 100) + '%' : '—';
-    tr.appendChild(makeEl('td', 'conf', conf));
+    var confPct = r.confidence != null ? Math.round(r.confidence * 100) : null;
+    var confTd = makeEl('td', 'conf', confPct != null ? confPct + '%' : '\u2014');
+    confTd.style.color = confColor(confPct); tr.appendChild(confTd);
 
     tbody.appendChild(tr);
   });
 }
 
-async function load() {
-  txt(document.getElementById('last-updated'), 'Loading…');
-  const errBar = document.getElementById('error-bar');
-  errBar.style.display = 'none';
+// ── Render: cloud sections ────────────────────────────────────────────────────
+function renderCloud(data) {
+  var s = data.stats;
+  var tp = +s.tp_count, fp = +s.fp_count;
+  var total = tp + fp;
+  var precPct = total > 0 ? Math.round(tp / total * 100) : null;
+  var precStr = precPct != null ? precPct + '%' : 'N/A';
 
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_qg_dashboard`, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_ANON,
-        'Authorization': `Bearer ${SUPABASE_ANON}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ p_limit: 50 }),
+  txt(document.getElementById('ov-precision'), precStr);
+  txt(document.getElementById('v-precision'), precStr);
+  txt(document.getElementById('v-tp'), tp);
+  txt(document.getElementById('v-fp'), fp);
+  txt(document.getElementById('v-skip'), +s.skip_count + +s.split_count);
+  txt(document.getElementById('v-evidence'), s.evidence_total);
+
+  // Blocks Captured card (combined with local data)
+  _capturedEvidenceTotal = +s.evidence_total;
+  renderCapturedCard();
+
+  // Audit bar
+  var ev = +s.evidence_total, lab = +s.labeled_total;
+  var adot = document.getElementById('audit-dot');
+  var atext = document.getElementById('audit-text');
+  while (atext.firstChild) atext.removeChild(atext.firstChild);
+  if (lab > ev) {
+    adot.style.background = '#fbbf24';
+    var mainSpan = makeEl('span', '', lab + ' labels / ' + ev + ' rows');
+    atext.appendChild(mainSpan);
+    var noteSpan = makeEl('span', '', ' (some rows double-labeled)');
+    noteSpan.style.color = '#666'; noteSpan.style.fontSize = '12px';
+    atext.appendChild(noteSpan);
+  } else if (lab >= ev) {
+    adot.style.background = '#4ade80';
+    atext.appendChild(makeEl('span', '', lab + ' labels / ' + ev + ' rows \u2014 fully labeled'));
+  } else {
+    adot.style.background = '#fbbf24';
+    atext.appendChild(makeEl('span', '', lab + ' labels / ' + ev + ' rows \u2014 ' + (ev - lab) + ' awaiting verdict'));
+  }
+
+  // Model performance table
+  var ms = data.model_stats;
+  var mtbody = document.getElementById('model-tbody');
+  while (mtbody.firstChild) mtbody.removeChild(mtbody.firstChild);
+  if (ms) {
+    [
+      { name: 'Gemini 2.5 Flash',   prefix: 'gemini' },
+      { name: 'OpenAI GPT-4o-mini', prefix: 'openai' },
+      { name: 'Grok 3',             prefix: 'grok'   },
+    ].forEach(function(m) {
+      var mtp = +ms[m.prefix+'_tp'], mfp = +ms[m.prefix+'_fp'];
+      var mprec = (mtp+mfp) > 0 ? Math.round(mtp/(mtp+mfp)*100)+'%' : 'N/A';
+      var err = ms[m.prefix+'_error'] != null ? +ms[m.prefix+'_error'] : 0;
+      var tr = document.createElement('tr');
+      tr.appendChild(makeEl('td', '', m.name));
+      var precTd = makeEl('td', '', mprec);
+      precTd.style.fontWeight = '700';
+      precTd.style.color = mprec !== 'N/A' && parseInt(mprec) >= 80 ? '#4ade80' : '#fbbf24';
+      tr.appendChild(precTd);
+      tr.appendChild(makeEl('td', '', String(mtp)));
+      tr.appendChild(makeEl('td', '', String(mfp)));
+      tr.appendChild(makeEl('td', '', String(ms[m.prefix+'_skip'] || 0)));
+      var errTd = makeEl('td', '', err > 0 ? String(err) : '\u2014');
+      if (err > 0) errTd.style.color = '#f87171';
+      tr.appendChild(errTd);
+      mtbody.appendChild(tr);
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-    const data = await res.json();
-    const s = data.stats;
+  }
 
-    const tp = +s.tp_count, fp = +s.fp_count;
-    const total = tp + fp;
-    setCard('v-precision', total > 0 ? Math.round(tp / total * 100) + '%' : 'N/A');
-    setCard('v-tp', tp);
-    setCard('v-fp', fp);
-    setCard('v-skip', +s.skip_count + +s.split_count);
-    setCard('v-evidence', s.evidence_total);
-    setCard('v-labeled', s.labeled_total);
-    renderAudit(s);
-    renderRows(data.recent);
-    txt(document.getElementById('last-updated'), 'Updated ' + new Date().toLocaleTimeString());
-  } catch(e) {
-    txt(errBar, 'Error loading data: ' + e.message);
-    errBar.style.display = 'block';
-    txt(document.getElementById('last-updated'), 'Failed');
+  // Confidence distribution
+  var cd = data.confidence_dist;
+  var cdwrap = document.getElementById('conf-dist-wrap');
+  while (cdwrap.firstChild) cdwrap.removeChild(cdwrap.firstChild);
+  if (cd && cd.total > 0) {
+    [
+      { label: 'High (90\u2013100%)',  key: 'high',    color: '#4ade80' },
+      { label: 'Medium (67\u201389%)', key: 'medium',  color: '#fbbf24' },
+      { label: 'Low (34\u201366%)',    key: 'low',      color: '#fb923c' },
+      { label: 'Very Low (<34%)',      key: 'very_low', color: '#f87171' },
+    ].forEach(function(b) {
+      var count = +cd[b.key];
+      var pct = Math.round(count / cd.total * 100);
+      var row = makeEl('div', 'hbar-row');
+      row.appendChild(makeEl('div', 'hbar-label', b.label + ' (' + pct + '%)'));
+      var track = makeEl('div', 'hbar-track');
+      var fill = makeEl('div', 'hbar-fill');
+      fill.style.width = pct + '%'; fill.style.background = b.color;
+      track.appendChild(fill); row.appendChild(track);
+      row.appendChild(makeEl('div', 'hbar-count', String(count)));
+      cdwrap.appendChild(row);
+    });
+  } else {
+    cdwrap.appendChild(makeEl('div', 'empty-cell', 'No confidence data yet.'));
+  }
+
+  // Daily trend
+  var trend = data.daily_trend;
+  var ttbody = document.getElementById('trend-tbody');
+  while (ttbody.firstChild) ttbody.removeChild(ttbody.firstChild);
+  if (trend && trend.length) {
+    trend.forEach(function(d) {
+      var dtp = +d.tp, dfp = +d.fp;
+      var dprec = (dtp+dfp) > 0 ? Math.round(dtp/(dtp+dfp)*100)+'%' : 'N/A';
+      var tr = document.createElement('tr');
+      tr.appendChild(makeEl('td', 'ts', new Date(d.day+'T12:00:00').toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})));
+      tr.appendChild(makeEl('td', '', String(d.total)));
+      var tpTd = makeEl('td','',String(dtp)); tpTd.style.color='#4ade80'; tr.appendChild(tpTd);
+      var fpTd = makeEl('td','',String(dfp)); if(dfp>0) fpTd.style.color='#f87171'; tr.appendChild(fpTd);
+      var precTd = makeEl('td','',dprec);
+      if(dprec!=='N/A') precTd.style.color = parseInt(dprec)>=80?'#4ade80':parseInt(dprec)>=60?'#fbbf24':'#f87171';
+      tr.appendChild(precTd);
+      ttbody.appendChild(tr);
+    });
+  } else {
+    var tr=document.createElement('tr'); var td=makeEl('td','empty-cell','No trend data yet.'); td.colSpan=5; tr.appendChild(td); ttbody.appendChild(tr);
+  }
+
+  // Verdicts table
+  allRows = data.recent || [];
+  txt(document.getElementById('verdict-count-badge'), allRows.length + ' total');
+  applyFilters();
+}
+
+// ── Render: local sections ────────────────────────────────────────────────────
+
+var LAYER_NAMES = {
+  'layer2':   'Layer 2 \u2014 Behavior Monitor',
+  'layer45':  'Layer 4.5 \u2014 Compaction',
+  'layer15':  'Layer 15 \u2014 Pre-tool Checks',
+  'layer19':  'Layer 19 \u2014 Impact Analysis',
+  'layer16':  'Layer 16 \u2014 File Snapshots',
+  'precheck': 'Precheck \u2014 Task Classifier',
+  'layer5':   'Layer 5 \u2014 Subagent Events',
+  'layer35':  'Layer 35 \u2014 Recovery Tracking',
+  'layer27':  'Layer 27 \u2014 Test Coverage',
+  'layer18':  'Layer 18 \u2014 Hallucination Detection',
+  'layer28':  'Layer 28 \u2014 Security Review',
+  'layer0':   'Layer 0 \u2014 Session Start',
+  'layer7':   'Layer 7 \u2014 Rule Suggestions',
+  'layer9':   'Layer 9 \u2014 Calibration',
+  'layer20':  'Layer 20 \u2014 System Health',
+  'layer3':        'Layer 3 \u2014 Stop Hook Verdicts',
+  'layer12':       'Layer 12 \u2014 User Satisfaction',
+  'layer17':       'Layer 17 \u2014 Advanced Intent Check',
+  'layer17_adv':   'Layer 17 Adv \u2014 Extended Intent',
+  'layer19_cross': 'Layer 19 \u2014 Cross-session Impact',
+  'layer15_mem':   'Layer 15 Mem \u2014 Memory Checks',
+  'layer11':       'Layer 11 \u2014 Commit Check',
+  'layer8':        'Layer 8 \u2014 Pattern Detection',
+};
+
+var BEHAVIOR_DEFS = [
+  { key: 'INCORRECT_TOOL',           label: 'Incorrect Tool Use',         desc: 'Used Bash instead of Grep/Read/Glob' },
+  { key: 'ERROR_IGNORED',            label: 'Error Ignored',              desc: 'Non-zero exit followed by next tool' },
+  { key: 'LAZINESS',                 label: 'Laziness',                   desc: 'Edited without reading; claimed done without verification' },
+  { key: 'LOOP_DETECTED',            label: 'Loop Detected',              desc: 'Same tool+target repeated with no progress' },
+  { key: 'ASSUMPTION',               label: 'Assumption Made',            desc: 'Hardcoded path/value without prior lookup' },
+  { key: 'SCOPE_CREEP',              label: 'Scope Creep',                desc: 'Files outside declared task scope touched' },
+  { key: 'INCOMPLETE_COVERAGE',      label: 'Incomplete Coverage',        desc: 'Tool calls below expected scope' },
+  { key: 'OUTPUT_UNVALIDATED',       label: 'Output Not Validated',       desc: 'Edit not re-read; test exit code unchecked' },
+  { key: 'MEMORY_OVER_VERIFICATION', label: 'Memory Over Verification',   desc: 'Same claim repeated without re-verifying' },
+];
+
+function renderLocalSections(d) {
+  // Gate log
+  var g = d.gate_log || {};
+  txt(document.getElementById('gl-total'), g.total || 0);
+  txt(document.getElementById('gl-passes'), g.passes || 0);
+  txt(document.getElementById('gl-blocks'), g.blocks || 0);
+  txt(document.getElementById('gl-rate'), (g.block_rate_pct || 0) + '%');
+  txt(document.getElementById('ov-blockrate'), (g.block_rate_pct || 0) + '%');
+
+  // Blocks Captured card (combined with Supabase data)
+  _capturedGateLogBlockCount = g.gate_log_block_count != null ? +g.gate_log_block_count : null;
+  renderCapturedCard();
+
+  var m = d.monitor || {};
+
+  // Overview stats
+  txt(document.getElementById('ov-incorrecttool'), (m.behavior_alltime || {}).INCORRECT_TOOL || 0);
+  txt(document.getElementById('ov-errignored'), (m.behavior_alltime || {}).ERROR_IGNORED || 0);
+  txt(document.getElementById('ov-criticals'), (m.severity || {}).critical || 0);
+
+  // Behavioral detections table
+  var btbody = document.getElementById('behavior-tbody');
+  while (btbody.firstChild) btbody.removeChild(btbody.firstChild);
+  BEHAVIOR_DEFS.forEach(function(def) {
+    var alltime = (m.behavior_alltime || {})[def.key] || 0;
+    var h24 = (m.behavior_24h || {})[def.key] || 0;
+    var tr = document.createElement('tr');
+    var nameTd = document.createElement('td');
+    var strong = makeEl('span', '', def.label);
+    strong.style.display = 'block';
+    var desc = makeEl('span', '', def.desc);
+    desc.style.fontSize = '11px'; desc.style.color = '#666'; desc.style.display = 'block'; desc.style.marginTop = '2px';
+    nameTd.appendChild(strong); nameTd.appendChild(desc); tr.appendChild(nameTd);
+    var atTd = makeEl('td', '', String(alltime));
+    atTd.style.fontWeight = '700';
+    atTd.style.color = alltime > 100 ? '#f87171' : alltime > 20 ? '#fbbf24' : '#4ade80';
+    tr.appendChild(atTd);
+    var h24Td = makeEl('td', '', h24 > 0 ? String(h24) : '\u2014');
+    if (h24 > 0) { h24Td.style.color = '#fbbf24'; h24Td.style.fontWeight = '700'; }
+    tr.appendChild(h24Td);
+    btbody.appendChild(tr);
+  });
+  // Extras
+  [
+    { key: 'hallucinations',  label: 'Hallucinations Detected', desc: 'File/function reference that did not exist' },
+    { key: 'security_issues', label: 'Security Issues Flagged',  desc: 'Potential vulnerability detected in edits' },
+  ].forEach(function(x) {
+    var val = m[x.key] || 0;
+    var tr = document.createElement('tr');
+    var nameTd = document.createElement('td');
+    nameTd.appendChild(makeEl('span', '', x.label));
+    var desc = makeEl('span', '', x.desc);
+    desc.style.fontSize = '11px'; desc.style.color = '#666'; desc.style.display = 'block'; desc.style.marginTop = '2px';
+    nameTd.appendChild(desc); tr.appendChild(nameTd);
+    var vTd = makeEl('td', '', String(val));
+    vTd.style.fontWeight = '700';
+    vTd.style.color = val > 0 ? '#f87171' : '#4ade80';
+    tr.appendChild(vTd);
+    tr.appendChild(makeEl('td', '', '\u2014'));
+    btbody.appendChild(tr);
+  });
+
+  // Severity breakdown
+  var sev = m.severity || {};
+  var sevWrap = document.getElementById('severity-wrap');
+  while (sevWrap.firstChild) sevWrap.removeChild(sevWrap.firstChild);
+  var sevTotal = (sev.critical||0) + (sev.warning||0) + (sev.info||0);
+  [
+    { label: 'Critical', key: 'critical', color: '#f87171' },
+    { label: 'Warning',  key: 'warning',  color: '#fbbf24' },
+    { label: 'Info',     key: 'info',     color: '#60a5fa' },
+  ].forEach(function(s) {
+    var count = sev[s.key] || 0;
+    var pct = sevTotal > 0 ? Math.round(count / sevTotal * 100) : 0;
+    var row = makeEl('div', 'hbar-row');
+    row.appendChild(makeEl('div', 'hbar-label', s.label + ' (' + pct + '%)'));
+    var track = makeEl('div', 'hbar-track');
+    var fill = makeEl('div', 'hbar-fill');
+    fill.style.width = pct + '%'; fill.style.background = s.color;
+    track.appendChild(fill); row.appendChild(track);
+    row.appendChild(makeEl('div', 'hbar-count', String(count)));
+    sevWrap.appendChild(row);
+  });
+
+  // Integrity table
+  var integ = d.integrity || {};
+  var itbody = document.getElementById('integrity-tbody');
+  while (itbody.firstChild) itbody.removeChild(itbody.firstChild);
+  [
+    { label: 'Total Monitor Events', value: integ.monitor_total_lines || 0 },
+    { label: 'Quarantined Entries',  value: integ.quarantine_count || 0, warn: (integ.quarantine_count || 0) > 0 },
+  ].forEach(function(row) {
+    var tr = document.createElement('tr');
+    tr.appendChild(makeEl('td', '', row.label));
+    var vTd = makeEl('td', '', String(row.value));
+    if (row.warn) vTd.style.color = '#f87171';
+    tr.appendChild(vTd);
+    itbody.appendChild(tr);
+  });
+
+  // Daily events bar chart
+  var daily = m.daily_events || [];
+  var chart = document.getElementById('daily-chart');
+  while (chart.firstChild) chart.removeChild(chart.firstChild);
+  if (daily.length) {
+    var maxVal = Math.max.apply(null, daily.map(function(d) { return d.count; }).concat([1]));
+    daily.forEach(function(d) {
+      var col = makeEl('div', 'bar-col');
+      var pct = Math.round(d.count / maxVal * 100);
+      var fill = makeEl('div', 'bar-fill');
+      fill.style.height = Math.max(pct, 2) + '%';
+      fill.style.background = '#2a6a9a';
+      col.appendChild(fill);
+      col.appendChild(makeEl('div', 'bar-val', d.count >= 1000 ? (d.count/1000).toFixed(1)+'k' : String(d.count)));
+      col.appendChild(makeEl('div', 'bar-label', d.day.slice(5)));
+      chart.appendChild(col);
+    });
+  }
+
+  // Layer activity
+  var layers = m.top_layers || [];
+  var ltbody = document.getElementById('layer-tbody');
+  while (ltbody.firstChild) ltbody.removeChild(ltbody.firstChild);
+  var totalEvents = integ.monitor_total_lines || 1;
+  layers.forEach(function(l) {
+    var tr = document.createElement('tr');
+    tr.appendChild(makeEl('td', '', l.layer));
+    var cTd = makeEl('td', '', String(l.count));
+    cTd.style.fontWeight = '700';
+    tr.appendChild(cTd);
+    tr.appendChild(makeEl('td', '', LAYER_NAMES[l.layer] || ''));
+    tr.appendChild(makeEl('td', '', Math.round(l.count / totalEvents * 100) + '%'));
+    ltbody.appendChild(tr);
+  });
+
+  // Cross-session patterns
+  function renderPatterns(tbodyId, badgeId, cs) {
+    var tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+    var badge = document.getElementById(badgeId);
+    if (badge) txt(badge, (cs.sessions_analyzed || 0) + ' sessions analyzed');
+    var patterns = cs.patterns || [];
+    if (!patterns.length) {
+      var tr=document.createElement('tr'); var td=makeEl('td','empty-cell','No persistent patterns detected.'); td.colSpan=3; tr.appendChild(td); tbody.appendChild(tr);
+    } else {
+      patterns.forEach(function(p) {
+        var tr=document.createElement('tr');
+        tr.appendChild(makeEl('td','',p.category||'\u2014'));
+        var sTd=makeEl('td','',String(p.sessions_count||'\u2014')); sTd.style.color='#f87171'; sTd.style.fontWeight='700'; tr.appendChild(sTd);
+        tr.appendChild(makeEl('td','',p.event_pct!=null?Math.round(p.event_pct*100)+'%':'\u2014'));
+        tbody.appendChild(tr);
+      });
+    }
+  }
+  renderPatterns('ov-pattern-tbody', 'ov-sessions-badge', d.cross_session || {});
+  renderPatterns('b-pattern-tbody', 'b-sessions-badge', d.cross_session || {});
+
+  // Session state
+  var ss = d.session || {};
+  function renderSessionTable(tbodyId) {
+    var tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+    var rows = [
+      { label: 'Gate Evaluations (this session)', value: ss.eval_count || 0 },
+      { label: 'Warnings Ignored',  value: ss.warnings_ignored || 0,  warn: (ss.warnings_ignored||0) > 50 },
+      { label: 'Intent Mismatches', value: ss.mismatch_count || 0,    warn: (ss.mismatch_count||0) > 10 },
+      { label: 'Unresolved Events', value: ss.unresolved_events || 0, warn: (ss.unresolved_events||0) > 0 },
+      { label: 'Elevated Scrutiny', value: ss.elevated_scrutiny ? 'YES' : 'No', warn: ss.elevated_scrutiny },
+      { label: 'Active Task',       value: ss.active_task || '(none)' },
+    ];
+    rows.forEach(function(r) {
+      var tr=document.createElement('tr');
+      tr.appendChild(makeEl('td','',r.label));
+      var vTd=makeEl('td','',String(r.value));
+      if(r.warn) vTd.style.color='#fbbf24';
+      tr.appendChild(vTd); tbody.appendChild(tr);
+    });
+  }
+  renderSessionTable('ov-session-tbody');
+  renderSessionTable('b-session-tbody');
+
+  // Recent criticals (overview tab)
+  var crits = m.recent_criticals || [];
+  var ctbody = document.getElementById('ov-criticals-tbody');
+  while (ctbody.firstChild) ctbody.removeChild(ctbody.firstChild);
+  if (!crits.length) {
+    var tr=document.createElement('tr'); var td=makeEl('td','empty-cell','No critical events recorded.'); td.colSpan=4; tr.appendChild(td); ctbody.appendChild(tr);
+  } else {
+    crits.slice().reverse().forEach(function(c) {
+      var tr=document.createElement('tr');
+      var tsStr='\u2014';
+      try { tsStr=new Date(c.ts).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e){}
+      tr.appendChild(makeEl('td','ts',tsStr));
+      tr.appendChild(makeEl('td','',c.layer||'\u2014'));
+      var catTd=document.createElement('td');
+      catTd.appendChild(makeEl('span','badge badge-critical',c.category||'\u2014'));
+      tr.appendChild(catTd);
+      tr.appendChild(makeEl('td','reason-sub',c.signal||'\u2014'));
+      ctbody.appendChild(tr);
+    });
+  }
+
+  // ── Change 4: Precheck classification panel ───────────────────────────────
+  var precheckWrap = document.getElementById('precheck-wrap');
+  while (precheckWrap.firstChild) precheckWrap.removeChild(precheckWrap.firstChild);
+  if (m && m.precheck_categories) {
+    var pc = m.precheck_categories;
+    var pcKeys = ['CLASSIFY_NONE','CLASSIFY_OVERCONFIDENCE','CLASSIFY_ASSUMPTION','CLASSIFY_PLANNING','CLASSIFY_MECHANICAL','CLASSIFY_DEEP'];
+    Object.keys(pc).forEach(function(k) { if (pcKeys.indexOf(k) === -1) pcKeys.push(k); });
+    var pcTotal = pcKeys.reduce(function(sum, k) { return sum + (+pc[k] || 0); }, 0);
+    var pcWrap = makeEl('div', 'table-wrap');
+    var pcTable = document.createElement('table');
+    var pcHead = document.createElement('thead');
+    var pcHr = document.createElement('tr');
+    pcHr.appendChild(makeEl('th', '', 'Classification'));
+    pcHr.appendChild(makeEl('th', '', 'Count'));
+    pcHr.appendChild(makeEl('th', '', '% of Total'));
+    pcHead.appendChild(pcHr); pcTable.appendChild(pcHead);
+    var pcBody = document.createElement('tbody');
+    pcKeys.forEach(function(k) {
+      var count = +pc[k] || 0;
+      var pct = pcTotal > 0 ? (count / pcTotal * 100).toFixed(1) : '0.0';
+      var tr = document.createElement('tr');
+      tr.appendChild(makeEl('td', '', k));
+      var cTd = makeEl('td', '', String(count)); cTd.style.fontWeight = '700'; tr.appendChild(cTd);
+      tr.appendChild(makeEl('td', '', pct + '%'));
+      pcBody.appendChild(tr);
+    });
+    var totRow = document.createElement('tr');
+    totRow.style.borderTop = '1px solid #333';
+    var totLbl = makeEl('td', '', 'Total'); totLbl.style.fontWeight = '700'; totRow.appendChild(totLbl);
+    var totCnt = makeEl('td', '', String(pcTotal)); totCnt.style.fontWeight = '700'; totRow.appendChild(totCnt);
+    totRow.appendChild(makeEl('td', '', '100%'));
+    pcBody.appendChild(totRow);
+    pcTable.appendChild(pcBody);
+    pcWrap.appendChild(pcTable);
+    precheckWrap.appendChild(pcWrap);
+  } else {
+    var pcNote = makeEl('div', 'error-bar', 'Requires local server');
+    pcNote.style.marginBottom = '0';
+    precheckWrap.appendChild(pcNote);
+  }
+
+  // ── Change 5: Layer 12 satisfaction panel ────────────────────────────────
+  var satWrap = document.getElementById('satisfaction-wrap');
+  while (satWrap.firstChild) satWrap.removeChild(satWrap.firstChild);
+  if (m && m.satisfaction) {
+    var sat = m.satisfaction;
+    var satCard = makeEl('div', 'table-wrap');
+    satCard.style.padding = '16px 18px';
+    var netScore = sat.net_score != null ? +sat.net_score : null;
+    var netRow = makeEl('div', '', '');
+    var netLabel = makeEl('span', '', 'Net Score: ');
+    netLabel.style.color = '#888';
+    var netVal = makeEl('span', '', netScore != null ? String(netScore) : '\u2014');
+    netVal.style.fontWeight = '700';
+    netVal.style.fontSize = '18px';
+    if (netScore != null) {
+      netVal.style.color = netScore > 0 ? '#4ade80' : netScore < 0 ? '#f87171' : '#888';
+    }
+    netRow.appendChild(netLabel); netRow.appendChild(netVal);
+    satCard.appendChild(netRow);
+    var countsRow = makeEl('div', '', '');
+    countsRow.style.marginTop = '10px'; countsRow.style.color = '#aaa'; countsRow.style.fontSize = '13px';
+    countsRow.textContent = 'Positive: ' + (sat.positive || 0) + '  \u2502  Neutral: ' + (sat.neutral || 0) + '  \u2502  Negative: ' + (sat.negative || 0);
+    satCard.appendChild(countsRow);
+    if (sat.score_dist && typeof sat.score_dist === 'object') {
+      var distTitle = makeEl('div', '', 'Score distribution:');
+      distTitle.style.marginTop = '12px'; distTitle.style.fontSize = '11px'; distTitle.style.color = '#666'; distTitle.style.textTransform = 'uppercase'; distTitle.style.letterSpacing = '.07em';
+      satCard.appendChild(distTitle);
+      var distWrap = makeEl('div', '');
+      distWrap.style.marginTop = '6px';
+      var distKeys = Object.keys(sat.score_dist).sort();
+      var distMax = Math.max.apply(null, distKeys.map(function(k) { return +sat.score_dist[k] || 0; }).concat([1]));
+      distKeys.forEach(function(k) {
+        var count = +sat.score_dist[k] || 0;
+        var pct = Math.round(count / distMax * 100);
+        var row = makeEl('div', 'hbar-row');
+        row.appendChild(makeEl('div', 'hbar-label', 'Score ' + k));
+        var track = makeEl('div', 'hbar-track');
+        var fill = makeEl('div', 'hbar-fill');
+        fill.style.width = pct + '%';
+        fill.style.background = +k > 0 ? '#4ade80' : +k < 0 ? '#f87171' : '#888';
+        track.appendChild(fill); row.appendChild(track);
+        row.appendChild(makeEl('div', 'hbar-count', String(count)));
+        distWrap.appendChild(row);
+      });
+      satCard.appendChild(distWrap);
+    }
+    satWrap.appendChild(satCard);
+  } else {
+    var satNote = makeEl('div', 'error-bar', 'Requires local server');
+    satNote.style.marginBottom = '0';
+    satWrap.appendChild(satNote);
+  }
+
+  // ── Change 6: Session quality history ────────────────────────────────────
+  var shWrap = document.getElementById('session-history-wrap');
+  while (shWrap.firstChild) shWrap.removeChild(shWrap.firstChild);
+  if (d.session_history && d.session_history.length) {
+    var sh = d.session_history;
+    var shCard = makeEl('div', 'table-wrap');
+    shCard.style.padding = '16px 18px';
+    var shTotalSess = sh.length;
+    var shScores = sh.map(function(s) { return +s.quality_score || 0; });
+    var shAvg = shTotalSess > 0 ? (shScores.reduce(function(a,b){return a+b;},0)/shTotalSess).toFixed(2) : '0';
+    var shMax = shTotalSess > 0 ? Math.max.apply(null, shScores).toFixed(2) : '0';
+    var shTotalTP = sh.reduce(function(a,s){return a+(+s.tp||0);},0);
+    var shTotalFP = sh.reduce(function(a,s){return a+(+s.fp||0);},0);
+    var summaryRow = makeEl('div','');
+    summaryRow.style.fontSize='13px'; summaryRow.style.color='#aaa'; summaryRow.style.marginBottom='10px';
+    summaryRow.textContent = 'Total sessions: ' + shTotalSess + '  \u00B7  Avg quality score: ' + shAvg + '  \u00B7  Max: ' + shMax;
+    shCard.appendChild(summaryRow);
+    var tpfpRow = makeEl('div','');
+    tpfpRow.style.fontSize='13px'; tpfpRow.style.marginBottom='14px';
+    var tpfpText = makeEl('span','','Total TP: ' + shTotalTP + '  /  FP: ' + shTotalFP);
+    tpfpRow.appendChild(tpfpText);
+    if (shTotalTP === 0 && shTotalFP === 0) {
+      var tpfpWarn = makeEl('span','','\u26A0 TP/FP classification appears inactive');
+      tpfpWarn.style.color='#fbbf24'; tpfpWarn.style.marginLeft='10px'; tpfpWarn.style.fontSize='12px';
+      tpfpRow.appendChild(tpfpWarn);
+    }
+    shCard.appendChild(tpfpRow);
+    var shTable = document.createElement('table');
+    var shHead = document.createElement('thead');
+    var shHr = document.createElement('tr');
+    ['Date','Score','TP','FP','TN'].forEach(function(h) { shHr.appendChild(makeEl('th','',h)); });
+    shHead.appendChild(shHr); shTable.appendChild(shHead);
+    var shBody = document.createElement('tbody');
+    sh.slice(-10).reverse().forEach(function(s) {
+      var tr = document.createElement('tr');
+      var dateStr = s.date || s.session_date || '\u2014';
+      tr.appendChild(makeEl('td','ts',dateStr));
+      var scoreTd = makeEl('td','',s.quality_score != null ? String(s.quality_score) : '\u2014');
+      scoreTd.style.fontWeight='700'; tr.appendChild(scoreTd);
+      var tpTd = makeEl('td','',String(s.tp||0)); tpTd.style.color='#4ade80'; tr.appendChild(tpTd);
+      var fpTd = makeEl('td','',String(s.fp||0)); if((+s.fp||0)>0) fpTd.style.color='#f87171'; tr.appendChild(fpTd);
+      tr.appendChild(makeEl('td','',String(s.tn||0)));
+      shBody.appendChild(tr);
+    });
+    shTable.appendChild(shBody);
+    shCard.appendChild(shTable);
+    shWrap.appendChild(shCard);
+  } else {
+    var shNote = makeEl('div', 'error-bar', 'Requires local server');
+    shNote.style.marginBottom = '0';
+    shWrap.appendChild(shNote);
+  }
+
+  // ── Change 7: Overrides panel ─────────────────────────────────────────────
+  var ovWrap = document.getElementById('overrides-wrap');
+  while (ovWrap.firstChild) ovWrap.removeChild(ovWrap.firstChild);
+  if (d.overrides && d.overrides.total > 0) {
+    var ov = d.overrides;
+    var ovCard = makeEl('div', 'table-wrap');
+    ovCard.style.padding = '16px 18px';
+    var ovSummary = makeEl('div','');
+    ovSummary.style.fontSize='13px'; ovSummary.style.color='#aaa'; ovSummary.style.marginBottom='12px';
+    ovSummary.textContent = 'Total: ' + ov.total + '  \u00B7  Likely TP: ' + (ov.likely_tp||0) + '  \u00B7  Likely FP: ' + (ov.likely_fp||0);
+    ovCard.appendChild(ovSummary);
+    if (ov.by_category && typeof ov.by_category === 'object') {
+      var catTitle = makeEl('div','');
+      catTitle.style.fontSize='11px'; catTitle.style.color='#666'; catTitle.style.textTransform='uppercase'; catTitle.style.letterSpacing='.07em'; catTitle.style.marginBottom='8px';
+      catTitle.textContent='By Category';
+      ovCard.appendChild(catTitle);
+      var catWrap = makeEl('div','');
+      catWrap.style.marginBottom='14px';
+      var catMax = Math.max.apply(null, Object.values(ov.by_category).map(function(v){return +v||0;}).concat([1]));
+      Object.keys(ov.by_category).forEach(function(cat) {
+        var count = +ov.by_category[cat] || 0;
+        var pct = Math.round(count / catMax * 100);
+        var row = makeEl('div','hbar-row');
+        row.appendChild(makeEl('div','hbar-label',cat));
+        var track = makeEl('div','hbar-track');
+        var fill = makeEl('div','hbar-fill');
+        fill.style.width=pct+'%'; fill.style.background='#60a5fa';
+        track.appendChild(fill); row.appendChild(track);
+        row.appendChild(makeEl('div','hbar-count',String(count)));
+        catWrap.appendChild(row);
+      });
+      ovCard.appendChild(catWrap);
+    }
+    if (ov.recent && ov.recent.length) {
+      var recTitle = makeEl('div','');
+      recTitle.style.fontSize='11px'; recTitle.style.color='#666'; recTitle.style.textTransform='uppercase'; recTitle.style.letterSpacing='.07em'; recTitle.style.marginBottom='8px';
+      recTitle.textContent='Recent Events';
+      ovCard.appendChild(recTitle);
+      var recTable = document.createElement('table');
+      var recHead = document.createElement('thead');
+      var recHr = document.createElement('tr');
+      ['Timestamp','Category','Auto Verdict','Response Time'].forEach(function(h){recHr.appendChild(makeEl('th','',h));});
+      recHead.appendChild(recHr); recTable.appendChild(recHead);
+      var recBody = document.createElement('tbody');
+      ov.recent.forEach(function(r) {
+        var tr = document.createElement('tr');
+        var tsStr = '\u2014';
+        try { tsStr = new Date(r.ts||r.timestamp).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e){}
+        tr.appendChild(makeEl('td','ts',tsStr));
+        tr.appendChild(makeEl('td','',r.category||'\u2014'));
+        var vTd = document.createElement('td');
+        var vBadge = makeEl('span','badge badge-'+(r.auto_verdict||'SKIP'),r.auto_verdict||'\u2014');
+        vTd.appendChild(vBadge); tr.appendChild(vTd);
+        var gapTd = makeEl('td','',r.gap_sec != null ? r.gap_sec + 's' : '\u2014');
+        gapTd.style.color='#aaa'; tr.appendChild(gapTd);
+        recBody.appendChild(tr);
+      });
+      recTable.appendChild(recBody);
+      ovCard.appendChild(recTable);
+    }
+    ovWrap.appendChild(ovCard);
+  } else {
+    var ovNote = makeEl('div', '', 'No override events recorded');
+    ovNote.style.color='#666'; ovNote.style.fontSize='13px'; ovNote.style.padding='12px 0';
+    ovWrap.appendChild(ovNote);
   }
 }
 
-document.getElementById('refresh-btn').addEventListener('click', load);
+// ── Local server fetch ────────────────────────────────────────────────────────
+async function loadLocal() {
+  var pill = document.getElementById('local-pill');
+  var pillText = document.getElementById('local-pill-text');
+  var offlineNote = document.getElementById('local-offline-note');
+  try {
+    var res = await fetch(LOCAL_URL + '/monitor', { signal: AbortSignal.timeout(2000) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var d = await res.json();
+    pill.className = 'status-pill online'; txt(pillText, 'Local Online');
+    if (offlineNote) offlineNote.style.display = 'none';
+    renderLocalSections(d);
+  } catch(e) {
+    pill.className = 'status-pill offline'; txt(pillText, 'Local Offline');
+    if (offlineNote) offlineNote.style.display = 'block';
+  }
+}
+
+// ── Cloud fetch ───────────────────────────────────────────────────────────────
+async function load() {
+  lastUpdatedText = 'Loading\u2026'; updateHeaderMeta();
+  var errBar = document.getElementById('error-bar');
+  errBar.style.display = 'none';
+  try {
+    var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/get_qg_dashboard', {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_limit: 50 }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + await res.text());
+    var data = await res.json();
+    renderCloud(data);
+    lastUpdatedText = 'Updated ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    txt(errBar, 'Error loading cloud data: ' + e.message);
+    errBar.style.display = 'block';
+    lastUpdatedText = 'Cloud load failed';
+  }
+  updateHeaderMeta();
+  resetCountdown();
+  loadLocal();
+}
+
+document.getElementById('refresh-btn').addEventListener('click', function() { resetCountdown(); load(); });
+
 load();
+updateHeaderMeta();
 setInterval(load, 60000);
+setInterval(loadLocal, 60000);
 </script>
 </body>
 </html>
