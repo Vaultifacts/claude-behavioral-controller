@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quality Gate Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f0f0f; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; }
+  header { background: #1a1a1a; border-bottom: 1px solid #2a2a2a; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; font-weight: 600; color: #fff; }
+  #refresh-btn { margin-left: auto; background: #2a2a2a; border: 1px solid #3a3a3a; color: #ccc; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  #refresh-btn:hover { background: #333; }
+  #last-updated { color: #555; font-size: 12px; }
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 28px; }
+  .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 18px 20px; }
+  .card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #666; margin-bottom: 8px; }
+  .card .value { font-size: 32px; font-weight: 700; line-height: 1; }
+  .card.precision .value { color: #4ade80; }
+  .card.tp .value { color: #4ade80; }
+  .card.fp .value { color: #f87171; }
+  .card.neutral .value { color: #94a3b8; }
+  .card .sub { font-size: 11px; color: #555; margin-top: 6px; }
+  .audit { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 14px 20px; margin-bottom: 28px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .audit .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .audit.ok .dot { background: #4ade80; }
+  .audit.warn .dot { background: #fbbf24; }
+  .section-title { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; }
+  .table-wrap { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #141414; color: #555; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 10px 14px; text-align: left; border-bottom: 1px solid #2a2a2a; white-space: nowrap; }
+  td { padding: 10px 14px; border-bottom: 1px solid #1e1e1e; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #1f1f1f; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+  .badge-TP { background: #14532d; color: #4ade80; }
+  .badge-FP { background: #450a0a; color: #f87171; }
+  .badge-SKIP { background: #1c1917; color: #78716c; }
+  .badge-SPLIT { background: #1e1a07; color: #fbbf24; }
+  .model-dots { display: flex; gap: 4px; align-items: center; }
+  .model-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-TP { background: #4ade80; }
+  .dot-FP { background: #f87171; }
+  .dot-null, .dot-error { background: #3f3f46; }
+  .dot-SKIP { background: #78716c; }
+  .reason-strong { color: #e0e0e0; font-size: 12px; display: block; line-height: 1.4; max-width: 320px; word-break: break-word; }
+  .reason-sub { color: #555; font-size: 11px; display: block; margin-top: 2px; max-width: 320px; word-break: break-word; }
+  .ts { color: #555; font-size: 12px; white-space: nowrap; }
+  .btype { color: #666; font-size: 12px; }
+  .conf { font-size: 12px; color: #666; }
+  .empty-cell { padding: 40px; text-align: center; color: #555; }
+  .error-bar { background: #1a0a0a; border: 1px solid #450a0a; color: #f87171; padding: 14px 20px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#4ade80" stroke-width="1.5"/><path d="M6 10l3 3 5-5" stroke="#4ade80" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <h1>Quality Gate Dashboard</h1>
+  <span id="last-updated"></span>
+  <button id="refresh-btn">Refresh</button>
+</header>
+<main>
+  <div id="error-bar" class="error-bar" style="display:none"></div>
+  <div class="cards">
+    <div class="card precision"><div class="label">Precision</div><div class="value" id="v-precision">—</div><div class="sub">TP / (TP+FP)</div></div>
+    <div class="card tp"><div class="label">True Positives</div><div class="value" id="v-tp">—</div><div class="sub">Block was correct</div></div>
+    <div class="card fp"><div class="label">False Positives</div><div class="value" id="v-fp">—</div><div class="sub">Block was wrong</div></div>
+    <div class="card neutral"><div class="label">Skip / Split</div><div class="value" id="v-skip">—</div><div class="sub">Undecidable</div></div>
+    <div class="card neutral"><div class="label">Evidence Captured</div><div class="value" id="v-evidence">—</div><div class="sub">Total inserts</div></div>
+    <div class="card neutral"><div class="label">Labels Written</div><div class="value" id="v-labeled">—</div><div class="sub">Ensemble verdicts</div></div>
+  </div>
+  <div class="audit" id="audit-bar">
+    <div class="dot"></div>
+    <span id="audit-text"></span>
+  </div>
+  <div class="section-title">Recent Verdicts</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Time</th><th>Block Type</th><th>Reason / Request</th>
+        <th>Verdict</th><th>G · O · X</th><th>Conf</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</main>
+<script>
+const SUPABASE_URL  = 'https://qkuswxdvidajrqqizwdr.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrdXN3eGR2aWRhanJxcWl6d2RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NzM1MzYsImV4cCI6MjA5MTE0OTUzNn0.0EdWwAWrnx9eKJn68wSrUMPPvMHrp4Wofl9SQ2CLCgA';
+
+function txt(el, value) { el.textContent = String(value ?? ''); }
+
+function setCard(id, value) { txt(document.getElementById(id), value); }
+
+function makeEl(tag, cls, content) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (content !== undefined) el.textContent = content;
+  return el;
+}
+
+function renderAudit(s) {
+  const bar = document.getElementById('audit-bar');
+  const span = document.getElementById('audit-text');
+  const ev = +s.evidence_total, lab = +s.labeled_total;
+  if (lab >= ev) {
+    bar.className = 'audit ok';
+    span.textContent = `Tamper audit: ${ev} evidence rows → ${lab} labels (all labeled)`;
+  } else {
+    bar.className = 'audit warn';
+    span.textContent = `Tamper audit: ${ev - lab} evidence rows awaiting verdict (${ev} captured, ${lab} labeled)`;
+  }
+}
+
+function renderRows(rows) {
+  const tbody = document.getElementById('tbody');
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+
+  if (!rows || rows.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.className = 'empty-cell';
+    td.textContent = 'No verdicts yet — waiting for BLOCKs to accumulate.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+
+    // Time
+    const ts = new Date(r.created_at).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    tr.appendChild(makeEl('td', 'ts', ts));
+
+    // Block type
+    tr.appendChild(makeEl('td', 'btype', r.block_type || ''));
+
+    // Reason + request
+    const reasonTd = document.createElement('td');
+    const reason = (r.reason || '').replace(/^(QUALITY GATE: |MECHANICAL: |OVERCONFIDENCE: |ASSUMPTION: |LAZINESS: )/, '');
+    const s1 = makeEl('span', 'reason-strong', reason.length > 90 ? reason.slice(0,90)+'…' : reason);
+    reasonTd.appendChild(s1);
+    if (r.user_request) {
+      const req = r.user_request.length > 70 ? r.user_request.slice(0,70)+'…' : r.user_request;
+      reasonTd.appendChild(makeEl('span', 'reason-sub', req));
+    }
+    tr.appendChild(reasonTd);
+
+    // Verdict badge
+    const verdictTd = document.createElement('td');
+    const badge = makeEl('span', `badge badge-${r.verdict}`, r.verdict);
+    verdictTd.appendChild(badge);
+    tr.appendChild(verdictTd);
+
+    // Model dots
+    const dotsTd = document.createElement('td');
+    const dotsDiv = makeEl('div', 'model-dots');
+    [
+      [r.gemini_verdict, r.gemini_error, 'Gemini'],
+      [r.openai_verdict, null, 'OpenAI'],
+      [r.grok_verdict,   null, 'Grok'],
+    ].forEach(([v, err, label]) => {
+      const cls = err ? 'error' : (v || 'null');
+      const dot = makeEl('div', `model-dot dot-${cls}`);
+      dot.title = `${label}: ${err ? 'Error' : (v || 'No verdict')}`;
+      dotsDiv.appendChild(dot);
+    });
+    dotsTd.appendChild(dotsDiv);
+    tr.appendChild(dotsTd);
+
+    // Confidence
+    const conf = r.confidence != null ? Math.round(r.confidence * 100) + '%' : '—';
+    tr.appendChild(makeEl('td', 'conf', conf));
+
+    tbody.appendChild(tr);
+  });
+}
+
+async function load() {
+  txt(document.getElementById('last-updated'), 'Loading…');
+  const errBar = document.getElementById('error-bar');
+  errBar.style.display = 'none';
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_qg_dashboard`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON,
+        'Authorization': `Bearer ${SUPABASE_ANON}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_limit: 50 }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    const s = data.stats;
+
+    const tp = +s.tp_count, fp = +s.fp_count;
+    const total = tp + fp;
+    setCard('v-precision', total > 0 ? Math.round(tp / total * 100) + '%' : 'N/A');
+    setCard('v-tp', tp);
+    setCard('v-fp', fp);
+    setCard('v-skip', +s.skip_count + +s.split_count);
+    setCard('v-evidence', s.evidence_total);
+    setCard('v-labeled', s.labeled_total);
+    renderAudit(s);
+    renderRows(data.recent);
+    txt(document.getElementById('last-updated'), 'Updated ' + new Date().toLocaleTimeString());
+  } catch(e) {
+    txt(errBar, 'Error loading data: ' + e.message);
+    errBar.style.display = 'block';
+    txt(document.getElementById('last-updated'), 'Failed');
+  }
+}
+
+document.getElementById('refresh-btn').addEventListener('click', load);
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>

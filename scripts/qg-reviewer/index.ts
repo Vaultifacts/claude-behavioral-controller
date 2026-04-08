@@ -43,20 +43,9 @@ interface ModelResult {
 
 // ── model callers ──────────────────────────────────────────────────────────────
 async function callGemini(prompt: string): Promise<ModelResult> {
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
   const body = {
     contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: 'object',
-        properties: {
-          verdict: { type: 'string', enum: ['TP', 'FP', 'SKIP'] },
-          reason:  { type: 'string' },
-        },
-        required: ['verdict', 'reason'],
-      },
-    },
   };
   try {
     const res = await fetch(`${url}?key=${GEMINI_KEY}`, {
@@ -67,7 +56,8 @@ async function callGemini(prompt: string): Promise<ModelResult> {
     if (!res.ok) { const errBody = await res.text(); throw new Error(`Gemini HTTP ${res.status}: ${errBody}`); }
     const data = await res.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    const parsed = JSON.parse(text);
+    const match = text.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(match ? match[0] : text);
     return { verdict: parsed.verdict as Verdict, reason: parsed.reason ?? '' };
   } catch (e) {
     return { verdict: null, reason: '', error: String(e) };

@@ -2,8 +2,11 @@
 name: smart-web-research
 enabled: true
 event: prompt
-pattern: .*
 action: warn
+conditions:
+  - field: user_prompt
+    operator: regex_match
+    pattern: .*
 ---
 
 **Web Research Strategy** — Apply this whenever this task involves fetching web content:

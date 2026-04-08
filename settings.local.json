@@ -49,7 +49,8 @@
       "mcp__claude_ai_Supabase__search_docs",
       "mcp__claude_ai_Supabase__execute_sql",
       "mcp__claude_ai_Supabase__get_logs",
-      "mcp__claude_ai_Supabase__list_edge_functions"
+      "mcp__claude_ai_Supabase__list_edge_functions",
+      "mcp__claude_ai_Supabase__get_edge_function"
     ]
   },
   "remote": {
